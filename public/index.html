@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autorespuestas</title>
+<style>
+:root{
+  --bg:#f6f7f9;--card:#fff;--ink:#111827;--ink2:#374151;--muted:#6b7280;--line:#e5e7eb;--line2:#d1d5db;
+  --accent:#0e7c86;--accent-soft:#e6f4f5;--ok:#15803d;--ok-soft:#dcfce7;--bad:#dc2626;--bad-soft:#fef2f2;
+  --warn-soft:#fffbeb;--warn-line:#fcd34d;--warn-ink:#92400e;--radius:12px;
+  --series-1:#2a78d6;--series-2:#eb6834;--grid:#eceff3;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+.hidden{display:none!important}
+
+/* estructura */
+.topbar{height:52px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.crumbs{display:flex;gap:8px;align-items:center;color:var(--muted);min-width:0;white-space:nowrap;overflow:hidden}
+.crumbs b{color:var(--ink);font-weight:500}
+.brandmark{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink)}
+.brandmark i{width:26px;height:26px;border-radius:7px;background:var(--accent);display:grid;place-items:center;color:#fff;font-style:normal;font-size:13px}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:calc(100vh - 52px)}
+.side{background:var(--card);border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.nav{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:var(--ink2);text-decoration:none;font-weight:500;white-space:nowrap}
+.nav:hover{background:#f3f4f6}
+.nav.on{background:var(--accent-soft);color:var(--accent)}
+.nav svg{width:18px;height:18px;flex:none}
+.nav .dot{margin-left:auto}
+.side-foot{margin-top:auto;padding:10px 12px;color:var(--muted);font-size:12px}
+main{padding:28px 32px 110px;max-width:1280px;width:100%;min-width:0}
+.page-title{display:flex;align-items:center;gap:10px;font-size:26px;font-weight:700;margin:0;letter-spacing:-.01em}
+.page-title svg{width:26px;height:26px}
+.page-sub{color:var(--muted);margin:6px 0 0}
+.divider{border:0;border-top:1px solid var(--line);margin:18px 0}
+@media (max-width:800px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .side{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px}
+  .side-foot{display:none}
+  main{padding:20px 16px 110px}
+  .crumbs .hide-sm{display:none}
+}
+
+/* controles */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px 14px;border-radius:8px;border:1px solid var(--line2);background:var(--card);cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover:not(:disabled){background:#f9fafb}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover:not(:disabled){background:#0b6b74}
+.btn.danger{color:var(--bad)}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn.block{width:100%}
+.btn svg{width:16px;height:16px}
+.icon-btn{border:0;background:none;padding:6px;border-radius:6px;cursor:pointer;color:var(--muted);display:inline-grid;place-items:center}
+.icon-btn:hover{background:#f3f4f6}
+.icon-btn:disabled{opacity:.35;cursor:default}
+.icon-btn.danger{color:var(--bad)}
+.icon-btn svg{width:17px;height:17px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.f{display:block;font-weight:600;margin:16px 0 6px}
+input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--line2);border-radius:8px;background:#fff}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea{min-height:90px;resize:vertical}
+textarea.big{min-height:240px}
+.mono,textarea.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.help{color:var(--muted);font-size:13px;margin-top:6px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row > .grow{flex:1;min-width:200px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.search{position:relative}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+.search input{padding-left:34px}
+.seg{display:inline-flex;background:#eef0f3;border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg a,.seg button{border:0;background:transparent;padding:6px 12px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--ink2);text-decoration:none}
+.seg .on{background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.08);color:var(--ink)}
+.switch{appearance:none;-webkit-appearance:none;width:42px;height:24px;border-radius:99px;background:#d1d5db;position:relative;cursor:pointer;flex:none;border:0;padding:0;margin:0;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch:checked{background:var(--accent)}
+.switch:checked::after{transform:translateX(18px)}
+.switch:disabled{opacity:.5}
+@media (prefers-reduced-motion:reduce){.switch,.switch::after{transition:none}}
+
+/* tarjetas y cajas */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin-top:16px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.card-h > div:first-child{flex:1;min-width:240px}
+.card-h h2{font-size:16px;margin:0}
+.card-h p{margin:2px 0 0;color:var(--muted)}
+.box{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px}
+.box-h{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.box-h strong{display:block}
+.box-h p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.warnbox{background:var(--warn-soft);border:1px solid var(--warn-line);border-radius:10px;padding:12px 16px;margin-top:10px;color:var(--warn-ink)}
+.warnbox strong{display:flex;align-items:center;gap:8px}
+.warnbox .why{color:#b45309;font-size:12.5px;margin-top:2px}
+.warnbox .note{color:#b45309;font-size:12.5px;margin-top:8px}
+.chip{font-family:ui-monospace,Menlo,Consolas,monospace;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;padding:1px 6px;font-size:12px;color:#78350f}
+.alert{background:var(--bad-soft);border:1px solid #fecaca;color:var(--bad);padding:10px 14px;border-radius:10px;margin-top:14px}
+.info{background:var(--accent-soft);border:1px solid #b9e3e7;color:#0b5961;padding:10px 14px;border-radius:10px;margin-top:14px}
+.empty{padding:40px 10px;text-align:center;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#f3f4f6;color:var(--ink2);white-space:nowrap;border:1px solid transparent}
+.pill.ig{background:var(--accent);color:#fff}
+.pill.fb{background:#f3f4f6;border-color:var(--line)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.warn{background:#fff7ed;color:#c2410c}
+.pill.gray{background:#f3f4f6;color:var(--ink2);border-color:var(--line)}
+.pill.ai{background:#ede9fe;color:#5b21b6}
+.pill.rule{background:#e0f2fe;color:#075985}
+.pill.dm{background:#ecfdf5;color:#047857}
+.pill.comment{background:#fefce8;color:#854d0e}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none;display:inline-block}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.top{vertical-align:top}
+tr:last-child td{border-bottom:0}
+
+/* tiendas */
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.filters .search{flex:0 1 300px;min-width:220px}
+.filters select{width:auto}
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-top:18px}
+.store-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:16px;min-width:0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.store-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start}
+.store-name{font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.01em;overflow-wrap:anywhere}
+.store-id{color:var(--muted);font-size:13px;overflow-wrap:anywhere;margin-top:2px}
+.store-accs{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:13px;color:var(--muted)}
+.acc-chip{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;max-width:100%;min-width:0}
+.acc-chip > span:last-child{overflow:hidden;text-overflow:ellipsis}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:600;color:var(--ink2);cursor:pointer}
+.meta-block span{display:block;color:var(--muted);font-weight:500}
+.meta-block strong{display:block;margin-top:2px}
+.store-card .btn.block{margin-top:auto}
+
+/* modal */
+dialog{border:0;padding:0;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.2);width:min(460px,94vw)}
+dialog.wide{width:min(760px,94vw)}
+dialog::backdrop{background:rgba(17,24,39,.45)}
+.modal-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 26px 6px}
+.modal-h h2{margin:0;font-size:19px}
+.modal-h p{margin:2px 0 0;color:var(--muted)}
+.modal-b{padding:6px 26px 20px;max-height:calc(90vh - 150px);overflow-y:auto}
+.modal-b hr{border:0;border-top:1px solid var(--line);margin:22px 0 4px}
+.modal-f{display:flex;justify-content:space-between;gap:10px;padding:14px 26px;border-top:1px solid var(--line);background:#fafafa;border-radius:0 0 14px 14px;flex-wrap:wrap}
+.section-t{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-top:18px}
+
+/* barra de guardado */
+.savebar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:12px;padding:10px 12px 10px 18px;display:flex;gap:12px;align-items:center;z-index:30;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:calc(100vw - 24px);flex-wrap:wrap}
+.savebar .btn{border-color:#4b5563;background:#1f2937;color:#fff}
+.savebar .btn.primary{background:var(--accent);border-color:var(--accent)}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;z-index:40;max-width:min(560px,92vw);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.menu-wrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:6px;min-width:250px;z-index:15}
+.menu button{display:flex;flex-direction:column;align-items:flex-start;width:100%;border:0;background:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600}
+.menu button:hover{background:#f3f4f6}
+.menu button small{color:var(--muted);font-weight:400}
+
+/* catálogo */
+.post-row{display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,1.1fr);gap:14px;padding:14px 0;border-bottom:1px solid var(--line);align-items:start}
+.post-row:last-child{border-bottom:0}
+.thumb{width:64px;height:64px;border-radius:8px;background:#eef0f3 center/cover no-repeat;display:grid;place-items:center;color:var(--muted);font-size:11px;text-align:center}
+.post-cap{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:4px}
+@media (max-width:760px){.post-row{grid-template-columns:64px minmax(0,1fr)}.post-row .post-edit{grid-column:1/-1}}
+
+/* reglas y chat */
+.rule-card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:12px}
+.rule-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sub{border-left:3px solid var(--line);padding-left:12px;margin-top:6px}
+.bytes{font-size:12px;color:var(--muted);text-align:right}
+.bytes.over{color:var(--bad)}
+.sim-result{margin-top:10px;padding:10px 12px;border-radius:8px;background:#f8f9fa;white-space:pre-wrap}
+.chat{background:#f8f9fa;border-radius:10px;padding:12px;min-height:150px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.bubble{max-width:80%;padding:8px 12px;border-radius:14px;white-space:pre-wrap}
+.bubble.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.bubble.assistant{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.bubble.note{align-self:center;background:none;color:var(--muted);font-size:12px;padding:2px}
+.copy{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;max-width:100%;overflow-wrap:anywhere;text-align:left}
+.copy:hover{background:#f9fafb}
+.kv{display:grid;grid-template-columns:minmax(150px,auto) minmax(0,1fr);gap:10px 16px;align-items:center;margin-top:12px}
+@media (max-width:600px){.kv{grid-template-columns:minmax(0,1fr)}}
+
+/* resumen */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi .v{font-size:26px;font-weight:700;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:13px;color:var(--muted)}
+.kpi .s{font-size:12px;color:var(--muted);margin-top:2px}
+.kpi.alert-kpi .v{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.chart-wrap{position:relative}
+.chart-wrap svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-100%);opacity:0;transition:opacity .08s}
+.hbar{display:grid;grid-template-columns:130px 1fr 80px;align-items:center;gap:8px;margin:7px 0}
+.hbar .track{height:10px;background:var(--grid);border-radius:5px;overflow:hidden}
+.hbar .fill{height:100%;background:var(--series-1);border-radius:5px}
+.hbar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.list-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.list-row:last-child{border-bottom:0}
+tr.click{cursor:pointer}
+tr.click:hover td{background:#fafafa}
+
+/* acceso */
+.auth{max-width:380px;margin:12vh auto;padding:0 16px}
+.auth .card{padding:26px}
+</style>
+</head>
+<body>
+
+<section id="auth" class="auth hidden">
+  <div class="brandmark" style="justify-content:center;margin-bottom:6px"><i>A</i> Autorespuestas</div>
+  <div class="card">
+    <form id="loginForm">
+      <h2 style="margin:0 0 4px;font-size:18px">Entrar</h2>
+      <p class="muted" style="margin:0">Instagram y Facebook · mensajes y comentarios</p>
+      <label class="f" for="password">Contraseña</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="btn primary block" type="submit" style="margin-top:16px">Entrar</button>
+      <p id="loginError" class="small" style="color:var(--bad);margin-bottom:0"></p>
+    </form>
+    <form id="setupForm" class="hidden">
+      <h2 style="margin:0 0 4px;font-size:18px">Crea tu contraseña</h2>
+      <p class="muted" style="margin:0">Es la primera vez que entras. Esta contraseña protege tu panel.</p>
+      <div id="codeWrap">
+        <label class="f" for="setupCode">Código de instalación</label>
+        <input id="setupCode" autocomplete="off" placeholder="XXXX-XXXX">
+        <div class="help">Lo mostró el instalador al terminar.</div>
+      </div>
+      <label class="f" for="newPw">Contraseña nueva</label>
+      <input id="newPw" type="password" autocomplete="new-password" minlength="8" required>
+      <label class="f" for="newPw2">Repite la contraseña</label>
+      <input id="newPw2" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="btn primary block" type="submit" style="margin-top:16px">Crear y entrar</button>
+      <p id="setupError" class="small" style="color:var(--bad);margin-bottom:0"></p>
+    </form>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <header class="topbar">
+    <div class="crumbs"><span class="brandmark"><i>A</i><span class="hide-sm">Autorespuestas</span></span><span>›</span><b id="crumb"></b></div>
+    <button id="logoutBtn" class="btn small">Salir</button>
+  </header>
+  <div class="shell">
+    <nav class="side" id="side"></nav>
+    <main id="main"></main>
+  </div>
+</section>
+
+<div id="saveBar" class="savebar hidden" role="status">
+  <span>Tienes cambios sin guardar</span>
+  <button class="btn small" id="discardBtn">Descartar</button>
+  <button class="btn small primary" id="saveBtn">Guardar cambios</button>
+</div>
+
+<dialog id="newStoreDlg">
+  <form id="newStoreForm">
+    <div class="modal-h"><div><h2>Nueva tienda</h2><p>Luego le asignas sus cuentas en Redes sociales.</p></div></div>
+    <div class="modal-b">
+      <label class="f" for="nsName">Nombre de la tienda</label>
+      <input id="nsName" required>
+    </div>
+    <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="nsCancel">Cancelar</button><button type="submit" class="btn primary" id="nsSave">Crear tienda</button></div></div>
+  </form>
+</dialog>
+
+<dialog id="manualDlg">
+  <form id="manualForm">
+    <div class="modal-h"><div><h2 id="mTitle">Conectar cuenta</h2><p>Vincula una cuenta de IG/FB a la tienda de la que el bot tomará productos y precios. Si el ID ya existe, se actualiza la tienda.</p></div>
+      <button type="button" class="icon-btn" id="mClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="modal-b">
+      <label class="f" for="mPlatform">Plataforma</label>
+      <select id="mPlatform"><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select>
+      <label class="f" for="mId">ID de cuenta</label>
+      <input id="mId" inputmode="numeric" autocomplete="off" placeholder="Ej: 17841451984354759">
+      <div class="help">Si lo dejas vacío, se detecta con el token.</div>
+      <label class="f" for="mName">Nombre (opcional)</label>
+      <input id="mName" autocomplete="off" placeholder="Ej: Aura Skin Instagram">
+      <label class="f" for="mToken">Access token (para publicar respuestas)</label>
+      <input id="mToken" type="password" autocomplete="off" placeholder="Vacío = conservar el guardado">
+      <div class="help">Token de la página FB / cuenta IG. Solo se escribe: nunca se vuelve a mostrar.</div>
+      <label class="f" for="mExpires">Vence el (opcional)</label>
+      <input id="mExpires" type="date">
+      <div class="help">Déjalo vacío y se le pregunta a Meta. Los tokens de Instagram vencen a los ~60 días; el sistema los renueva solo antes de que venzan.</div>
+      <label class="f" for="mBrand">Tienda</label>
+      <select id="mBrand"></select>
+    </div>
+    <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="mCancel">Cancelar</button><button type="submit" class="btn primary" id="mSave">Conectar</button></div></div>
+  </form>
+</dialog>
+
+<dialog id="cfgDlg" class="wide"></dialog>
+
+<script>
+(() => {
+/* ================= utilidades ================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const bytes = (s) => new TextEncoder().encode(s || "").length;
+const fmt = (iso) => (iso ? new Date(iso).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" }) : "—");
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+const nf = (n) => Number(n || 0).toLocaleString("es-VE");
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const normalize = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+
+function toast(msg, ms = 3000) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), ms);
+}
+
+async function api(path, { method = "GET", body } = {}) {
+  if (window.demoApi) return window.demoApi(path, { method, body }); // solo en la vista previa
+  const r = await fetch(path, {
+    method, credentials: "same-origin",
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401 && !["/api/login", "/api/setup"].includes(path)) { showAuth(d); throw new Error("Tu sesión expiró"); }
+  if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
+  return d;
+}
+
+async function copyText(text, el) {
+  try { await navigator.clipboard.writeText(text); toast("Copiado"); }
+  catch { if (el) { const r = document.createRange(); r.selectNodeContents(el); getSelection().removeAllRanges(); getSelection().addRange(r); } toast("Seleccionado: cópialo con Ctrl+C"); }
+}
+function bindCopy(root) { root.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = () => copyText(b.dataset.copy, b))); }
+
+const ICON = {
+  store: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v7h14v-7"/></svg>',
+  ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+};
+
+const PLAT = { instagram: "Instagram", facebook: "Facebook" };
+const platPill = (p) => `<span class="pill ${p === "instagram" ? "ig" : "fb"}">${PLAT[p] || esc(p)}</span>`;
+const userLabel = (platform, username, id) => username ? (platform === "facebook" ? esc(username) : "@" + esc(String(username).replace(/^@/, ""))) : `<span class="mono">${esc(id)}</span>`;
+function tokenStatus(a) {
+  if (a.token_error) return { cls: "bad", text: "Error" };
+  if (!a.token_expires_at) return { cls: "gray", text: a.platform === "facebook" ? "OK · no vence" : "OK" };
+  const ms = Date.parse(a.token_expires_at) - Date.now();
+  const d = new Date(a.token_expires_at).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit" });
+  if (ms < 0) return { cls: "bad", text: `Venció ${d}` };
+  if (ms < 7 * 864e5) return { cls: "warn", text: `Vence ${d}` };
+  return { cls: "gray", text: `OK · vence ${d}` };
+}
+
+/* Misma lógica de reglas que el servidor (para el simulador) */
+function findRule(rules, text, channel) {
+  const t = normalize(text);
+  for (const r of rules || []) {
+    if (r.active === false) continue;
+    const ch = r.channel || "dm";
+    if (ch !== "both" && ch !== channel) continue;
+    const kws = (r.keywords || []).map(normalize).filter(Boolean);
+    if (!kws.length) { if (channel === "comment" && ch === "comment") return r; continue; }
+    if (!t) continue;
+    if (kws.some((k) => (r.match === "exact" ? t === k : t.includes(k)))) return r;
+  }
+  return null;
+}
+
+/* ================= estado ================= */
+const S = {
+  brands: [], accounts: [], session: {}, selBrand: null,
+  storeQuery: "", storeFilter: "all", dashDays: 7, dashBrand: "",
+  actBrand: "", actMode: "logs", actChannel: "all", route: "", view: "tiendas",
+};
+const mediaCache = {};
+const testChats = {};
+const brandById = (id) => S.brands.find((b) => b.id === id);
+const brandAccounts = (id) => S.accounts.filter((a) => a.brand_id === id);
+const storeOn = (b) => b.active && brandAccounts(b.id).length > 0;
+const brandOpts = (sel, empty) => (empty ? `<option value="">${empty}</option>` : "") + S.brands.map((b) => `<option value="${esc(b.id)}" ${b.id === sel ? "selected" : ""}>${esc(b.name)}</option>`).join("");
+
+let dirty = false, saveFn = null, discardFn = null;
+function setDirty(v, save, discard) {
+  dirty = v;
+  if (save) saveFn = save;
+  if (discard) discardFn = discard;
+  $("saveBar").classList.toggle("hidden", !v);
+}
+const guard = () => !dirty || confirm("Tienes cambios sin guardar. ¿Descartarlos?");
+$("saveBtn").onclick = async () => { if (saveFn) { $("saveBtn").disabled = true; try { await saveFn(); } finally { $("saveBtn").disabled = false; } } };
+$("discardBtn").onclick = () => { setDirty(false); if (discardFn) discardFn(); else render(); };
+window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+async function loadData() {
+  [S.brands, S.accounts] = await Promise.all([api("/api/brands"), api("/api/accounts")]);
+  if (!S.selBrand || !brandById(S.selBrand)) S.selBrand = S.brands[0]?.id || null;
+  if (S.actBrand && !brandById(S.actBrand)) S.actBrand = "";
+  if (S.dashBrand && !brandById(S.dashBrand)) S.dashBrand = "";
+}
+
+/* ================= acceso ================= */
+function showAuth(d = {}) {
+  $("app").classList.add("hidden"); $("auth").classList.remove("hidden");
+  const setup = !!d.setup_required;
+  $("loginForm").classList.toggle("hidden", setup);
+  $("setupForm").classList.toggle("hidden", !setup);
+  $("codeWrap").classList.toggle("hidden", !d.needs_code);
+  (setup ? $("newPw") : $("password")).focus();
+}
+async function boot() {
+  let s;
+  try {
+    s = window.demoApi ? await api("/api/session")
+      : await fetch("/api/session", { credentials: "same-origin" }).then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw d; return d; });
+  } catch (d) { showAuth(d || {}); return; }
+  S.session = s;
+  $("auth").classList.add("hidden"); $("app").classList.remove("hidden");
+  S.route = readHash() || "tiendas";
+  let q; try { q = new URLSearchParams(location.search); } catch { q = new URLSearchParams(); }
+  if (q.has("conectado") || q.has("error")) {
+    if (q.get("error")) toast(q.get("error"), 9000);
+    else toast(`Conectado: ${q.get("conectado")}. Asígnale su tienda en la columna «Tienda».` + (q.get("aviso") ? " " + q.get("aviso") : ""), 9000);
+    S.route = "redes/cuentas";
+    try { history.replaceState(null, "", location.pathname + "#redes/cuentas"); } catch {}
+  }
+  await loadData();
+  render();
+}
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("loginError").textContent = "";
+  try { await api("/api/login", { method: "POST", body: { password: $("password").value } }); $("password").value = ""; boot(); }
+  catch (err) { $("loginError").textContent = err.message; }
+});
+$("setupForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("setupError").textContent = "";
+  if ($("newPw").value !== $("newPw2").value) return ($("setupError").textContent = "Las contraseñas no coinciden");
+  try { await api("/api/setup", { method: "POST", body: { password: $("newPw").value, code: $("setupCode").value } }); boot(); }
+  catch (err) { $("setupError").textContent = err.message; }
+});
+$("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
+
+/* ================= navegación ================= */
+const VIEWS = { tiendas: "Tiendas", redes: "Redes sociales", resumen: "Resumen", configuracion: "Configuración" };
+const TABS = { cuentas: "Cuentas conectadas", catalogo: "Posts de catálogo", prompts: "Prompts", reglas: "Reglas", actividad: "Actividad" };
+function parseRoute(route) {
+  const h = String(route || "").replace(/^#/, "");
+  if (h === "cuentas") return ["redes", "cuentas"];
+  const [v, t] = h.split("/");
+  return [VIEWS[v] ? v : "tiendas", TABS[t] ? t : "cuentas"];
+}
+function readHash() { try { return location.hash.replace(/^#/, ""); } catch { return ""; } }
+// Navegación por clic: funciona aunque el panel se abra dentro de un visor que bloquea los enlaces
+function go(route) {
+  if (route === S.route) return;
+  if (dirty && !confirm("Tienes cambios sin guardar. ¿Descartarlos?")) return;
+  setDirty(false);
+  S.route = route;
+  try { history.replaceState(null, "", "#" + route); } catch {}
+  render();
+  try { window.scrollTo(0, 0); } catch {}
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest('a[href^="#"]');
+  if (!a) return;
+  const route = a.getAttribute("href").slice(1);
+  e.preventDefault();
+  if (route) go(route);
+});
+window.addEventListener("hashchange", () => {
+  const h = readHash();
+  if (h && h !== S.route) { if (dirty && !confirm("Tienes cambios sin guardar. ¿Descartarlos?")) return; setDirty(false); S.route = h; render(); }
+});
+
+function renderNav() {
+  const accIssues = S.accounts.filter((a) => tokenStatus(a).cls === "bad" || !a.brand_id).length;
+  const cfgIssue = !S.session.ai_ready || (!S.session.ig_login && !S.session.fb_login);
+  const item = (v, icon, label, flag) => `<a class="nav ${v === S.view ? "on" : ""}" href="#${v}">${ICON[icon]}<span>${label}</span>${flag ? '<span class="dot" title="Hay algo por revisar"></span>' : ""}</a>`;
+  $("side").innerHTML = item("tiendas", "store", "Tiendas") + item("redes", "ig", "Redes sociales", accIssues) + item("resumen", "chart", "Resumen") + item("configuracion", "gear", "Configuración", cfgIssue)
+    + `<div class="side-foot">${S.brands.length} tienda${S.brands.length === 1 ? "" : "s"} · ${S.accounts.length} cuenta${S.accounts.length === 1 ? "" : "s"}</div>`;
+}
+
+function render() {
+  const [view, tab] = parseRoute(S.route);
+  S.view = view;
+  renderNav();
+  $("crumb").textContent = view === "redes" ? `Redes sociales › ${TABS[tab]}` : VIEWS[view];
+  if (view === "tiendas") renderStores();
+  else if (view === "redes") renderSocial(tab);
+  else if (view === "resumen") renderResumen();
+  else renderConfig();
+}
+
+/* ================= TIENDAS ================= */
+function renderStores() {
+  const q = normalize(S.storeQuery);
+  const list = S.brands.filter((b) => {
+    if (S.storeFilter === "on" && !storeOn(b)) return false;
+    if (S.storeFilter === "off" && storeOn(b)) return false;
+    if (!q) return true;
+    return normalize([b.name, b.id, ...brandAccounts(b.id).map((a) => a.name + " " + a.id)].join(" ")).includes(q);
+  });
+  const sw = (id, field, on, label) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" role="switch" class="switch" data-store="${esc(id)}" data-f="${field}" ${on ? "checked" : ""}></label>`;
+  $("main").innerHTML = `
+    <div class="card-h"><div><h1 class="page-title">Tiendas</h1>
+      <p class="page-sub">Cada tienda con su bot, sus cuentas de Instagram y Facebook y su configuración de IA.</p></div>
+      <button class="btn primary" id="newStore">${ICON.plus} Nueva tienda</button></div>
+    <hr class="divider">
+    <div class="filters">
+      <div class="search">${ICON.search}<input id="storeSearch" type="search" placeholder="Buscar por nombre, cuenta o ID" value="${esc(S.storeQuery)}"></div>
+      <select id="storeFilter">
+        <option value="all" ${S.storeFilter === "all" ? "selected" : ""}>Bot activo e inactivo</option>
+        <option value="on" ${S.storeFilter === "on" ? "selected" : ""}>Solo bot activo</option>
+        <option value="off" ${S.storeFilter === "off" ? "selected" : ""}>Solo bot inactivo</option>
+      </select>
+    </div>
+    ${!S.session.ai_ready ? `<div class="info">Para que el bot responda con IA, pega tu clave de DeepSeek en <a href="#configuracion">Configuración</a>.</div>` : ""}
+    ${!S.brands.length ? `<div class="empty">Todavía no hay tiendas. Crea la primera con <strong>Nueva tienda</strong>.</div>`
+      : !list.length ? `<div class="empty">Ninguna tienda coincide con la búsqueda.</div>`
+      : `<div class="store-grid">${list.map((b) => {
+          const accs = brandAccounts(b.id);
+          const bad = accs.find((a) => tokenStatus(a).cls === "bad");
+          return `<article class="store-card">
+            <div class="store-head">
+              <div style="min-width:0"><div class="store-name">${esc(b.name)}</div><div class="store-id">propia:${esc(b.id)}</div></div>
+              <span class="pill ${storeOn(b) ? "ok" : "gray"}">${storeOn(b) ? "Bot activo" : "Bot inactivo"}</span>
+            </div>
+            <div class="store-accs">${accs.length ? accs.map((a) => `<span class="acc-chip">${platPill(a.platform)}<span>${esc(a.name)}</span></span>`).join("") : `<span>Sin cuentas · <a href="#redes/cuentas">asignar</a></span>`}</div>
+            ${bad ? `<div class="alert" style="margin:0;padding:6px 10px;font-size:13px">Token con problema: ${esc(bad.name)}</div>` : ""}
+            ${sw(b.id, "active", b.active, "Bot AI Redes (IG/FB)")}
+            ${sw(b.id, "test_mode", b.test_mode, "Modo Prueba (Solo Usuarios Permitidos)")}
+            <div class="meta-block"><span>Proveedor de IA (texto)</span><strong>DeepSeek</strong></div>
+            <div class="meta-block"><span>Modelo</span><strong>${esc(b.ai_model)}</strong></div>
+            <button class="btn block" data-config="${esc(b.id)}">${ICON.gear} Configurar</button>
+          </article>`; }).join("")}</div>`}`;
+
+  $("newStore").onclick = () => { $("newStoreForm").reset(); $("newStoreDlg").showModal(); };
+  $("storeSearch").oninput = (e) => {
+    S.storeQuery = e.target.value; const pos = e.target.selectionStart; renderStores();
+    const s = $("storeSearch"); s.focus(); s.setSelectionRange(pos, pos);
+  };
+  $("storeFilter").onchange = (e) => { S.storeFilter = e.target.value; renderStores(); };
+  $("main").querySelectorAll("[data-config]").forEach((b) => (b.onclick = () => openConfigure(b.dataset.config)));
+  $("main").querySelectorAll(".switch").forEach((s) => (s.onchange = async () => {
+    const b = brandById(s.dataset.store), f = s.dataset.f;
+    s.disabled = true;
+    try {
+      await api(`/api/brands/${b.id}`, { method: "PUT", body: { [f]: s.checked } });
+      b[f] = s.checked;
+      const label = s.closest(".toggle-row").querySelector("span").textContent;
+      toast(`${b.name}: ${label} ${s.checked ? "activado" : "desactivado"}`);
+      if (f === "test_mode" && s.checked && !String(b.test_users || "").trim()) toast("Agrega los usuarios permitidos en Configurar", 5000);
+      if (f === "active" && s.checked && !brandAccounts(b.id).length) toast("Esta tienda no tiene cuentas: asígnalas en Redes sociales", 5000);
+      renderNav(); renderStores();
+    } catch (e) { s.checked = !s.checked; s.disabled = false; toast(e.message, 6000); }
+  }));
+}
+
+$("nsCancel").onclick = () => $("newStoreDlg").close();
+$("newStoreForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("nsSave"); btn.disabled = true;
+  try {
+    const r = await api("/api/brands", { method: "POST", body: { name: $("nsName").value.trim() } });
+    $("newStoreDlg").close();
+    await loadData(); S.selBrand = r.brand.id; render();
+    toast("Tienda creada. Ahora asígnale sus cuentas en Redes sociales.", 5000);
+  } catch (err) { toast(err.message, 6000); }
+  finally { btn.disabled = false; }
+});
+
+/* ---------- Configurar (ventana de cada tienda) ---------- */
+const KB_TEMPLATE = `HORARIOS
+- Lunes a viernes:
+- Sábados:
+
+UBICACIÓN / TIENDAS FÍSICAS
+-
+
+PRODUCTOS Y PRECIOS
+- Producto: precio — para qué sirve
+
+PROMOCIONES VIGENTES
+- (si no hay, escribe "ninguna")
+
+ENVÍOS
+- Zonas:
+- Tiempo de entrega:
+- Costo:
+
+PAGOS
+- Métodos: (ej. pago contraentrega, transferencia)
+
+CAMBIOS Y GARANTÍA
+-
+
+CONTACTO
+- WhatsApp / teléfono: `;
+
+const GENERAL_TEMPLATE = `TONO
+- Cercano, tuteando, con emojis moderados.
+
+PASOS AL ATENDER
+1. Saluda y resuelve la duda con los datos de la base de conocimiento.
+2. Si quiere comprar, pide en un solo mensaje: nombre completo, teléfono, ciudad, dirección y producto con cantidad.
+3. Confirma los datos y dile que un asesor lo contacta para despachar.
+
+NUNCA
+- Inventar precios, promociones ni tiempos de entrega.
+- Prometer descuentos que no estén en la base de conocimiento.`;
+
+function openConfigure(id) {
+  const b = brandById(id); if (!b) return;
+  const d = { name: b.name, ai_prompt_general: b.ai_prompt_general, knowledge: b.knowledge, ai_model: b.ai_model, ai_handoff: b.ai_handoff,
+    default_reply: b.default_reply, cooldown_hours: b.cooldown_hours, test_mode: b.test_mode, test_users: b.test_users, ai_api_key: "" };
+  let changed = false, clearKey = false;
+  const dlg = $("cfgDlg");
+  const keyReady = !!b.ai_key_tail || S.session.ai_ready;
+  dlg.innerHTML = `
+    <div class="modal-h"><div><h2>Configurar Bot - ${esc(b.name.toUpperCase())}</h2><p>Personaliza el comportamiento del bot y la configuración de IA</p></div>
+      <button class="icon-btn" id="cfgClose" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <label class="f" for="cName">Nombre de la tienda</label>
+      <input id="cName" value="${esc(d.name)}">
+
+      <label class="f" for="cGeneral">Prompt Personalizado</label>
+      <textarea id="cGeneral" placeholder="Escribe el prompt que el bot usará para responder...">${esc(d.ai_prompt_general)}</textarea>
+      <div class="row" style="justify-content:space-between;margin-top:6px;align-items:flex-start"><div class="help" style="margin:0;flex:1;min-width:220px">Este prompt define CÓMO responde el bot: su tono, su forma de escribir y qué pasos sigue. Los DATOS —horarios, precios, políticas de envío y garantía— van en la base de conocimiento, que el bot consulta antes de responder: así se cambian en un solo sitio y valen igual para los comentarios y los DM de Instagram y Facebook.</div>
+      <button class="btn small" type="button" id="cGeneralTpl">Usar plantilla</button></div>
+
+      <label class="f" for="cKb">Base de conocimiento</label>
+      <textarea id="cKb" class="mono big" placeholder="Horarios, precios, direcciones, envíos, pagos, garantía…">${esc(d.knowledge)}</textarea>
+      <div class="row" style="justify-content:space-between;margin-top:6px"><div class="help" style="margin:0">Los datos de la tienda. El bot los usa en comentarios y mensajes privados, y no inventa lo que no esté aquí.</div>
+      <button class="btn small" type="button" id="cKbTpl">Usar plantilla</button></div>
+
+      <label class="f" for="cProvider">Proveedor del agente de texto</label>
+      <select id="cProvider"><option>DeepSeek</option></select>
+      <div class="help">El que <strong>conversa y responde</strong>. No puedes elegir un proveedor sin API key.</div>
+
+      <hr>
+      <div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}">${keyReady ? "activo (texto)" : "sin clave"}</span></div>
+      <label class="f" for="cModel">Modelo</label>
+      <select id="cModel">
+        <option value="deepseek-flash" ${d.ai_model !== "deepseek-v4-pro" ? "selected" : ""}>deepseek-flash · rápido y económico</option>
+        <option value="deepseek-v4-pro" ${d.ai_model === "deepseek-v4-pro" ? "selected" : ""}>deepseek-v4-pro · más preciso, unas 4 veces más caro</option>
+      </select>
+      <label class="f" for="cKey">API Key</label>
+      <div class="row">
+        <input id="cKey" class="grow" type="password" autocomplete="off" placeholder="${b.ai_key_tail ? `Propia de esta tienda · termina en …${esc(b.ai_key_tail)}` : "Vacío = usa la clave general de Configuración"}">
+        ${b.ai_key_tail ? `<button class="btn small danger" type="button" id="cKeyDel">Quitar</button>` : ""}
+        <button class="btn small" type="button" id="cKeyTest">Probar</button>
+      </div>
+      <div class="help" id="cKeyOut">Opcional: úsala si el gasto de esta tienda debe salir de otra cuenta de DeepSeek.</div>
+
+      <hr>
+      <div class="section-t">Respuestas</div>
+      <label class="f" for="cHandoff">Mensaje al pasar a una persona</label>
+      <textarea id="cHandoff" style="min-height:60px" placeholder="¡Gracias por escribirnos! 🙌 Te voy a pasar con una persona del equipo, en breve te responde.">${esc(d.ai_handoff)}</textarea>
+      <div class="help">Se envía cuando el cliente pide una persona o la IA no puede resolver. El contacto queda en pausa hasta que lo reanudes.</div>
+      <label class="f" for="cDefault">Respuesta por defecto (si no hay IA)</label>
+      <textarea id="cDefault" style="min-height:60px" placeholder="¡Hola! En breve te respondemos 🙌">${esc(d.default_reply)}</textarea>
+      <div class="row" style="margin-top:8px"><span class="help" style="margin:0">No repetirla al mismo contacto antes de</span><input id="cCool" type="number" min="0" max="720" value="${esc(d.cooldown_hours)}" style="width:80px"><span class="help" style="margin:0">horas</span></div>
+
+      <hr>
+      <div class="box-h" style="margin-top:14px"><div><strong>Modo Prueba (Solo Usuarios Permitidos)</strong><p>El bot solo responde a estas personas. Úsalo para probar sin que respondan a tus clientes.</p></div>
+        <input type="checkbox" role="switch" class="switch" id="cTest" ${d.test_mode ? "checked" : ""}></div>
+      <label class="f" for="cTestUsers">Usuarios permitidos</label>
+      <textarea id="cTestUsers" style="min-height:60px" placeholder="@tu_usuario&#10;Nombre en Facebook">${esc(d.test_users)}</textarea>
+      <div class="help">Uno por línea: @usuario de Instagram, nombre de Facebook o ID.</div>
+    </div>
+    <div class="modal-f">
+      <button class="btn danger" type="button" id="cDelete">${ICON.trash} Eliminar tienda</button>
+      <div class="row"><button class="btn" type="button" id="cCancel">Cancelar</button><button class="btn primary" type="button" id="cSave">Guardar</button></div>
+    </div>`;
+  const mark = () => { changed = true; };
+  const bindField = (elId, key) => ($(elId).oninput = (e) => { d[key] = e.target.value; mark(); });
+  bindField("cName", "name"); bindField("cGeneral", "ai_prompt_general"); bindField("cKb", "knowledge"); bindField("cHandoff", "ai_handoff");
+  bindField("cDefault", "default_reply"); bindField("cCool", "cooldown_hours"); bindField("cTestUsers", "test_users");
+  $("cModel").onchange = (e) => { d.ai_model = e.target.value; mark(); };
+  $("cTest").onchange = (e) => { d.test_mode = e.target.checked; mark(); };
+  $("cKey").oninput = (e) => { d.ai_api_key = e.target.value; clearKey = false; mark(); };
+  if ($("cKeyDel")) $("cKeyDel").onclick = () => { clearKey = true; d.ai_api_key = ""; $("cKey").value = ""; $("cKeyOut").textContent = "Se quitará al guardar: la tienda usará la clave general."; mark(); };
+  $("cKeyTest").onclick = async () => {
+    try { const r = await api("/api/config/deepseek/test", { method: "POST", body: { key: d.ai_api_key.trim(), brand_id: b.id } });
+      $("cKeyOut").innerHTML = `<span style="color:var(--ok)">La clave funciona.${r.balance ? " Saldo: " + esc(r.balance) + "." : ""}${r.available === false ? " Sin saldo suficiente." : ""}</span>`; }
+    catch (e) { $("cKeyOut").innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
+  };
+  const tpl = (btnId, taId, key, text) => ($(btnId).onclick = () => {
+    const ta = $(taId);
+    if (ta.value.trim() && !confirm("¿Reemplazar el texto actual por la plantilla?")) return;
+    ta.value = text; d[key] = text; mark();
+  });
+  tpl("cGeneralTpl", "cGeneral", "ai_prompt_general", GENERAL_TEMPLATE); tpl("cKbTpl", "cKb", "knowledge", KB_TEMPLATE);
+  const close = () => { if (changed && !confirm("Tienes cambios sin guardar. ¿Descartarlos?")) return; dlg.close(); };
+  $("cfgClose").onclick = close; $("cCancel").onclick = close;
+  dlg.oncancel = (e) => { e.preventDefault(); close(); };
+  $("cSave").onclick = async () => {
+    const body = { name: d.name, ai_prompt_general: d.ai_prompt_general, knowledge: d.knowledge, ai_model: d.ai_model, ai_handoff: d.ai_handoff,
+      default_reply: d.default_reply, cooldown_hours: d.cooldown_hours, test_mode: d.test_mode, test_users: d.test_users };
+    if (clearKey) body.ai_api_key = "";
+    else if (d.ai_api_key.trim()) body.ai_api_key = d.ai_api_key.trim();
+    if (bytes(d.default_reply) > 1000 || bytes(d.ai_handoff) > 1000) return toast("Los mensajes no pueden pasar de 1000 bytes", 5000);
+    const btn = $("cSave"); btn.disabled = true; btn.textContent = "Guardando…";
+    try { await api(`/api/brands/${b.id}`, { method: "PUT", body }); changed = false; dlg.close(); await loadData(); render(); toast("Configuración guardada"); }
+    catch (e) { toast(e.message, 6000); btn.disabled = false; btn.textContent = "Guardar"; }
+  };
+  $("cDelete").onclick = async () => {
+    if (!confirm(`¿Eliminar "${b.name}"? Se borran sus prompts, reglas, catálogo y actividad. Sus cuentas quedan sin asignar.`)) return;
+    try { await api(`/api/brands/${b.id}`, { method: "DELETE" }); changed = false; dlg.close(); await loadData(); render(); toast("Tienda eliminada"); }
+    catch (e) { toast(e.message); }
+  };
+  dlg.showModal();
+}
+
+/* ================= REDES SOCIALES ================= */
+function storeSelect(id, sel, label = "Tienda") {
+  return `<label class="f" for="${id}" style="margin-top:14px">${label}</label><select id="${id}" style="max-width:320px">${brandOpts(sel)}</select>`;
+}
+
+function renderSocial(tab) {
+  $("main").innerHTML = `
+    <h1 class="page-title">${ICON.ig} Redes sociales</h1>
+    <p class="page-sub">Conecta las cuentas de IG/FB de cada tienda a la tienda de la que el bot saca productos y precios para responder comentarios y DMs.</p>
+    <hr class="divider">
+    <nav class="seg">${Object.entries(TABS).map(([k, l]) => `<a href="#redes/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav>
+    <div id="tabBody"></div>`;
+  ({ cuentas: tabAccounts, catalogo: tabCatalog, prompts: tabPrompts, reglas: tabRules, actividad: tabActivity })[tab]();
+}
+
+/* ---------- Cuentas conectadas ---------- */
+function tabAccounts() {
+  $("tabBody").innerHTML = `
+    <div class="card">
+      <div class="card-h">
+        <div><h2>Cuentas conectadas</h2><p>Cada cuenta de Instagram/Facebook se vincula a la tienda de la que el bot saca los datos (prompt, base de conocimiento, modelo). El ID es el de la cuenta IG business o la página de FB que recibe el webhook.</p></div>
+        <div class="row">
+          <div class="menu-wrap"><button class="btn primary" id="metaBtn" aria-haspopup="true">${ICON.plus} Conectar con Meta</button>
+            <div class="menu hidden" id="metaMenu" role="menu">
+              <button data-p="instagram" role="menuitem"><span>Instagram</span><small>${S.session.ig_login ? "Inicias sesión con la cuenta" : "Falta configurar la app en Configuración"}</small></button>
+              <button data-p="facebook" role="menuitem"><span>Facebook (páginas)</span><small>${S.session.fb_login ? "Eliges las páginas al iniciar sesión" : "Falta configurar la app en Configuración"}</small></button>
+            </div></div>
+          <button class="btn" id="manualBtn">Manual</button>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:14px">
+      ${S.accounts.length ? `<table><thead><tr><th>Plataforma</th><th>Nombre</th><th>ID de cuenta</th><th>Tienda (fuente de datos)</th><th>Token</th><th></th></tr></thead><tbody>
+        ${S.accounts.map((a) => { const t = tokenStatus(a); return `<tr>
+          <td>${platPill(a.platform)}</td>
+          <td>${esc(a.name)}</td>
+          <td><button class="copy" data-copy="${esc(a.id)}" title="Copiar ID">${esc(a.id)}</button></td>
+          <td style="min-width:190px"><select data-assign="${esc(a.id)}">${brandOpts(a.brand_id, "— Sin asignar (no responde) —")}</select></td>
+          <td><span class="pill ${t.cls}" title="${esc(a.token_error || "")}">${t.text}</span></td>
+          <td style="white-space:nowrap;text-align:right">
+            <button class="icon-btn" data-edit="${esc(a.id)}" title="Editar cuenta o cambiar token"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+            <button class="icon-btn" data-resub="${esc(a.id)}" title="Reconectar avisos de mensajes y comentarios">${ICON.refresh}</button>
+            <button class="icon-btn danger" data-del="${esc(a.id)}" title="Quitar cuenta">${ICON.trash}</button></td></tr>`; }).join("")}
+      </tbody></table>` : `<div class="empty" style="padding:28px">Todavía no hay cuentas. Pulsa <strong>Conectar con Meta</strong>.</div>`}
+      </div>
+    </div>`;
+  bindCopy($("tabBody"));
+  const menu = $("metaMenu");
+  $("metaBtn").onclick = (e) => {
+    e.stopPropagation(); menu.classList.toggle("hidden");
+    if (!menu.classList.contains("hidden")) document.addEventListener("click", () => menu.classList.add("hidden"), { once: true });
+  };
+  menu.querySelectorAll("button").forEach((b) => (b.onclick = async () => {
+    const pl = b.dataset.p;
+    if (pl === "instagram" ? !S.session.ig_login : !S.session.fb_login) { toast("Primero pega los datos de tu app de Meta en Configuración", 5000); go("configuracion"); return; }
+    try { const r = await api(`/api/oauth/start?platform=${pl}`); location.href = r.url; } catch (e) { toast(e.message, 6000); }
+  }));
+  $("manualBtn").onclick = () => openManual(null);
+  $("tabBody").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => openManual(S.accounts.find((x) => x.id === b.dataset.edit))));
+  $("tabBody").querySelectorAll("[data-assign]").forEach((s) => (s.onchange = async () => {
+    try { await api(`/api/accounts/${s.dataset.assign}`, { method: "PATCH", body: { brand_id: s.value || null } }); await loadData(); renderNav(); toast(s.value ? "Cuenta asignada" : "Cuenta sin asignar: no responderá"); }
+    catch (e) { toast(e.message); }
+  }));
+  $("tabBody").querySelectorAll("[data-resub]").forEach((b) => (b.onclick = async () => {
+    try { await api(`/api/accounts/${b.dataset.resub}/subscribe`, { method: "POST" }); toast("Avisos reconectados"); } catch (e) { toast(e.message, 6000); }
+  }));
+  $("tabBody").querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
+    const a = S.accounts.find((x) => x.id === b.dataset.del);
+    if (!confirm(`¿Quitar ${a.name}? El bot deja de responder en esa cuenta y se borran sus contactos.`)) return;
+    try { await api(`/api/accounts/${a.id}`, { method: "DELETE" }); await loadData(); render(); toast("Cuenta quitada"); } catch (e) { toast(e.message); }
+  }));
+}
+$("mCancel").onclick = () => $("manualDlg").close();
+$("mClose").onclick = () => $("manualDlg").close();
+function openManual(acc) {
+  $("manualForm").reset();
+  $("mTitle").textContent = acc ? `Editar ${acc.name}` : "Conectar cuenta";
+  $("mPlatform").value = acc ? acc.platform : "instagram";
+  $("mPlatform").disabled = !!acc; $("mId").readOnly = !!acc;
+  $("mId").value = acc ? acc.id : "";
+  $("mName").value = acc ? acc.name || "" : "";
+  $("mToken").placeholder = acc ? "Vacío = conservar el guardado" : "Pega el token de la cuenta o página";
+  $("mExpires").value = acc && acc.token_expires_at ? acc.token_expires_at.slice(0, 10) : "";
+  $("mBrand").innerHTML = `<option value="">Selecciona la tienda</option>` + brandOpts(acc ? acc.brand_id : S.selBrand);
+  $("mSave").textContent = acc ? "Guardar" : "Conectar";
+  $("manualDlg").showModal();
+}
+$("manualForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("mSave"), label = btn.textContent; btn.disabled = true; btn.textContent = "Comprobando…";
+  try {
+    const r = await api("/api/accounts", { method: "POST", body: {
+      platform: $("mPlatform").value, id: $("mId").value.trim(), name: $("mName").value.trim(), token: $("mToken").value.trim(),
+      expires_at: $("mExpires").value || null, brand_id: $("mBrand").value || null } });
+    $("manualDlg").close(); await loadData(); render();
+    toast(r.warning || `${r.account.name} ${r.updated ? "actualizada" : "conectada"}`, r.warning ? 7000 : 3000);
+  } catch (err) { toast(err.message, 7000); }
+  finally { btn.disabled = false; btn.textContent = label; }
+});
+
+/* ---------- Posts de catálogo ---------- */
+async function getMedia(id, force) {
+  if (!force && mediaCache[id]) return mediaCache[id];
+  try { mediaCache[id] = { list: await api(`/api/brands/${id}/media`) }; }
+  catch (e) { mediaCache[id] = { list: [], error: e.message }; }
+  return mediaCache[id];
+}
+const mediaLabel = (m) => `${m.platform === "facebook" ? "FB" : m.platform === "instagram" ? "IG" : ""}${m.timestamp ? " · " + new Date(m.timestamp).toLocaleDateString("es-VE") : ""} · ${m.type || "Post"} · ${(m.caption || "(sin texto)").slice(0, 60)}`;
+
+async function tabCatalog() {
+  if (!S.brands.length) return ($("tabBody").innerHTML = `<div class="card empty">Primero crea una tienda en Tiendas.</div>`);
+  $("tabBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div><h2>Posts de catálogo</h2><p>Liga cada publicación a su producto. Cuando alguien comenta ahí, el bot ya sabe de qué producto le hablan y usa su precio real.</p></div>
+        <button class="btn small" id="catReload">${ICON.refresh} Actualizar</button></div>
+      ${storeSelect("catStore", S.selBrand)}
+      <div id="catList"><div class="empty">Cargando publicaciones…</div></div>
+    </div>`;
+  $("catStore").onchange = (e) => { S.selBrand = e.target.value; tabCatalog(); };
+  $("catReload").onclick = async () => { await getMedia(S.selBrand, true); tabCatalog(); };
+  const id = S.selBrand;
+  if (!brandAccounts(id).length) return ($("catList").innerHTML = `<div class="empty">Esta tienda no tiene cuentas asignadas. Asígnalas en <a href="#redes/cuentas">Cuentas conectadas</a>.</div>`);
+  const { list, error } = await getMedia(id);
+  if (S.selBrand !== id || !$("catList")) return;
+  if (error && !list.length) return ($("catList").innerHTML = `<div class="alert">${esc(error)}</div>`);
+  if (!list.length) return ($("catList").innerHTML = `<div class="empty">No hay publicaciones.</div>`);
+  $("catList").innerHTML = `<div style="margin-top:8px">${list.map((m, i) => `
+    <div class="post-row">
+      <div class="thumb" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ""}>${m.thumb ? "" : "Sin imagen"}</div>
+      <div style="min-width:0">
+        <div class="row" style="gap:6px">${m.platform ? platPill(m.platform) : ""}<span class="muted small">${m.timestamp ? new Date(m.timestamp).toLocaleDateString("es-VE") + " · " : ""}${esc(m.type || "")}</span></div>
+        <div class="post-cap">${esc(m.caption || "(sin texto)")}</div>
+        <div class="row small" style="gap:8px;margin-top:4px"><button class="copy" data-copy="${esc(m.id)}" title="Copiar ID">${esc(m.id)}</button>${m.permalink ? `<a href="${esc(m.permalink)}" target="_blank" rel="noopener">Ver ↗</a>` : ""}</div>
+      </div>
+      <div class="post-edit">
+        <textarea data-i="${i}" style="min-height:64px" placeholder="Producto, precio y datos de esta publicación (ej. Sérum Vitamina C 30 ml — $89.900)">${esc(m.product)}</textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:6px"><span class="muted small" data-st="${i}">${m.product ? "Ligado a un producto" : ""}</span><button class="btn small" data-save="${i}" disabled>Guardar</button></div>
+      </div>
+    </div>`).join("")}</div>`;
+  bindCopy($("catList"));
+  $("catList").querySelectorAll("textarea[data-i]").forEach((ta) => (ta.oninput = () => { $("catList").querySelector(`[data-save="${ta.dataset.i}"]`).disabled = ta.value === (list[ta.dataset.i].product || ""); }));
+  $("catList").querySelectorAll("[data-save]").forEach((b) => (b.onclick = async () => {
+    const i = b.dataset.save, m = list[i], val = $("catList").querySelector(`textarea[data-i="${i}"]`).value;
+    b.disabled = true;
+    try { await api(`/api/brands/${id}/catalog`, { method: "PUT", body: { media_id: m.id, product: val } }); m.product = val.trim();
+      $("catList").querySelector(`[data-st="${i}"]`).textContent = m.product ? "Guardado ✓" : "Sin producto"; }
+    catch (e) { b.disabled = false; toast(e.message, 6000); }
+  }));
+}
+
+/* ---------- Prompts ---------- */
+const PROMPT_DM_TEMPLATE = `CÓMO RESPONDER POR PRIVADO
+- Largo: 2 a 4 frases, estilo chat.
+- Si identificas el producto, da su precio de la base de conocimiento.
+- Cierra con una pregunta que lleve a la compra.
+- Cuando quiera comprar, pide: nombre, teléfono, ciudad, dirección y producto.
+- Pasa a una persona si: reclamos, pedidos al por mayor, pagos con problemas.`;
+
+const PROMPT_COMMENT_TEMPLATE = `CÓMO RESPONDER COMENTARIOS
+- Largo: 1 frase corta, máximo 2.
+- Tono: cercano, con 1 emoji.
+- Si preguntan precio, envíos o cómo comprar: no des el precio en público; invita a escribirnos por DM.
+- Si es un elogio: agradece con cariño.
+- Si es una queja: responde con empatía y pide que nos escriban por DM para ayudarle.
+- Si es spam, ofensivo o de otra marca: no respondas.
+
+FRASES DE LA MARCA (úsalas variando)
+-
+- `;
+
+// Detecta datos que deberían ir en la base de conocimiento
+const KB_PATTERNS = [
+  { key: "direcciones", why: "Esto parece una dirección. Las mudanzas y los locales nuevos se actualizan en la base de conocimiento; aquí quedan escritos hasta que alguien se acuerde.",
+    re: /\b(?:calle|carrera|cra\.|avenida|av\.|quinta|galp[oó]n|local|piso|edificio|edif\.|centro comercial|c\.c\.|urbanizaci[oó]n|urb\.|diagonal|transversal)\s+[\wÁÉÍÓÚáéíóúñÑ#.-]+(?:\s+\d+)?/gi },
+  { key: "precios", why: "Esto parece un precio. Los precios cambian: si están en la base de conocimiento, se actualizan en un solo sitio.",
+    re: /(?:\$|US\$|Bs\.?|COP|USD)\s?\d[\d.,]*|\b\d[\d.,]*\s?(?:USD|Bs\.?|COP|pesos|d[oó]lares)\b/gi },
+  { key: "teléfonos", why: "Esto parece un teléfono. Si cambia, hay que buscarlo en cada prompt.",
+    re: /(?:\+\d{1,3}[\s-]?)?\(?\d{3,4}\)?[\s-]?\d{3}[\s-]?\d{2,4}(?:[\s-]?\d{2})?/g, min: 7 },
+  { key: "horarios", why: "Esto parece un horario. Los horarios cambian en temporada: van mejor en la base de conocimiento.",
+    re: /\b\d{1,2}(?::\d{2})?\s?(?:am|pm|a\.\s?m\.|p\.\s?m\.)|\blunes\s+a\s+(?:viernes|s[aá]bado|domingo)\b/gi },
+];
+function kbWarning(text) {
+  const found = [];
+  for (const p of KB_PATTERNS) {
+    let items = [...new Set((String(text || "").match(p.re) || []).map((s) => s.trim()))];
+    if (p.min) items = items.filter((s) => s.replace(/\D/g, "").length >= p.min);
+    if (items.length) found.push({ ...p, items });
+  }
+  if (!found.length) return "";
+  return `<div class="warnbox">
+    <strong>${ICON.warn} Esto parece información que va en la base de conocimiento</strong>
+    ${found.map((f) => `<div style="margin-top:8px"><span style="font-weight:600">${f.items.length} encontrado${f.items.length === 1 ? "" : "s"} en ${f.key}:</span>
+      ${f.items.slice(0, 4).map((x) => `<span class="chip">${esc(x.slice(0, 40))}</span>`).join(" ")}${f.items.length > 4 ? ` <span>y ${f.items.length - 4} más</span>` : ""}
+      <div class="why">${f.why}</div></div>`).join("")}
+    <div class="note">No te lo impedimos: a veces hace falta. Pero si lo dejas escrito aquí, ese dato queda en dos sitios y hay que cambiarlo en los dos. <a href="#" data-open-kb>Abrir base de conocimiento</a></div>
+  </div>`;
+}
+
+const MOD_HINT = {
+  off: "No se revisan los comentarios.",
+  notify: "La IA los marca en la pestaña Actividad, pero no se oculta nada y el bot contesta como siempre. Sirve para ver si acierta.",
+  hide: "La IA oculta los comentarios ofensivos y el bot no les contesta. Solo tú y quien lo escribió pueden verlos.",
+};
+
+function tabPrompts() {
+  if (!S.brands.length) return ($("tabBody").innerHTML = `<div class="card empty">Primero crea una tienda en Tiendas.</div>`);
+  const b = brandById(S.selBrand);
+  const d = { active: b.active, moderation: b.moderation, ai_comments: b.ai_comments, ai_enabled: b.ai_enabled,
+    ai_prompt_comments: b.ai_prompt_comments, ai_prompt: b.ai_prompt };
+  $("tabBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div><h2>Prompts por tienda</h2><p>Instrucciones del bot para comentarios y DMs de esta tienda. Vacío = usa el prompt default (breve, con precio real si identifica el producto, sin inventar).</p></div></div>
+      ${storeSelect("prStore", S.selBrand)}
+
+      <div class="box"><div class="box-h"><div><strong>Bot AI Redes (IG/FB)</strong><p>Si se apaga, el bot deja de responder comentarios y DMs de esta tienda (sin borrar el mapeo ni los prompts). Es el mismo interruptor que aparece en Tiendas.</p></div>
+        <input type="checkbox" role="switch" class="switch" id="prActive" ${d.active ? "checked" : ""}></div></div>
+
+      <div class="box"><strong>Comentarios ofensivos</strong>
+        <p class="muted small" style="margin:2px 0 10px">La IA lee cada comentario nuevo antes de que el bot conteste. Se ocultan los insultos, las groserías, el acoso, el odio y las estafas; las quejas de clientes se quedan publicadas aunque vengan bravas. Funciona aunque el bot de esta tienda esté apagado.</p>
+        <select id="prMod" style="max-width:320px">
+          <option value="off" ${d.moderation === "off" ? "selected" : ""}>Apagado</option>
+          <option value="notify" ${d.moderation === "notify" ? "selected" : ""}>Solo avisarme</option>
+          <option value="hide" ${d.moderation === "hide" ? "selected" : ""}>Ocultarlos</option>
+        </select>
+        <div class="help small" id="prModHint">${MOD_HINT[d.moderation]}</div></div>
+
+      <div class="row" style="justify-content:space-between;margin-top:20px"><label class="f" for="prComments" style="margin:0">Prompt de comentarios</label>
+        <div class="row small"><label class="toggle-row" style="font-weight:500">IA responde comentarios <input type="checkbox" role="switch" class="switch" id="prAiC" ${d.ai_comments ? "checked" : ""}></label>
+        <button class="btn small" id="prTplC">Usar plantilla</button></div></div>
+      <textarea id="prComments" class="big" style="margin-top:8px" placeholder="Vacío = prompt default">${esc(d.ai_prompt_comments)}</textarea>
+      <div class="help">Aquí va CÓMO habla el bot. Los horarios, los precios y las políticas van en la base de conocimiento (Tiendas → Configurar): el bot la consulta antes de responder, y así se cambian en un solo sitio.</div>
+      <div id="prWarnC">${kbWarning(d.ai_prompt_comments)}</div>
+
+      <div class="row" style="justify-content:space-between;margin-top:22px"><label class="f" for="prDm" style="margin:0">Prompt de DMs</label>
+        <div class="row small"><label class="toggle-row" style="font-weight:500">IA responde DMs <input type="checkbox" role="switch" class="switch" id="prAiD" ${d.ai_enabled ? "checked" : ""}></label>
+        <button class="btn small" id="prTplD">Usar plantilla</button></div></div>
+      <textarea id="prDm" class="big" style="margin-top:8px" placeholder="Vacío = prompt default">${esc(d.ai_prompt)}</textarea>
+      <div id="prWarnD">${kbWarning(d.ai_prompt)}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>Probar la IA</h2><p>Usa lo que está escrito ahora, aunque no lo hayas guardado. Gasta un poco de saldo de DeepSeek.</p></div>
+        <div class="row"><select id="tMode" style="width:auto"><option value="dm">Como DM</option><option value="comment">Como comentario</option></select><button class="btn small" id="tClear">Borrar chat</button></div></div>
+      ${!S.session.ai_ready && !b.ai_key_tail ? `<div class="info">Falta la clave de DeepSeek. Pégala en <a href="#configuracion">Configuración</a>.</div>` : ""}
+      <div class="chat" id="chatBox" style="margin-top:14px"></div>
+      <div class="row" style="margin-top:10px"><input id="chatIn" class="grow" placeholder="Escribe como si fueras un cliente…"><button class="btn primary" id="chatSend">Enviar</button></div>
+    </div>`;
+
+  const orig = JSON.stringify(d);
+  const save = async () => {
+    try { await api(`/api/brands/${b.id}`, { method: "PUT", body: d }); setDirty(false); await loadData(); renderNav(); tabPrompts(); toast("Prompts guardados"); }
+    catch (e) { toast(e.message, 6000); }
+  };
+  const changed = () => setDirty(JSON.stringify(d) !== orig, save, () => tabPrompts());
+  $("prStore").onchange = (e) => { if (!guard()) { e.target.value = S.selBrand; return; } setDirty(false); S.selBrand = e.target.value; tabPrompts(); };
+  $("prActive").onchange = (e) => { d.active = e.target.checked; changed(); };
+  $("prAiC").onchange = (e) => { d.ai_comments = e.target.checked; changed(); };
+  $("prAiD").onchange = (e) => { d.ai_enabled = e.target.checked; changed(); };
+  $("prMod").onchange = (e) => { d.moderation = e.target.value; $("prModHint").textContent = MOD_HINT[d.moderation]; changed(); };
+  const openKb = (root) => root.querySelectorAll("[data-open-kb]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openConfigure(b.id); setTimeout(() => $("cKb")?.focus(), 60); }));
+  const warn = (ta, box, key) => ($(ta).oninput = (e) => { d[key] = e.target.value; $(box).innerHTML = kbWarning(d[key]); openKb($(box)); changed(); });
+  warn("prComments", "prWarnC", "ai_prompt_comments"); warn("prDm", "prWarnD", "ai_prompt");
+  openKb($("tabBody"));
+  const tpl = (btn, ta, text) => ($(btn).onclick = () => { if ($(ta).value.trim() && !confirm("¿Reemplazar el prompt por la plantilla?")) return; $(ta).value = text; $(ta).dispatchEvent(new Event("input")); });
+  tpl("prTplC", "prComments", PROMPT_COMMENT_TEMPLATE); tpl("prTplD", "prDm", PROMPT_DM_TEMPLATE);
+
+  const chat = (testChats[b.id] ||= []);
+  const draw = () => {
+    const box = $("chatBox");
+    box.innerHTML = chat.length ? chat.map((m) => `<div class="bubble ${m.role}">${esc(m.content)}</div>`).join("") : `<div class="bubble note">Escribe un mensaje para empezar</div>`;
+    box.scrollTop = box.scrollHeight;
+  };
+  draw();
+  $("tClear").onclick = () => { chat.length = 0; draw(); };
+  $("tMode").onchange = () => { chat.length = 0; draw(); };
+  const send = async () => {
+    const txt = $("chatIn").value.trim(); if (!txt) return;
+    const mode = $("tMode").value;
+    if (mode === "comment") chat.length = 0;
+    chat.push({ role: "user", content: txt }); $("chatIn").value = ""; draw();
+    const btn = $("chatSend"); btn.disabled = true; btn.textContent = "…";
+    try {
+      const convo = chat.filter((m) => m.role !== "note").map((m) => ({ role: m.role, content: mode === "comment" && m.role === "user" ? `Comentario: "${m.content}"` : m.content }));
+      const r = await api(`/api/brands/${b.id}/aitest`, { method: "POST", body: { messages: convo, mode, ai_prompt: d.ai_prompt, ai_prompt_comments: d.ai_prompt_comments, moderation: d.moderation } });
+      if (r.offensive) chat.push({ role: "note", content: `La IA lo marcó como ofensivo${r.reason ? " (" + r.reason + ")" : ""}${r.hidden ? ": se ocultaría y no se contestaría" : ""}` });
+      else if (r.skip) chat.push({ role: "note", content: "La IA decidió no responder este comentario" });
+      else chat.push({ role: "assistant", content: r.reply });
+      if (r.handoff) chat.push({ role: "note", content: "→ Pasa a una persona: el contacto quedaría en pausa" });
+    } catch (e) { chat.push({ role: "note", content: "Error: " + e.message }); }
+    btn.disabled = false; btn.textContent = "Enviar"; draw();
+  };
+  $("chatSend").onclick = send;
+  $("chatIn").onkeydown = (e) => { if (e.key === "Enter") send(); };
+}
+
+/* ---------- Reglas ---------- */
+const CH = { dm: "Mensaje privado (DM)", comment: "Comentario en publicación", both: "DM y comentarios" };
+function tabRules() {
+  if (!S.brands.length) return ($("tabBody").innerHTML = `<div class="card empty">Primero crea una tienda en Tiendas.</div>`);
+  const b = brandById(S.selBrand);
+  const rules = JSON.parse(JSON.stringify(b.rules || []));
+  const orig = JSON.stringify(rules);
+  const save = async () => {
+    for (const [i, r] of rules.entries()) {
+      const n = `Regla ${i + 1}: `;
+      if (r.channel !== "comment" && !r.keywords.length) return toast(n + "pon al menos una palabra clave", 5000);
+      if (r.channel === "comment" && !r.keywords.length && !r.mediaId) return toast(n + "elige una publicación o pon palabras clave", 5000);
+      if (r.channel === "dm" && !r.dmReply.trim()) return toast(n + "falta la respuesta por DM", 5000);
+      if (r.channel !== "dm" && !r.dmReply.trim() && !r.publicReply.trim()) return toast(n + "falta la respuesta pública o el DM", 5000);
+      if (bytes(r.dmReply) > 1000) return toast(n + "el DM pasa de 1000 bytes", 5000);
+    }
+    try { await api(`/api/brands/${b.id}`, { method: "PUT", body: { rules } }); setDirty(false); await loadData(); tabRules(); toast("Reglas guardadas"); }
+    catch (e) { toast(e.message, 6000); }
+  };
+  const changed = () => setDirty(JSON.stringify(rules) !== orig, save, () => tabRules());
+  $("tabBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div><h2>Reglas por palabra clave</h2><p>Respuestas fijas que van antes que la IA. La primera regla que coincide responde. Mayúsculas y acentos no importan.</p></div></div>
+      ${storeSelect("ruStore", S.selBrand)}
+      <div id="rulesWrap"></div>
+      <div class="row" style="margin-top:14px"><button class="btn" id="addDm">${ICON.plus} Regla de DM</button><button class="btn" id="addCom">${ICON.plus} Regla de comentario</button></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><h2>Probar reglas</h2><p>Simula un mensaje con las reglas sin guardar.</p></div></div>
+      <div class="row" style="margin-top:12px"><select id="simCh" style="width:auto"><option value="dm">DM</option><option value="comment">Comentario</option></select>
+        <input id="simText" class="grow" placeholder="Ej: precio"><button class="btn" id="simBtn">Probar</button></div>
+      <div id="simOut"></div>
+    </div>`;
+  $("ruStore").onchange = (e) => { if (!guard()) { e.target.value = S.selBrand; return; } setDirty(false); S.selBrand = e.target.value; tabRules(); };
+
+  const draw = () => {
+    const wrap = $("rulesWrap");
+    wrap.innerHTML = rules.length ? "" : `<div class="empty" style="padding:24px">Sin reglas. La IA responde todo (si está activa).</div>`;
+    let needsMedia = false;
+    rules.forEach((r, i) => {
+      const isC = r.channel !== "dm"; if (isC) needsMedia = true;
+      const el = document.createElement("div"); el.className = "rule-card";
+      el.innerHTML = `
+        <div class="rule-head"><strong>Regla ${i + 1} <span class="pill ${r.channel === "dm" ? "dm" : "comment"}">${CH[r.channel]}</span></strong>
+          <div class="row"><label class="toggle-row small" style="font-weight:500">Activa <input type="checkbox" role="switch" class="switch" data-f="active" ${r.active !== false ? "checked" : ""}></label>
+            <button class="icon-btn" data-a="up" ${i === 0 ? "disabled" : ""} aria-label="Subir">↑</button>
+            <button class="icon-btn" data-a="down" ${i === rules.length - 1 ? "disabled" : ""} aria-label="Bajar">↓</button>
+            <button class="icon-btn danger" data-a="del" aria-label="Eliminar">${ICON.trash}</button></div></div>
+        <div class="row" style="align-items:flex-end">
+          <div style="min-width:200px"><label class="f">Dónde</label><select data-f="channel">${Object.entries(CH).map(([k, l]) => `<option value="${k}" ${r.channel === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+          <div class="grow"><label class="f">Palabras clave (separadas por coma)</label><input data-f="keywords" value="${esc(r.keywords.join(", "))}" placeholder="precio, info, quiero"></div>
+          <div style="min-width:170px"><label class="f">Coincidencia</label><select data-f="match"><option value="contains" ${r.match !== "exact" ? "selected" : ""}>Contiene la palabra</option><option value="exact" ${r.match === "exact" ? "selected" : ""}>Texto exacto</option></select></div>
+        </div>
+        ${r.channel === "comment" ? `<div class="help">Sin palabras clave = responde a cualquier comentario de la publicación elegida.</div>` : ""}
+        ${isC ? `<div class="sub">
+          <label class="f">Publicación</label>
+          <select data-f="mediaId"><option value="">Cualquier publicación</option>${r.mediaId ? `<option value="${esc(r.mediaId)}" selected>${esc(r.mediaLabel || "Publicación " + r.mediaId)}</option>` : ""}</select>
+          <div class="help" data-media-msg></div>
+          <label class="f">Respuesta pública en el comentario (opcional)</label>
+          <textarea data-f="publicReply" placeholder="¡Te lo envié por DM! 📩&#10;¡Revisa tu bandeja! ✨">${esc(r.publicReply)}</textarea>
+          <div class="help">Varias opciones, una por línea: se elige una al azar.</div></div>` : ""}
+        <label class="f">${r.channel === "dm" ? "Respuesta por DM" : "Mensaje privado a quien comenta"}</label>
+        <textarea data-f="dmReply" placeholder="Hola 👋 …">${esc(r.dmReply)}</textarea>
+        <div class="bytes"></div>`;
+      const q = (s) => el.querySelector(s);
+      const upd = () => { const n = bytes(r.dmReply), bx = q(".bytes"); bx.textContent = `${n}/1000 bytes`; bx.classList.toggle("over", n > 1000); };
+      q('[data-f="keywords"]').oninput = (e) => { r.keywords = e.target.value.split(",").map((s) => s.trim()).filter(Boolean); changed(); };
+      q('[data-f="match"]').onchange = (e) => { r.match = e.target.value; changed(); };
+      q('[data-f="channel"]').onchange = (e) => { r.channel = e.target.value; changed(); draw(); };
+      q('[data-f="dmReply"]').oninput = (e) => { r.dmReply = e.target.value; upd(); changed(); };
+      q('[data-f="active"]').onchange = (e) => { r.active = e.target.checked; changed(); };
+      if (isC) {
+        q('[data-f="publicReply"]').oninput = (e) => { r.publicReply = e.target.value; changed(); };
+        q('[data-f="mediaId"]').onchange = (e) => { r.mediaId = e.target.value; r.mediaLabel = e.target.value ? e.target.selectedOptions[0].textContent : ""; changed(); };
+      }
+      q('[data-a="del"]').onclick = () => { if (confirm("¿Eliminar esta regla?")) { rules.splice(i, 1); changed(); draw(); } };
+      q('[data-a="up"]').onclick = () => { [rules[i - 1], rules[i]] = [rules[i], rules[i - 1]]; changed(); draw(); };
+      q('[data-a="down"]').onclick = () => { [rules[i + 1], rules[i]] = [rules[i], rules[i + 1]]; changed(); draw(); };
+      upd(); wrap.appendChild(el);
+    });
+    if (needsMedia && brandAccounts(b.id).length) getMedia(b.id).then((cache) => {
+      if (!$("rulesWrap")) return;
+      document.querySelectorAll('[data-f="mediaId"]').forEach((sel) => {
+        const cur = sel.value, label = sel.selectedOptions[0]?.textContent;
+        const opts = cache.list.filter((m) => m.platform).map((m) => `<option value="${esc(m.id)}">${esc(mediaLabel(m))}</option>`);
+        if (cur && !cache.list.find((m) => m.id === cur && m.platform)) opts.unshift(`<option value="${esc(cur)}">${esc(label)}</option>`);
+        sel.innerHTML = `<option value="">Cualquier publicación</option>` + opts.join(""); sel.value = cur;
+      });
+      document.querySelectorAll("[data-media-msg]").forEach((m) => (m.textContent = cache.error || ""));
+    });
+  };
+  draw();
+  const add = (channel) => { rules.push({ id: uid(), active: true, channel, keywords: [], match: "contains", mediaId: "", mediaLabel: "", publicReply: "", dmReply: "" }); changed(); draw(); };
+  $("addDm").onclick = () => add("dm"); $("addCom").onclick = () => add("comment");
+  const sim = () => {
+    const ch = $("simCh").value, t = $("simText").value;
+    const r = findRule(rules, t, ch);
+    let out;
+    if (!b.active) out = "El bot de esta tienda está apagado: no respondería.";
+    else if (r) {
+      out = `Coincide con la regla ${rules.indexOf(r) + 1}.`;
+      if (ch === "comment" && r.mediaId) out += " (Solo en la publicación elegida.)";
+      if (ch === "comment" && r.publicReply.trim()) out += `\n\nRespuesta pública (una de):\n${r.publicReply.trim()}`;
+      if (r.dmReply) out += `\n\nPrivado:\n${r.dmReply}`;
+    } else out = (ch === "dm" ? b.ai_enabled : b.ai_comments) ? "Ninguna regla coincide: respondería la IA con los prompts de la tienda." : "Ninguna regla coincide y la IA está apagada para este canal.";
+    $("simOut").innerHTML = `<div class="sim-result">${esc(out)}</div>`;
+  };
+  $("simBtn").onclick = sim; $("simText").onkeydown = (e) => { if (e.key === "Enter") sim(); };
+}
+
+/* ---------- Actividad ---------- */
+const KIND = { rule: ["Regla", "rule"], ai: ["IA", "ai"], default: ["Por defecto", "warn"], handoff: ["Pasó a una persona", "warn"], none: ["Sin respuesta", "gray"],
+  paused: ["Contacto en pausa", "gray"], hidden: ["Oculto", "bad"], test: ["Modo prueba", "gray"] };
+async function tabActivity() {
+  $("tabBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div><h2>Actividad</h2><p>Lo que llegó y lo que respondió el bot. Los últimos 150 registros.</p></div>
+        <div class="row"><nav class="seg"><button data-m="logs" class="${S.actMode === "logs" ? "on" : ""}">Mensajes</button><button data-m="contacts" class="${S.actMode === "contacts" ? "on" : ""}">Contactos</button></nav>
+        <button class="btn small" id="actReload">${ICON.refresh} Actualizar</button></div></div>
+      <div class="row" style="margin-top:12px">
+        <select id="actStore" style="width:auto">${brandOpts(S.actBrand, "Todas las tiendas")}</select>
+        ${S.actMode === "logs" ? `<select id="actCh" style="width:auto"><option value="all">Mensajes y comentarios</option><option value="dm" ${S.actChannel === "dm" ? "selected" : ""}>Solo mensajes privados</option><option value="comment" ${S.actChannel === "comment" ? "selected" : ""}>Solo comentarios</option><option value="mod" ${S.actChannel === "mod" ? "selected" : ""}>Solo ofensivos</option></select>` : ""}
+      </div>
+      <div class="table-wrap" id="actWrap" style="margin-top:12px"><div class="empty">Cargando…</div></div>
+    </div>`;
+  $("tabBody").querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { S.actMode = b.dataset.m; tabActivity(); }));
+  $("actReload").onclick = tabActivity;
+  $("actStore").onchange = (e) => { S.actBrand = e.target.value; tabActivity(); };
+  if ($("actCh")) $("actCh").onchange = (e) => { S.actChannel = e.target.value; tabActivity(); };
+  const qs = S.actBrand ? `?brand=${encodeURIComponent(S.actBrand)}` : "";
+  const accName = (id) => S.accounts.find((a) => a.id === id)?.name || id;
+  try {
+    if (S.actMode === "contacts") {
+      const list = await api(`/api/contacts${qs}`);
+      if (!$("actWrap")) return;
+      if (!list.length) return ($("actWrap").innerHTML = `<div class="empty">Todavía nadie ha escrito.</div>`);
+      $("actWrap").innerHTML = `<table><thead><tr><th>Contacto</th><th>Tienda</th><th>Último mensaje</th><th>Fecha</th><th>Total</th><th>Bot</th></tr></thead><tbody>
+        ${list.map((c) => `<tr><td>${platPill(c.platform)} ${userLabel(c.platform, c.username, c.user_id)}</td><td>${esc(brandById(c.brand_id)?.name || "—")}</td>
+          <td><span class="pill ${esc(c.last_channel)}">${c.last_channel === "comment" ? "Comentario" : "DM"}</span> ${esc(c.last_message)}</td>
+          <td class="small">${fmt(c.last_at)}</td><td>${c.messages}</td>
+          <td><button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}" data-p="${c.paused ? 1 : 0}">${c.paused ? "Reanudar" : "Pausar"}</button></td></tr>`).join("")}
+        </tbody></table>`;
+      $("actWrap").querySelectorAll("[data-u]").forEach((el) => (el.onclick = async () => {
+        try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: el.dataset.p !== "1" } }); tabActivity(); } catch (e) { toast(e.message); }
+      }));
+      return;
+    }
+    let list = await api(`/api/logs${qs}`);
+    if (!$("actWrap")) return;
+    if (S.actChannel === "mod") list = list.filter((l) => l.moderation);
+    else if (S.actChannel !== "all") list = list.filter((l) => l.channel === S.actChannel);
+    if (!list.length) return ($("actWrap").innerHTML = `<div class="empty">Sin actividad todavía.</div>`);
+    $("actWrap").innerHTML = `<table><thead><tr><th>Fecha</th><th>Tienda / cuenta</th><th>Canal</th><th>Publicación</th><th>Recibido</th><th>Respondió</th><th>Tipo</th></tr></thead><tbody>
+      ${list.map((l) => { const k = l.error ? ["Error", "bad"] : KIND[l.kind] || [l.kind, "gray"]; return `<tr>
+        <td class="small top">${fmt(l.at)}</td>
+        <td class="top"><strong>${esc(brandById(l.brand_id)?.name || "—")}</strong><br><span class="small muted">${esc(accName(l.account_id))}</span></td>
+        <td class="top" style="white-space:nowrap">${platPill(l.platform)}<br><span class="pill ${esc(l.channel)}" style="margin-top:4px">${l.channel === "comment" ? "Comentario" : "DM"}</span></td>
+        <td class="top" style="max-width:190px">${l.media_id ? `<button class="copy" data-copy="${esc(l.media_id)}" title="Copiar ID">${esc(l.media_id)}</button>` : '<span class="muted">—</span>'}</td>
+        <td class="top">${l.username ? `<strong>${userLabel(l.platform, l.username, l.from_id)}</strong><br>` : ""}${esc(l.text)}
+          ${l.moderation ? `<div style="margin-top:4px"><span class="pill bad">${esc(l.moderation.charAt(0).toUpperCase() + l.moderation.slice(1))}</span></div>` : ""}</td>
+        <td class="top">${l.public_reply ? `<div><span class="muted">Pública:</span> ${esc(l.public_reply)}</div>` : ""}${l.reply ? `<div><span class="muted">Privado:</span> ${esc(l.reply)}</div>` : ""}${!l.reply && !l.public_reply ? "—" : ""}
+          ${l.error ? `<div class="small" style="color:var(--bad)">${esc(l.error)}</div>` : ""}</td>
+        <td class="top"><span class="pill ${k[1]}">${esc(k[0])}</span></td></tr>`; }).join("")}
+      </tbody></table>`;
+    bindCopy($("actWrap"));
+  } catch (e) { if ($("actWrap")) $("actWrap").innerHTML = `<div class="alert">${esc(e.message)}</div>`; }
+}
+
+/* ================= RESUMEN ================= */
+const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
+function ruleLabel(brandId, ruleId) {
+  const r = (brandById(brandId)?.rules || []).find((x) => x.id === ruleId);
+  if (!r) return "Regla eliminada";
+  return r.keywords.length ? r.keywords.slice(0, 3).join(", ") : "Cualquier comentario" + (r.mediaLabel ? " · " + r.mediaLabel : "");
+}
+async function renderResumen() {
+  $("main").innerHTML = `
+    <h1 class="page-title">Resumen</h1>
+    <p class="page-sub">Cómo va el bot en todas tus tiendas o en una.</p>
+    <hr class="divider">
+    <div class="row" style="justify-content:space-between">
+      <div class="row"><select id="dStore" style="width:auto">${brandOpts(S.dashBrand, "Todas las tiendas")}</select>
+        <nav class="seg">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${S.dashDays === d ? "on" : ""}">${d} días</button>`).join("")}</nav></div>
+      <button class="btn small" id="dReload">${ICON.refresh} Actualizar</button>
+    </div>
+    <div id="dash"><div class="empty">Cargando…</div></div>`;
+  $("dStore").onchange = (e) => { S.dashBrand = e.target.value; renderResumen(); };
+  $("main").querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => { S.dashDays = Number(b.dataset.d); renderResumen(); }));
+  $("dReload").onclick = renderResumen;
+  const brandId = S.dashBrand;
+  let s;
+  try { s = await api(`/api/stats?days=${S.dashDays}&tz=${-new Date().getTimezoneOffset()}${brandId ? "&brand=" + encodeURIComponent(brandId) : ""}`); }
+  catch (e) { if ($("dash")) $("dash").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("dash")) return;
+  const t = s.totals, total = t.dm + t.comment;
+  const kinds = { ...t.kinds, errors: t.errors };
+  const kmax = Math.max(1, ...KIND_LABELS.map(([k]) => kinds[k] || 0));
+  const list = brandId ? S.brands.filter((b) => b.id === brandId) : S.brands;
+  $("dash").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="l">DMs recibidos</div><div class="v">${nf(t.dm)}</div></div>
+      <div class="kpi"><div class="l">Comentarios</div><div class="v">${nf(t.comment)}</div></div>
+      <div class="kpi"><div class="l">Respondidos solos</div><div class="v">${pct(t.replied, total)}%</div><div class="s">${nf(t.replied)} de ${nf(total)}</div></div>
+      <div class="kpi"><div class="l">Respondidos por IA</div><div class="v">${nf(t.kinds.ai)}</div></div>
+      <div class="kpi"><div class="l">Contactos nuevos</div><div class="v">${nf(s.new_contacts)}</div></div>
+      <div class="kpi ${s.pending.length ? "alert-kpi" : ""}"><div class="l">Por atender</div><div class="v">${nf(s.pending.length)}</div><div class="s">contactos en pausa</div></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Actividad por día</h2><div class="legend"><span><i style="background:var(--series-1)"></i>DMs</span><span><i style="background:var(--series-2)"></i>Comentarios</span></div></div>
+      <div class="chart-wrap" id="dailyChart" style="margin-top:10px"></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2 style="font-size:16px;margin:0">Cómo respondió el bot</h2>
+        ${total ? KIND_LABELS.filter(([k]) => kinds[k]).map(([k, l]) => `<div class="hbar"><span>${l}</span><div class="track"><div class="fill" style="width:${(kinds[k] / kmax) * 100}%;${k === "errors" || k === "hidden" ? "background:var(--bad)" : ""}"></div></div><span class="n">${nf(kinds[k])} · ${pct(kinds[k], total)}%</span></div>`).join("") : `<p class="muted">Sin actividad en este periodo.</p>`}
+        ${t.offensive ? `<p class="small muted" style="margin-bottom:0">${nf(t.offensive)} comentario${t.offensive === 1 ? "" : "s"} marcado${t.offensive === 1 ? "" : "s"} como ofensivo${t.offensive === 1 ? "" : "s"}.</p>` : ""}</div>
+      <div class="card"><h2 style="font-size:16px;margin:0">Reglas más usadas</h2>
+        ${s.top_rules.length ? s.top_rules.map((r) => `<div class="list-row"><span>${esc(ruleLabel(r.brand_id, r.rule_id))}${brandId ? "" : `<br><span class="small muted">${esc(brandById(r.brand_id)?.name || "")}</span>`}</span><strong>${nf(r.n)}</strong></div>`).join("") : `<p class="muted">Ninguna regla se activó en este periodo.</p>`}</div>
+    </div>
+    <div class="card"><h2 style="font-size:16px;margin:0">Por atender</h2>
+      <p class="muted small" style="margin:2px 0 6px">Contactos en pausa (pasaron a una persona o los pausaste). Respóndelos en Instagram o Facebook y reanuda el bot.</p>
+      ${s.pending.length ? s.pending.map((c) => `<div class="list-row"><span>${platPill(c.platform)} ${userLabel(c.platform, c.username, c.user_id)}${brandId ? "" : ` · <span class="muted">${esc(brandById(c.brand_id)?.name || "")}</span>`}<br><span class="small muted">${esc((c.last_message || "").slice(0, 90))} · ${fmt(c.last_at)}</span></span>
+        <button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}">Reanudar bot</button></div>`).join("") : `<p class="muted" style="margin-bottom:0">Nadie esperando.</p>`}</div>
+    <div class="card table-wrap"><h2 style="font-size:16px;margin:0">Por tienda</h2>
+      <table style="margin-top:8px"><thead><tr><th>Tienda</th><th>DMs</th><th>Comentarios</th><th>Respondidos</th><th>Errores</th><th>Estado</th></tr></thead><tbody>
+      ${list.map((b) => { const a = s.per_brand.find((x) => x.brand_id === b.id) || { dm: 0, comment: 0, replied: 0, errors: 0 }; const tt = a.dm + a.comment; const accs = brandAccounts(b.id);
+        const bad = accs.some((x) => tokenStatus(x).cls === "bad"); return `<tr class="click" data-open="${esc(b.id)}"><td><strong>${esc(b.name)}</strong><br><span class="small muted">${accs.map((x) => (x.platform === "facebook" ? "FB " : "IG ") + esc(x.name)).join(" · ") || "Sin cuentas"}</span></td>
+        <td>${nf(a.dm)}</td><td>${nf(a.comment)}</td><td>${tt ? pct(a.replied, tt) + "%" : "—"}</td><td>${a.errors ? `<span class="pill bad">${nf(a.errors)}</span>` : "0"}</td>
+        <td>${bad ? '<span class="pill bad">Token</span>' : storeOn(b) ? `<span class="pill ok">Bot activo${b.test_mode ? " · prueba" : ""}</span>` : '<span class="pill gray">Bot inactivo</span>'}</td></tr>`; }).join("")}
+      </tbody></table></div>`;
+  drawDaily($("dailyChart"), s.series);
+  $("dash").querySelectorAll("[data-u]").forEach((el) => (el.onclick = async () => {
+    try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: false } }); toast("Bot reanudado"); renderResumen(); } catch (e) { toast(e.message); }
+  }));
+  $("dash").querySelectorAll("[data-open]").forEach((el) => (el.onclick = () => openConfigure(el.dataset.open)));
+}
+
+function drawDaily(el, series) {
+  const W = el.clientWidth && el.clientWidth < 520 ? 360 : 640, H = W < 640 ? 240 : 220, L = 34, R = 8, T = 10, B = 26, pw = W - L - R, ph = H - T - B;
+  const rawMax = Math.max(0, ...series.map((d) => d.dm + d.comment));
+  const rough = Math.max(1, rawMax / 4), mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const step = [1, 2, 5, 10].find((m) => rough <= m * mag) * mag;
+  const max = Math.max(step * 2, Math.ceil(rawMax / step) * step);
+  const y = (v) => T + ph - (v / max) * ph;
+  const band = pw / series.length, bw = Math.max(3, Math.min(28, band * 0.62));
+  const top = (x, yy, w, h) => { const r = Math.min(4, h, w / 2); return `M${x},${yy + h}V${yy + r}Q${x},${yy} ${x + r},${yy}H${x + w - r}Q${x + w},${yy} ${x + w},${yy + r}V${yy + h}Z`; };
+  const every = Math.ceil(series.length / 8);
+  let g = "", bars = "", hits = "";
+  for (let v = 0; v <= max + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${nf(Math.round(v))}</text>`;
+  series.forEach((d, i) => {
+    const x = L + i * band + (band - bw) / 2, hD = (d.dm / max) * ph, hC = (d.comment / max) * ph;
+    if (d.dm) bars += d.comment ? `<rect x="${x}" y="${y(d.dm)}" width="${bw}" height="${hD}" fill="var(--series-1)"/>` : `<path d="${top(x, y(d.dm), bw, hD)}" fill="var(--series-1)"/>`;
+    if (d.comment) bars += `<path d="${top(x, y(d.dm + d.comment), bw, Math.max(1, hC - (d.dm ? 2 : 0)))}" fill="var(--series-2)"/>`;
+    if (i % every === 0 || i === series.length - 1) bars += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--muted)">${d.date.slice(8, 10)}/${d.date.slice(5, 7)}</text>`;
+    hits += `<rect x="${L + i * band}" y="${T}" width="${band}" height="${ph}" fill="transparent" data-i="${i}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="DMs y comentarios por día">${g}<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#c8c7c1"/>${bars}${hits}</svg><div class="tip"></div>`;
+  const tip = el.querySelector(".tip");
+  el.querySelectorAll("[data-i]").forEach((r) => {
+    r.onmouseenter = () => {
+      const d = series[+r.dataset.i]; const [yy, mm, dd] = d.date.split("-");
+      tip.innerHTML = `<strong>${dd}/${mm}/${yy}</strong><br>DMs: ${nf(d.dm)} · Comentarios: ${nf(d.comment)}`;
+      tip.style.left = ((L + (+r.dataset.i + 0.5) * band) / W) * 100 + "%";
+      tip.style.top = (y(d.dm + d.comment) / H) * el.clientHeight - 6 + "px";
+      tip.style.opacity = 1;
+    };
+    r.onmouseleave = () => (tip.style.opacity = 0);
+  });
+}
+
+/* ================= CONFIGURACIÓN ================= */
+async function renderConfig() {
+  $("main").innerHTML = `<h1 class="page-title">Configuración</h1><p class="page-sub">Lo que conecta el panel con Meta y con la IA. Todo se pega aquí; no hace falta tocar código.</p><hr class="divider"><div id="cfgBody"><div class="empty">Cargando…</div></div>`;
+  let c;
+  try { c = await api("/api/config"); } catch (e) { $("cfgBody").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("cfgBody")) return;
+  const copyRow = (label, value, extra = "") => `<span class="muted">${label}</span><div class="row" style="gap:8px"><button class="copy" data-copy="${esc(value)}">${esc(value)}</button>${extra}</div>`;
+  const igReady = c.ig_app_id && c.ig_app_secret, fbReady = c.fb_app_id && c.fb_app_secret;
+  $("cfgBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div><h2>1 · Conexión con Meta</h2><p>Los datos de tu app de developers.facebook.com. Con esto funciona el botón «Conectar con Meta».</p></div>
+        <div class="row"><span class="pill ${igReady ? "ok" : "gray"}">Instagram ${igReady ? "listo" : "pendiente"}</span><span class="pill ${fbReady ? "ok" : "gray"}">Facebook ${fbReady ? "listo" : "pendiente"}</span></div></div>
+      <div class="grid2" style="gap:0 16px">
+        <div><label class="f" for="igId">ID de la app de Instagram</label><input id="igId" value="${esc(c.ig_app_id)}" autocomplete="off"></div>
+        <div><label class="f" for="igSec">Clave secreta de la app de Instagram</label><input id="igSec" type="password" autocomplete="off" placeholder="${c.ig_app_secret ? "Guardada · " + esc(c.ig_app_secret) : "Pégala aquí"}"></div>
+        <div><label class="f" for="fbId">ID de la app (Facebook)</label><input id="fbId" value="${esc(c.fb_app_id)}" autocomplete="off"></div>
+        <div><label class="f" for="fbSec">Clave secreta de la app (Facebook)</label><input id="fbSec" type="password" autocomplete="off" placeholder="${c.fb_app_secret ? "Guardada · " + esc(c.fb_app_secret) : "Pégala aquí"}"></div>
+      </div>
+      <div class="help">Instagram: en tu app → Instagram → «Configuración de la API con inicio de sesión de Instagram». Facebook: Configuración de la app → Básica. Si solo usas una de las dos, deja la otra vacía.</div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="metaSave">Guardar</button><span class="small" id="metaOut"></span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>2 · Datos para pegar en Meta</h2><p>Haz clic en cada uno para copiarlo y pégalo en tu app de Meta.</p></div></div>
+      <div class="kv">
+        ${copyRow("URL del webhook (Instagram y Facebook)", c.webhook)}
+        ${copyRow("Token de verificación", c.verify_token, `<button class="btn small" id="regenTok">Generar otro</button>`)}
+        ${copyRow("Redireccionamiento de Instagram", c.callbacks.instagram)}
+        ${copyRow("Redireccionamiento de Facebook", c.callbacks.facebook)}
+      </div>
+      <div class="help">Webhooks a suscribir: en Instagram <strong>messages</strong> y <strong>comments</strong>; en la página de Facebook <strong>messages</strong> y <strong>feed</strong>.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>3 · Inteligencia artificial · DeepSeek</h2><p>La clave general que usan todas las tiendas (salvo las que tengan una propia en Tiendas → Configurar).</p></div>
+        <span class="pill ${c.deepseek.source ? "ok" : "bad"}">${c.deepseek.source ? "Conectada · …" + esc(c.deepseek.tail) : "Sin clave"}</span></div>
+      <p class="small muted" style="margin:10px 0 0">Entra a <strong>platform.deepseek.com</strong> → <strong>API keys</strong> → <strong>Create new API key</strong>, cópiala y pégala aquí.</p>
+      <label class="f" for="dsKey">API Key de DeepSeek</label>
+      <input id="dsKey" type="password" autocomplete="off" placeholder="sk-…" style="max-width:480px">
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="dsSave">Guardar y probar</button><button class="btn" id="dsTest" ${c.deepseek.source ? "" : "disabled"}>Ver saldo</button>${c.deepseek.source === "panel" ? `<button class="btn danger" id="dsDel">Quitar clave</button>` : ""}</div>
+      <div class="small" id="dsOut" style="margin-top:10px">${c.deepseek.source === "secreto" ? '<span class="muted">Se está usando una clave guardada en Cloudflare. Si pegas una aquí, se usa esta.</span>' : ""}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>4 · Contraseña del panel</h2><p>Al cambiarla se cierran las demás sesiones abiertas.</p></div></div>
+      <div class="grid2" style="gap:0 16px;max-width:720px">
+        <div><label class="f" for="pwCur">Contraseña actual</label><input id="pwCur" type="password" autocomplete="current-password"></div><div></div>
+        <div><label class="f" for="pwNew">Nueva contraseña</label><input id="pwNew" type="password" autocomplete="new-password"></div>
+        <div><label class="f" for="pwNew2">Repite la nueva</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn" id="pwSave">Cambiar contraseña</button><span class="small" id="pwOut"></span></div>
+    </div>`;
+  bindCopy($("cfgBody"));
+  const ok = (el, t) => ($(el).innerHTML = `<span style="color:var(--ok)">${t}</span>`);
+  const bad = (el, t) => ($(el).innerHTML = `<span style="color:var(--bad)">${esc(t)}</span>`);
+  const refreshSession = async () => { S.session = await api("/api/session"); renderNav(); };
+  $("metaSave").onclick = async () => {
+    try {
+      await api("/api/config", { method: "PUT", body: { ig_app_id: $("igId").value, ig_app_secret: $("igSec").value, fb_app_id: $("fbId").value, fb_app_secret: $("fbSec").value } });
+      await refreshSession(); await renderConfig(); toast("Datos de Meta guardados");
+    } catch (e) { bad("metaOut", e.message); }
+  };
+  $("regenTok").onclick = async () => {
+    if (!confirm("¿Generar otro token? Tendrás que pegarlo de nuevo en los webhooks de Meta.")) return;
+    try { await api("/api/config", { method: "PUT", body: { regenerate_verify_token: true } }); renderConfig(); } catch (e) { toast(e.message); }
+  };
+  const saldo = (r) => (r.balance ? ` Saldo: <strong>${esc(r.balance)}</strong>.` : "") + (r.available === false ? " <strong>Sin saldo suficiente:</strong> recarga en DeepSeek." : "");
+  $("dsSave").onclick = async () => {
+    const key = $("dsKey").value.trim(); if (!key) return bad("dsOut", "Pega la clave primero.");
+    const b = $("dsSave"); b.disabled = true; b.textContent = "Probando…";
+    try { const r = await api("/api/config/deepseek", { method: "PUT", body: { key } }); await refreshSession(); await renderConfig(); ok("dsOut", "Clave guardada y funcionando." + saldo(r)); }
+    catch (e) { bad("dsOut", e.message); b.disabled = false; b.textContent = "Guardar y probar"; }
+  };
+  $("dsTest").onclick = async () => { try { const r = await api("/api/config/deepseek/test", { method: "POST", body: {} }); ok("dsOut", "La clave funciona." + saldo(r)); } catch (e) { bad("dsOut", e.message); } };
+  if ($("dsDel")) $("dsDel").onclick = async () => {
+    if (!confirm("¿Quitar la clave? Las tiendas sin clave propia dejarán de responder con IA.")) return;
+    try { await api("/api/config/deepseek", { method: "PUT", body: { key: "" } }); await refreshSession(); renderConfig(); toast("Clave quitada"); } catch (e) { toast(e.message); }
+  };
+  $("pwSave").onclick = async () => {
+    if ($("pwNew").value !== $("pwNew2").value) return bad("pwOut", "Las contraseñas nuevas no coinciden");
+    try { await api("/api/password", { method: "PUT", body: { current: $("pwCur").value, password: $("pwNew").value } }); ["pwCur", "pwNew", "pwNew2"].forEach((i) => ($(i).value = "")); ok("pwOut", "Contraseña cambiada."); }
+    catch (e) { bad("pwOut", e.message); }
+  };
+}
+
+boot();
+})();
+</script>
+</body>
+</html>

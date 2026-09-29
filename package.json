@@ -1,0 +1,13 @@
+{
+  "name": "autorespuestas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "instalar": "node instalar.mjs",
+    "registros": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}

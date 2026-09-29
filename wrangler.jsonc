@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "autorespuestas",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  // La base de datos se crea sola la primera vez que Cloudflare publica. No hace falta ningún ID.
+  "d1_databases": [{ "binding": "DB", "database_name": "autorespuestas" }],
+  // Todos los días 9:00 a. m. hora de Caracas (13:00 UTC): revisa y renueva tokens, limpia registros viejos
+  "triggers": { "crons": ["0 13 * * *"] },
+  "observability": { "enabled": true }
+}
