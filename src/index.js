@@ -756,9 +756,9 @@ async function api(req, env, url) {
     // Primera vez sin contraseña: se crea desde el panel
     if (passwordSet(cfg, env)) return json({ error: "La contraseña ya está creada" }, 403);
     const { password, code } = await req.json().catch(() => ({}));
-    if (env.SETUP_CODE && !safeEqual(String(code || "").trim().toUpperCase(), String(env.SETUP_CODE).toUpperCase())) {
+    if (env.SETUP_CODE && !safeEqual(String(code || "").trim().toUpperCase(), String(env.SETUP_CODE).trim().toUpperCase())) {
       await sleep(800);
-      return json({ error: "El código de instalación no coincide. Es el que mostró el instalador al terminar." }, 403);
+      return json({ error: "El código de instalación no coincide. Es el valor de SETUP_CODE en Cloudflare (Worker → Settings → Variables and Secrets)." }, 403);
     }
     if (!password || String(password).length < 8) return json({ error: "Usa al menos 8 caracteres" }, 400);
     await setSetting(env, "admin_pw", await hashPassword(String(password)));
