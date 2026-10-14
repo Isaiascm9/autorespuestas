@@ -515,6 +515,7 @@ async function handleDM(env, acc, ev, cfg) {
       title: `${brand.name} · Por atender`,
       body: `${who}: ${String(inText).slice(0, 140)}`,
       url: "/#resumen", tag: `c:${acc.id}:${from}`,
+      badge: ((await env.DB.prepare("SELECT COUNT(*) AS n FROM contacts WHERE paused = 1").first()) || {}).n || 1,
     });
   }
   await addLog(env, acc, { channel: "dm", fromId: from, username, text: inText, reply, kind, ruleId, error: errors.join(" | ") || null });
@@ -989,6 +990,12 @@ async function api(req, env, url) {
       ? await env.DB.prepare("SELECT * FROM contacts WHERE brand_id = ? ORDER BY last_at DESC LIMIT 300").bind(brand).all()
       : await env.DB.prepare("SELECT * FROM contacts ORDER BY last_at DESC LIMIT 300").all();
     return json(results);
+  }
+  if (p === "/api/pending" && m === "GET") {
+    const { results } = await env.DB.prepare(
+      `SELECT c.account_id, c.user_id, c.username, c.platform, c.last_message, c.last_at, c.brand_id, b.name AS brand
+       FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE c.paused = 1 ORDER BY c.last_at DESC LIMIT 50`).all();
+    return json({ count: results.length, items: results });
   }
   if (p === "/api/contacts" && m === "PATCH") {
     const { account_id, user_id, paused } = await req.json().catch(() => ({}));
