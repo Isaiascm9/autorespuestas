@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Autorespuestas</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Autorespuestas">
+<meta name="theme-color" content="#0e7c86">
 <style>
 :root{
   --bg:#f6f7f9;--card:#fff;--ink:#111827;--ink2:#374151;--muted:#6b7280;--line:#e5e7eb;--line2:#d1d5db;
@@ -421,6 +426,7 @@ function showAuth(d = {}) {
   (setup ? $("newPw") : $("password")).focus();
 }
 async function boot() {
+  swRegistration();
   let s;
   try {
     s = window.demoApi ? await api("/api/session")
@@ -1287,6 +1293,80 @@ function drawDaily(el, series) {
   });
 }
 
+/* ================= NOTIFICACIONES (Web Push) ================= */
+function swRegistration() {
+  if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+  return navigator.serviceWorker.register("/sw.js").then(() => navigator.serviceWorker.ready).catch(() => null);
+}
+function keyToBytes(k) {
+  const s = k.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (k.length % 4)) % 4);
+  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+}
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isStandalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+function deviceLabel() {
+  const ua = navigator.userAgent;
+  if (/iphone/i.test(ua)) return "iPhone"; if (/ipad/i.test(ua)) return "iPad"; if (/android/i.test(ua)) return "Android";
+  if (/mac/i.test(ua)) return "Mac"; if (/windows/i.test(ua)) return "Windows"; return "Navegador";
+}
+async function setupPush() {
+  const pill = $("pushPill"), info = $("pushInfo"), on = $("pushOn"), off = $("pushOff"), test = $("pushTest"), out = $("pushOut");
+  if (!pill) return;
+  const show = (el, v) => el.classList.toggle("hidden", !v);
+  const setPill = (cls, t) => { pill.className = "pill " + cls; pill.textContent = t; };
+  const bad = (t) => (out.innerHTML = `<span style="color:var(--bad)">${esc(t)}</span>`);
+  const good = (t) => (out.innerHTML = `<span style="color:var(--ok)">${esc(t)}</span>`);
+  show(on, false); show(off, false); show(test, false); out.textContent = "";
+  try { const c = await api("/api/push/count"); info.textContent = c.devices ? `Teléfonos con notificaciones activas: ${c.devices}.` : ""; } catch {}
+
+  if (isIOS() && !isStandalone()) {
+    setPill("gray", "Falta un paso");
+    info.innerHTML = "En iPhone primero agrega el panel a tu pantalla de inicio: en Safari toca <strong>Compartir</strong> → <strong>Agregar a inicio</strong>. Luego abre el panel desde ese ícono y vuelve aquí.";
+    return;
+  }
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    setPill("bad", "No disponible"); info.textContent = "Este navegador no permite notificaciones. En iPhone necesitas iOS 16.4 o superior y abrir el panel desde el ícono de inicio."; return;
+  }
+  const reg = await swRegistration();
+  if (!reg) { setPill("bad", "No disponible"); info.textContent = "No se pudo preparar el servicio de notificaciones."; return; }
+  let sub = await reg.pushManager.getSubscription();
+  const refresh = () => setupPush();
+
+  if (Notification.permission === "denied") {
+    setPill("bad", "Bloqueadas");
+    info.textContent = isIOS() ? "Las bloqueaste. Actívalas en Ajustes → Notificaciones → Autorespuestas." : "Las bloqueaste. Actívalas en los permisos del sitio en tu navegador.";
+    return;
+  }
+  if (sub && Notification.permission === "granted") {
+    setPill("ok", "Activadas"); show(test, true); show(off, true);
+    // por si la base se reinició: vuelve a registrar este teléfono
+    api("/api/push/subscribe", { method: "POST", body: { subscription: sub.toJSON(), label: deviceLabel() } }).catch(() => {});
+  } else {
+    setPill("gray", "Apagadas"); show(on, true);
+  }
+  on.onclick = async () => {
+    on.disabled = true;
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { on.disabled = false; return bad("No diste permiso para las notificaciones."); }
+      const { key } = await api("/api/push/key");
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(key) });
+      await api("/api/push/subscribe", { method: "POST", body: { subscription: sub.toJSON(), label: deviceLabel() } });
+      await refresh(); good("Notificaciones activadas. Toca «Enviar prueba» para verificar.");
+    } catch (e) { on.disabled = false; bad(e.message || String(e)); }
+  };
+  test.onclick = async () => {
+    test.disabled = true;
+    try { await api("/api/push/test", { method: "POST", body: { endpoint: sub.endpoint } }); good("Prueba enviada: debería llegarte en unos segundos."); }
+    catch (e) { bad(e.message); }
+    test.disabled = false;
+  };
+  off.onclick = async () => {
+    try { await api("/api/push/subscribe", { method: "DELETE", body: { endpoint: sub.endpoint } }); await sub.unsubscribe(); } catch {}
+    await refresh(); good("Notificaciones desactivadas en este teléfono.");
+  };
+}
+
 /* ================= CONFIGURACIÓN ================= */
 async function renderConfig() {
   $("main").innerHTML = `<h1 class="page-title">Configuración</h1><p class="page-sub">Lo que conecta el panel con Meta y con la IA. Todo se pega aquí; no hace falta tocar código.</p><hr class="divider"><div id="cfgBody"><div class="empty">Cargando…</div></div>`;
@@ -1331,7 +1411,15 @@ async function renderConfig() {
     </div>
 
     <div class="card">
-      <div class="card-h"><div><h2>4 · Contraseña del panel</h2><p>Al cambiarla se cierran las demás sesiones abiertas.</p></div></div>
+      <div class="card-h"><div><h2>4 · Notificaciones en este teléfono</h2><p>Te aviso al teléfono cada vez que el bot pase un cliente a una persona (pago enviado, reclamo, etc.).</p></div>
+        <span class="pill gray" id="pushPill">…</span></div>
+      <div class="small" id="pushInfo" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary hidden" id="pushOn">Activar notificaciones</button><button class="btn hidden" id="pushTest">Enviar prueba</button><button class="btn danger hidden" id="pushOff">Desactivar en este teléfono</button></div>
+      <div class="small" id="pushOut" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>5 · Contraseña del panel</h2><p>Al cambiarla se cierran las demás sesiones abiertas.</p></div></div>
       <div class="grid2" style="gap:0 16px;max-width:720px">
         <div><label class="f" for="pwCur">Contraseña actual</label><input id="pwCur" type="password" autocomplete="current-password"></div><div></div>
         <div><label class="f" for="pwNew">Nueva contraseña</label><input id="pwNew" type="password" autocomplete="new-password"></div>
@@ -1365,6 +1453,7 @@ async function renderConfig() {
     if (!confirm("¿Quitar la clave? Las tiendas sin clave propia dejarán de responder con IA.")) return;
     try { await api("/api/config/deepseek", { method: "PUT", body: { key: "" } }); await refreshSession(); renderConfig(); toast("Clave quitada"); } catch (e) { toast(e.message); }
   };
+  setupPush();
   $("pwSave").onclick = async () => {
     if ($("pwNew").value !== $("pwNew2").value) return bad("pwOut", "Las contraseñas nuevas no coinciden");
     try { await api("/api/password", { method: "PUT", body: { current: $("pwCur").value, password: $("pwNew").value } }); ["pwCur", "pwNew", "pwNew2"].forEach((i) => ($(i).value = "")); ok("pwOut", "Contraseña cambiada."); }
