@@ -283,7 +283,18 @@ Reglas fijas:
 - Escribe UNA respuesta corta (1–2 frases), cálida, con 0–2 emojis, sin markdown.
 - Salvo que las instrucciones de la tienda digan lo contrario, no des precios ni datos en público: invita a escribir por mensaje privado.
 - Si el comentario es spam, ofensivo, de un competidor o no merece respuesta, responde ÚNICAMENTE con: [NADA]
+- Si además conviene enviarle un mensaje privado (precio, datos de compra, una queja), escribe primero la respuesta pública y, en una línea aparte, "DM:" seguido del mensaje privado (1–3 frases, con los datos de la base de conocimiento). Ejemplo:
+¡Respondido al DM, revisa tu bandeja! 🤎
+DM: ¡Hola! El gorro está en $8 e incluye 2 scrunchies de regalo. ¿Te ayudo con tu pedido?
+- Solo di en público que respondiste por DM si incluyes la línea "DM:".
 - No inventes datos.`;
+
+/** Separa la respuesta pública de la línea "DM: ..." que la IA puede añadir en comentarios. */
+function splitDM(text) {
+  const m = String(text || "").match(/^([\s\S]*?)\n?\s*DM\s*:\s*([\s\S]+)$/im);
+  if (!m) return { pub: String(text || "").trim(), dm: null };
+  return { pub: m[1].trim(), dm: m[2].trim() || null };
+}
 
 function buildSystem(brand, mode, platform, extra) {
   const parts = [mode === "comment" ? SYSTEM_COMMENT(brand.name, platform) : SYSTEM_DM(brand.name, platform)];
@@ -425,7 +436,7 @@ async function saveMessage(env, accountId, userId, role, content) {
     .bind(String(accountId), userId, role, String(content).slice(0, 2000), nowIso()).run();
 }
 
-async function getHistory(env, accountId, userId, n = 12) {
+async function getHistory(env, accountId, userId, n = 30) {
   const { results } = await env.DB.prepare(
     "SELECT role, content FROM messages WHERE account_id = ? AND user_id = ? ORDER BY id DESC LIMIT ?"
   ).bind(String(accountId), userId, n).all();
@@ -566,9 +577,22 @@ async function handleComment(env, acc, c, cfg) {
         const extra = product ? `=== PUBLICACIÓN COMENTADA ===\nEsta publicación es de: ${product}` : null;
         const out = await askAI(env, brand, [{ role: "user", content: `Comentario de ${who}: "${text}"` }], "comment", acc.platform, extra, cfg);
         if (out.text) {
-          kind = "ai"; publicReply = out.text;
-          try { await P.publicReply(env, acc, c.commentId, publicReply); }
-          catch (e) { errors.push("Pública: " + errText(e)); }
+          const { pub, dm } = splitDM(out.text);
+          kind = "ai"; publicReply = pub || null;
+          if (dm) {
+            reply = dm;
+            try {
+              await P.privateReply(env, acc, c.commentId, dm);
+              if (c.fromId) {
+                await saveMessage(env, acc.id, c.fromId, "user", `[Comentó en una publicación${product ? " de: " + product : ""}] ${text}`);
+                await saveMessage(env, acc.id, c.fromId, "assistant", dm);
+              }
+            } catch (e) { errors.push("Privado: " + errText(e)); }
+          }
+          if (publicReply) {
+            try { await P.publicReply(env, acc, c.commentId, publicReply); }
+            catch (e) { errors.push("Pública: " + errText(e)); }
+          }
         }
       } catch (e) { errors.push("IA: " + errText(e)); }
     }
