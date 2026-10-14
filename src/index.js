@@ -63,6 +63,8 @@ const SCHEMA = [
     PRIMARY KEY (brand_id, media_id))`,
   `CREATE TABLE IF NOT EXISTS processed (event_id TEXT PRIMARY KEY, at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS push_subs (
+    endpoint TEXT PRIMARY KEY, p256dh TEXT NOT NULL, auth TEXT NOT NULL, label TEXT, created_at TEXT)`,
 ];
 
 // Columnas que pueden faltar si la base se creó con una versión anterior
@@ -507,6 +509,14 @@ async function handleDM(env, acc, ev, cfg) {
 
   await upsertContact(env, { acc, userId: from, username, text: inText, channel: "dm", defaultSent: kind === "default" && sent });
   if (handoff && sent) await env.DB.prepare("UPDATE contacts SET paused = 1 WHERE account_id = ? AND user_id = ?").bind(String(acc.id), from).run();
+  if (handoff) {
+    const who = username ? (acc.platform === "instagram" ? "@" + username : username) : "Un cliente";
+    await notifyAll(env, {
+      title: `${brand.name} · Por atender`,
+      body: `${who}: ${String(inText).slice(0, 140)}`,
+      url: "/#resumen", tag: `c:${acc.id}:${from}`,
+    });
+  }
   await addLog(env, acc, { channel: "dm", fromId: from, username, text: inText, reply, kind, ruleId, error: errors.join(" | ") || null });
 }
 
@@ -633,6 +643,87 @@ async function webhook(req, env, ctx, url) {
   try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { return new Response("Bad JSON", { status: 400 }); }
   ctx.waitUntil(processWebhook(env, body));
   return new Response("EVENT_RECEIVED", { status: 200 });
+}
+
+/* ================= Notificaciones push al teléfono (Web Push, todo en Cloudflare) ================= */
+const bytesToB64u = (buf) => {
+  let bin = ""; for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
+const b64uToBytes = (str) => {
+  const s = str.replace(/-/g, "+").replace(/_/g, "/"); const pad = s.length % 4 ? "=".repeat(4 - (s.length % 4)) : "";
+  const bin = atob(s + pad); const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+const concatBytes = (...arrs) => {
+  const out = new Uint8Array(arrs.reduce((n, a) => n + a.length, 0)); let o = 0;
+  for (const a of arrs) { out.set(a, o); o += a.length; }
+  return out;
+};
+
+/** Claves VAPID: se generan solas la primera vez y se guardan en la base. */
+async function vapidKeys(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'vapid'").first();
+  if (row) return JSON.parse(row.value);
+  const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const keys = {
+    publicKey: bytesToB64u(await crypto.subtle.exportKey("raw", kp.publicKey)),
+    privateJwk: await crypto.subtle.exportKey("jwk", kp.privateKey),
+  };
+  await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('vapid', ?)").bind(JSON.stringify(keys)).run();
+  const again = await env.DB.prepare("SELECT value FROM settings WHERE key = 'vapid'").first();
+  return JSON.parse(again.value);
+}
+
+async function vapidAuth(keys, endpoint, subject) {
+  const enc2 = (o) => bytesToB64u(enc.encode(JSON.stringify(o)));
+  const unsigned = `${enc2({ typ: "JWT", alg: "ES256" })}.${enc2({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: subject || "mailto:notificaciones@example.com" })}`;
+  const key = await crypto.subtle.importKey("jwk", keys.privateJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, enc.encode(unsigned));
+  return `vapid t=${unsigned}.${bytesToB64u(sig)}, k=${keys.publicKey}`;
+}
+
+async function hkdf(salt, ikm, info, length) {
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, length * 8));
+}
+
+/** Cifra el mensaje como pide el estándar (RFC 8291, aes128gcm). */
+async function encryptPush(sub, payload) {
+  const uaPublic = b64uToBytes(sub.p256dh), authSecret = b64uToBytes(sub.auth);
+  const local = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey("raw", local.publicKey));
+  const uaKey = await crypto.subtle.importKey("raw", uaPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, local.privateKey, 256));
+  const ikm = await hkdf(authSecret, ecdh, concatBytes(enc.encode("WebPush: info\0"), uaPublic, asPublic), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await hkdf(salt, ikm, enc.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, ikm, enc.encode("Content-Encoding: nonce\0"), 12);
+  const aes = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aes, concatBytes(enc.encode(payload), new Uint8Array([2]))));
+  const header = new Uint8Array(21); header.set(salt, 0); new DataView(header.buffer).setUint32(16, 4096); header[20] = asPublic.length;
+  return concatBytes(header, asPublic, cipher);
+}
+
+async function sendPush(env, sub, data) {
+  const keys = await vapidKeys(env);
+  const origin = await env.DB.prepare("SELECT value FROM settings WHERE key = 'push_origin'").first();
+  const res = await fetch(sub.endpoint, {
+    method: "POST",
+    headers: { Authorization: await vapidAuth(keys, sub.endpoint, origin && origin.value), "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "86400", Urgency: "high" },
+    body: await encryptPush(sub, JSON.stringify(data)),
+  });
+  if (res.status === 404 || res.status === 410) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ?").bind(sub.endpoint).run();
+  return res.status;
+}
+
+/** Avisa a todos los teléfonos con notificaciones activadas. Nunca hace fallar al bot. */
+async function notifyAll(env, data) {
+  try {
+    const { results } = await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subs").all();
+    await Promise.all(results.map((s) => sendPush(env, s, data).catch((e) => console.log("Push", errText(e)))));
+  } catch (e) { console.log("Push", errText(e)); }
 }
 
 /* ================= sesión ================= */
@@ -853,6 +944,34 @@ async function api(req, env, url) {
     return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(await makeSession(fresh), 2592000) });
   }
 
+  /* ----- notificaciones ----- */
+  if (p === "/api/push/key" && m === "GET") return json({ key: (await vapidKeys(env)).publicKey });
+  if (p === "/api/push/subscribe" && m === "POST") {
+    const { subscription: sub, label } = await req.json().catch(() => ({}));
+    const k = sub && sub.keys;
+    if (!sub || !sub.endpoint || !k || !k.p256dh || !k.auth) return json({ error: "Suscripción no válida" }, 400);
+    await env.DB.prepare("INSERT INTO push_subs (endpoint, p256dh, auth, label, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, label = excluded.label")
+      .bind(sub.endpoint, k.p256dh, k.auth, String(label || "").slice(0, 80), nowIso()).run();
+    await setSetting(env, "push_origin", url.origin); // se usa como contacto en las notificaciones
+    return json({ ok: true });
+  }
+  if (p === "/api/push/subscribe" && m === "DELETE") {
+    const { endpoint } = await req.json().catch(() => ({}));
+    if (endpoint) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ?").bind(endpoint).run();
+    return json({ ok: true });
+  }
+  if (p === "/api/push/test" && m === "POST") {
+    const { endpoint } = await req.json().catch(() => ({}));
+    const sub = endpoint && (await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subs WHERE endpoint = ?").bind(endpoint).first());
+    if (!sub) return json({ error: "Este teléfono no tiene las notificaciones activadas" }, 400);
+    const status = await sendPush(env, sub, { title: "Autorespuestas", body: "¡Listo! Así te avisaré cuando un cliente necesite una persona 🔔", url: "/#resumen", tag: "prueba" });
+    if (status >= 300) return json({ error: `El servicio de notificaciones respondió ${status}` }, 502);
+    return json({ ok: true });
+  }
+  if (p === "/api/push/count" && m === "GET") {
+    const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subs").first();
+    return json({ devices: r ? r.n : 0 });
+  }
   if (p === "/api/stats" && m === "GET") return stats(env, url);
   if (p === "/api/oauth/start" && m === "GET") return oauthStart(env, url, cfg);
 
