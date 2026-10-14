@@ -65,6 +65,17 @@ main{padding:28px 32px 110px;max-width:1280px;width:100%;min-width:0}
 .icon-btn:disabled{opacity:.35;cursor:default}
 .icon-btn.danger{color:var(--bad)}
 .icon-btn svg{width:17px;height:17px}
+.bell{position:relative;padding:7px 12px 7px 7px}
+.bell svg{width:21px;height:21px;color:var(--ink2)}
+.bell-count{position:absolute;top:0;left:19px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;border:2px solid var(--card);box-sizing:content-box}
+.bell.ring svg{animation:ring .9s ease-in-out}
+@keyframes ring{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}75%{transform:rotate(3deg)}}
+.bellpanel{position:absolute;top:44px;right:0;width:min(360px,calc(100vw - 24px));max-height:70vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 12px 32px rgba(17,24,39,.14);z-index:40}
+.bellpanel .bp-h{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:700}
+.bellpanel .bp-item{padding:12px 14px;border-bottom:1px solid var(--line)}
+.bellpanel .bp-item:last-child{border-bottom:0}
+.bellpanel .bp-msg{color:var(--ink2);margin:4px 0 8px;overflow-wrap:anywhere}
+.bellpanel .bp-empty{padding:22px 14px;text-align:center;color:var(--muted)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 label.f{display:block;font-weight:600;margin:16px 0 6px}
 input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--line2);border-radius:8px;background:#fff}
@@ -253,7 +264,14 @@ tr.click:hover td{background:#fafafa}
 <section id="app" class="hidden">
   <header class="topbar">
     <div class="crumbs"><span class="brandmark"><i>A</i><span class="hide-sm">Autorespuestas</span></span><span>›</span><b id="crumb"></b></div>
-    <button id="logoutBtn" class="btn small">Salir</button>
+    <div class="row" style="gap:12px;flex:none;position:relative">
+      <button id="bellBtn" class="icon-btn bell" aria-label="Clientes por atender" aria-expanded="false" title="Clientes por atender">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+        <span id="bellCount" class="bell-count hidden">0</span>
+      </button>
+      <button id="logoutBtn" class="btn small">Salir</button>
+      <div id="bellPanel" class="bellpanel hidden" role="dialog" aria-label="Clientes por atender"></div>
+    </div>
   </header>
   <div class="shell">
     <nav class="side" id="side"></nav>
@@ -444,6 +462,7 @@ async function boot() {
   }
   await loadData();
   render();
+  if (!BELL.started) { BELL.started = true; startBell(); } else refreshBell();
 }
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("loginError").textContent = "";
@@ -1167,7 +1186,7 @@ async function tabActivity() {
           <td><button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}" data-p="${c.paused ? 1 : 0}">${c.paused ? "Reanudar" : "Pausar"}</button></td></tr>`).join("")}
         </tbody></table>`;
       $("actWrap").querySelectorAll("[data-u]").forEach((el) => (el.onclick = async () => {
-        try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: el.dataset.p !== "1" } }); tabActivity(); } catch (e) { toast(e.message); }
+        try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: el.dataset.p !== "1" } }); tabActivity(); refreshBell(); } catch (e) { toast(e.message); }
       }));
       return;
     }
@@ -1255,7 +1274,7 @@ async function renderResumen() {
       </tbody></table></div>`;
   drawDaily($("dailyChart"), s.series);
   $("dash").querySelectorAll("[data-u]").forEach((el) => (el.onclick = async () => {
-    try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: false } }); toast("Bot reanudado"); renderResumen(); } catch (e) { toast(e.message); }
+    try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: false } }); toast("Bot reanudado"); renderResumen(); refreshBell(); } catch (e) { toast(e.message); }
   }));
   $("dash").querySelectorAll("[data-open]").forEach((el) => (el.onclick = () => openConfigure(el.dataset.open)));
 }
@@ -1291,6 +1310,64 @@ function drawDaily(el, series) {
     };
     r.onmouseleave = () => (tip.style.opacity = 0);
   });
+}
+
+/* ================= CAMPANITA: clientes por atender ================= */
+const BELL = { items: [], count: -1, timer: null };
+function agoText(iso) {
+  if (!iso) return "";
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 1) return "ahora"; if (m < 60) return `hace ${m} min`;
+  const h = Math.round(m / 60); if (h < 24) return `hace ${h} h`;
+  return fmt(iso);
+}
+function drawBell() {
+  const n = BELL.items.length, c = $("bellCount");
+  c.textContent = n > 99 ? "99+" : String(n); c.classList.toggle("hidden", !n);
+  $("bellBtn").setAttribute("aria-label", n ? `${n} cliente${n === 1 ? "" : "s"} por atender` : "Sin clientes por atender");
+  try { if (navigator.setAppBadge) n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } catch {}
+  const panel = $("bellPanel");
+  if (panel.classList.contains("hidden")) return;
+  panel.innerHTML = `<div class="bp-h"><span>Por atender${n ? ` (${n})` : ""}</span><button class="icon-btn" id="bellClose" aria-label="Cerrar">${ICON.x}</button></div>` + (n
+    ? BELL.items.map((it) => {
+        const who = it.username ? (it.platform === "instagram" ? "@" + it.username : it.username) : "Cliente";
+        const chat = it.platform === "instagram" && it.username ? `<a class="btn small" href="https://ig.me/m/${encodeURIComponent(it.username)}" target="_blank" rel="noopener">Abrir chat</a>` : "";
+        return `<div class="bp-item"><div class="row" style="justify-content:space-between;gap:8px"><strong>${esc(who)}</strong><span class="small muted">${esc(agoText(it.last_at))}</span></div>
+          <div class="small muted">${esc(it.brand || "Sin tienda")} · ${PLAT[it.platform] || ""}</div>
+          <div class="bp-msg small">${esc((it.last_message || "").slice(0, 160))}</div>
+          <div class="row" style="gap:6px">${chat}<button class="btn small" data-resume data-a="${esc(it.account_id)}" data-u="${esc(it.user_id)}">Ya lo atendí · reanudar bot</button></div></div>`;
+      }).join("")
+    : `<div class="bp-empty">Nada pendiente 🎉<br><span class="small">Aquí aparecen los clientes que el bot pasa a una persona.</span></div>`);
+  $("bellClose").onclick = () => toggleBell(false);
+  panel.querySelectorAll("[data-resume]").forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    try { await api("/api/contacts", { method: "PATCH", body: { account_id: b.dataset.a, user_id: b.dataset.u, paused: false } }); toast("Bot reanudado"); await refreshBell(); }
+    catch (e) { b.disabled = false; toast(e.message); }
+  }));
+}
+async function refreshBell() {
+  if ($("app").classList.contains("hidden")) return;
+  try {
+    const d = await api("/api/pending");
+    const grew = BELL.count >= 0 && d.count > BELL.count;
+    BELL.items = d.items || []; BELL.count = d.count || 0;
+    drawBell();
+    if (grew) { const b = $("bellBtn"); b.classList.remove("ring"); void b.offsetWidth; b.classList.add("ring"); }
+  } catch {}
+}
+function toggleBell(open) {
+  const panel = $("bellPanel"), show = open ?? panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", !show); $("bellBtn").setAttribute("aria-expanded", String(show));
+  if (show) { drawBell(); refreshBell(); }
+}
+function startBell() {
+  $("bellBtn").onclick = (e) => { e.stopPropagation(); toggleBell(); };
+  document.addEventListener("click", (e) => { const p = $("bellPanel"); if (!p.classList.contains("hidden") && !p.contains(e.target)) toggleBell(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleBell(false); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshBell(); });
+  if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "pending") refreshBell(); });
+  clearInterval(BELL.timer); BELL.timer = setInterval(() => { if (!document.hidden) refreshBell(); }, 30000);
+  refreshBell();
 }
 
 /* ================= NOTIFICACIONES (Web Push) ================= */

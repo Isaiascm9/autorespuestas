@@ -5,14 +5,20 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
-  event.waitUntil(self.registration.showNotification(data.title || "Autorespuestas", {
+  event.waitUntil(Promise.all([
+    // Número rojo en el ícono de la app (iPhone/Android con la app instalada)
+    data.badge && self.navigator.setAppBadge ? self.navigator.setAppBadge(data.badge).catch(() => {}) : null,
+    // Avisa al panel abierto para que actualice la campanita
+    self.clients.matchAll({ type: "window" }).then((cs) => cs.forEach((c) => c.postMessage({ type: "pending" }))),
+    self.registration.showNotification(data.title || "Autorespuestas", {
     body: data.body || "Tienes un cliente por atender",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: data.tag || undefined,
     renotify: !!data.tag,
     data: { url: data.url || "/#resumen" },
-  }));
+  }),
+  ]));
 });
 
 self.addEventListener("notificationclick", (event) => {
