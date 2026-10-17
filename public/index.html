@@ -333,51 +333,193 @@ table.posts td{vertical-align:middle}
 .dev-row:last-child{border-bottom:0}
 
 /* acceso */
-.auth{max-width:380px;margin:12vh auto;padding:0 16px}
-.auth .card{padding:26px}
+.auth{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);background:var(--card)}
+.auth-art{position:relative;overflow:hidden;color:#fff;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;
+  background:radial-gradient(120% 90% at 10% 0%,#17a7a3 0%,rgba(23,167,163,0) 60%),linear-gradient(150deg,#0e7c86 0%,#0a5d66 55%,#073f47 100%)}
+.auth-art .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.01em;position:relative;z-index:2}
+.auth-art .logo i{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);display:grid;place-items:center;font-style:normal;backdrop-filter:blur(6px)}
+.auth-art h1{font-size:clamp(28px,3.2vw,40px);line-height:1.12;letter-spacing:-.02em;margin:0 0 12px;max-width:460px;position:relative;z-index:2}
+.auth-art p.lead{margin:0;opacity:.82;max-width:420px;font-size:15.5px;position:relative;z-index:2}
+.float-ic{position:absolute;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(4px);animation:floaty 7s ease-in-out infinite;z-index:1}
+.float-ic svg{width:24px;height:24px}
+.float-ic.f1{top:14%;right:12%}.float-ic.f2{top:44%;right:6%;animation-delay:-2s;width:44px;height:44px}
+.float-ic.f3{bottom:12%;right:12%;animation-delay:-4s}.float-ic.f4{top:26%;right:34%;animation-delay:-1s;width:40px;height:40px;opacity:.8}
+@keyframes floaty{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-14px) rotate(4deg)}}
+.chatdemo{position:relative;z-index:2;display:flex;flex-direction:column;gap:10px;max-width:360px;margin:34px 0 10px}
+.chatdemo .b{max-width:85%;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.35;opacity:0;transform:translateY(10px) scale(.98);animation:bubble 12s ease-in-out infinite}
+.chatdemo .in{align-self:flex-start;background:rgba(255,255,255,.95);color:#0f2f33;border-bottom-left-radius:6px}
+.chatdemo .out{align-self:flex-end;background:#06343a;color:#e6fbfb;border:1px solid rgba(255,255,255,.18);border-bottom-right-radius:6px}
+.chatdemo .out small{display:block;font-size:10.5px;opacity:.7;margin-top:3px}
+.chatdemo .b:nth-child(1){animation-delay:0s}.chatdemo .b:nth-child(2){animation-delay:.9s}.chatdemo .b:nth-child(3){animation-delay:2.2s}.chatdemo .b:nth-child(4){animation-delay:3.1s}
+@keyframes bubble{0%{opacity:0;transform:translateY(10px) scale(.98)}6%,82%{opacity:1;transform:none}90%,100%{opacity:0;transform:translateY(-6px)}}
+.auth-art .foot{font-size:12.5px;opacity:.65;position:relative;z-index:2}
+.auth-side{display:flex;align-items:center;justify-content:center;padding:40px 24px;background:var(--bg)}
+.auth-box{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:34px 32px;box-shadow:0 24px 60px -24px rgba(14,124,134,.28);animation:rise .5s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.auth-box.shake{animation:shake .42s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.auth-box h2{margin:0;font-size:24px;letter-spacing:-.01em}
+.auth-box .auth-sub{margin:6px 0 22px;color:var(--muted)}
+.fld{position:relative;margin-top:14px}
+.fld input{height:54px;padding:22px 44px 6px 44px;border-radius:12px;border:1.5px solid var(--line2);background:#fff;font-size:15px;transition:border-color .15s,box-shadow .15s}
+.fld input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.fld label{position:absolute;left:44px;top:17px;color:var(--muted);pointer-events:none;transition:all .15s ease;font-size:15px}
+.fld input:focus + label,.fld input:not(:placeholder-shown) + label{top:7px;font-size:11.5px;font-weight:600;color:var(--accent)}
+.fld .ic{position:absolute;left:14px;top:16px;width:20px;height:20px;color:var(--muted);transition:color .15s,transform .2s}
+.fld:focus-within .ic{color:var(--accent);transform:scale(1.08)}
+.fld .eye{position:absolute;right:8px;top:9px;width:36px;height:36px;border:0;background:none;border-radius:10px;cursor:pointer;color:var(--muted);display:grid;place-items:center}
+.fld .eye:hover{background:#f3f4f6;color:var(--ink2)}
+.fld .eye svg{width:21px;height:21px}
+.fld .eye .lid{transition:transform .25s ease;transform-origin:12px 12px}
+.fld .eye .slash{stroke-dasharray:24;stroke-dashoffset:0;transition:stroke-dashoffset .25s ease}
+.fld .eye.on .slash{stroke-dashoffset:24}
+.fld .eye:active .lid{transform:scaleY(.15)}
+.caps{display:flex;align-items:center;gap:6px;color:#b45309;font-size:12.5px;margin-top:6px}
+.caps svg{width:14px;height:14px}
+.strength{height:4px;border-radius:4px;background:var(--line);margin-top:8px;overflow:hidden}
+.strength i{display:block;height:100%;width:0;border-radius:4px;transition:width .25s,background .25s}
+.strength-t{font-size:12px;color:var(--muted);margin-top:4px}
+.auth-btn{position:relative;width:100%;height:50px;margin-top:20px;border:0;border-radius:12px;font-weight:700;font-size:15.5px;color:#fff;cursor:pointer;
+  background:linear-gradient(135deg,#12989f,#0e7c86 55%,#0b6670);box-shadow:0 10px 24px -10px rgba(14,124,134,.7);transition:transform .12s,box-shadow .2s,filter .2s;overflow:hidden}
+.auth-btn:hover:not(:disabled){filter:brightness(1.06);box-shadow:0 14px 28px -12px rgba(14,124,134,.8)}
+.auth-btn:active:not(:disabled){transform:scale(.985)}
+.auth-btn:disabled{cursor:default}
+.auth-btn .lbl{display:inline-flex;align-items:center;gap:8px;transition:opacity .15s}
+.auth-btn .lbl svg{width:18px;height:18px;transition:transform .2s}
+.auth-btn:hover .lbl svg{transform:translateX(3px)}
+.auth-btn .spin,.auth-btn .ok{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity .15s}
+.auth-btn .spin i{width:22px;height:22px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite}
+.auth-btn .ok svg{width:24px;height:24px}
+.auth-btn .ok path{stroke-dasharray:24;stroke-dashoffset:24}
+.auth-btn.loading .lbl,.auth-btn.done .lbl{opacity:0}
+.auth-btn.loading .spin{opacity:1}
+.auth-btn.done{background:linear-gradient(135deg,#16a34a,#15803d)}
+.auth-btn.done .ok{opacity:1}
+.auth-btn.done .ok path{animation:draw .35s .05s ease-out forwards}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes draw{to{stroke-dashoffset:0}}
+.auth-err{display:flex;gap:8px;align-items:flex-start;color:var(--bad);background:var(--bad-soft);border:1px solid #fecaca;border-radius:10px;padding:9px 12px;margin-top:14px;font-size:13.5px}
+.auth-err:empty{display:none}
+.auth-links{display:flex;justify-content:flex-end;margin-top:12px}
+.auth-links button{border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0;font-size:13.5px}
+.auth-help{margin-top:12px;background:var(--accent-soft);border:1px solid #b9e3e7;color:#0b5961;border-radius:12px;padding:12px 14px;font-size:13.5px;animation:rise .25s ease-out}
+.auth-biz{display:flex;align-items:center;gap:10px;margin:-8px 0 6px;padding:12px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid #b9e3e7;color:#0b5961}
+.auth-biz svg{width:20px;height:20px;flex:none}
+.mobile-brand{display:none}
+@media (max-width:860px){
+  .auth{grid-template-columns:1fr}
+  .auth-art{display:none}
+  .auth-side{flex-direction:column;justify-content:flex-start;padding:0 16px 32px;background:var(--bg)}
+  .mobile-brand{display:flex;flex-direction:column;align-items:center;gap:10px;width:calc(100% + 32px);margin:0 -16px 0;padding:44px 20px 70px;color:#fff;text-align:center;
+    background:radial-gradient(120% 90% at 10% 0%,#17a7a3 0%,rgba(23,167,163,0) 60%),linear-gradient(150deg,#0e7c86 0%,#0a5d66 60%,#073f47 100%);position:relative;overflow:hidden}
+  .mobile-brand i{width:52px;height:52px;border-radius:15px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:22px;animation:floaty 6s ease-in-out infinite}
+  .mobile-brand b{font-size:19px}
+  .mobile-brand span{opacity:.82;font-size:13.5px}
+  .auth-box{margin-top:-44px;padding:28px 22px;position:relative}
+}
+@media (prefers-reduced-motion:reduce){.float-ic,.mobile-brand i,.chatdemo .b,.auth-box,.auth-btn .spin i{animation:none!important}.chatdemo .b{opacity:1;transform:none}}
 </style>
 </head>
 <body>
 
 <section id="auth" class="auth hidden">
-  <div class="brandmark" style="justify-content:center;margin-bottom:6px"><i>A</i> Autorespuestas</div>
-  <div class="card">
-    <form id="loginForm">
-      <h2 style="margin:0 0 4px;font-size:18px">Entrar</h2>
-      <p class="muted" style="margin:0">Instagram y Facebook · mensajes y comentarios</p>
-      <label class="f" for="login">Usuario o correo</label>
-      <input id="login" autocomplete="username" placeholder="Vacío = cuenta maestra">
-      <label class="f" for="password">Contraseña</label>
-      <input id="password" type="password" autocomplete="current-password" required>
-      <button class="btn primary block" type="submit" style="margin-top:16px">Entrar</button>
-      <p id="loginError" class="small" style="color:var(--bad);margin-bottom:0"></p>
-    </form>
-    <form id="inviteForm" class="hidden">
-      <h2 style="margin:0 0 4px;font-size:18px" id="invTitle">Bienvenida</h2>
-      <p class="muted" style="margin:0" id="invSub">Crea tu contraseña para entrar al panel.</p>
-      <div id="invBiz" class="info hidden" style="margin-top:12px"></div>
-      <label class="f" for="invPw">Contraseña nueva</label>
-      <input id="invPw" type="password" autocomplete="new-password" minlength="8" required>
-      <label class="f" for="invPw2">Repite la contraseña</label>
-      <input id="invPw2" type="password" autocomplete="new-password" minlength="8" required>
-      <button class="btn primary block" type="submit" style="margin-top:16px">Crear contraseña y entrar</button>
-      <p id="invError" class="small" style="color:var(--bad);margin-bottom:0"></p>
-    </form>
-    <form id="setupForm" class="hidden">
-      <h2 style="margin:0 0 4px;font-size:18px">Crea tu contraseña</h2>
-      <p class="muted" style="margin:0">Es la primera vez que entras. Esta contraseña protege tu panel.</p>
-      <div id="codeWrap">
-        <label class="f" for="setupCode">Código de instalación</label>
-        <input id="setupCode" autocomplete="off" placeholder="XXXX-XXXX">
-        <div class="help">Es el código que pusiste en Cloudflare como SETUP_CODE.</div>
+  <aside class="auth-art" aria-hidden="true">
+    <div class="logo"><i>A</i> Autorespuestas</div>
+    <span class="float-ic f1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></span>
+    <span class="float-ic f2"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.3 1.1 4.1 2.3h3C14.3 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z" transform="scale(.92) translate(1 1)"/></svg></span>
+    <span class="float-ic f3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span>
+    <span class="float-ic f4"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg></span>
+    <div>
+      <h1>Tus mensajes y comentarios, respondidos solos.</h1>
+      <p class="lead">Instagram y Facebook atendidos al momento, con la voz de tu marca. Tú solo entras cuando hace falta una persona.</p>
+      <div class="chatdemo">
+        <div class="b in">Hola, ¿cuánto cuesta el gorro? 😍</div>
+        <div class="b out">¡Hola María! 🤎 Cuesta $8 y te regalamos 2 scrunchies.<small>Respondido al instante</small></div>
+        <div class="b in">¡Lo quiero! Envían a Valencia?</div>
+        <div class="b out">¡Sí! Enviamos por MRW a toda Venezuela 📦<small>Respondido al instante</small></div>
       </div>
-      <label class="f" for="newPw">Contraseña nueva</label>
-      <input id="newPw" type="password" autocomplete="new-password" minlength="8" required>
-      <label class="f" for="newPw2">Repite la contraseña</label>
-      <input id="newPw2" type="password" autocomplete="new-password" minlength="8" required>
-      <button class="btn primary block" type="submit" style="margin-top:16px">Crear y entrar</button>
-      <p id="setupError" class="small" style="color:var(--bad);margin-bottom:0"></p>
-    </form>
+    </div>
+    <div class="foot">Mensajes · Comentarios · Historias · Estadísticas</div>
+  </aside>
+
+  <div class="auth-side">
+    <div class="mobile-brand" aria-hidden="true"><i>A</i><b>Autorespuestas</b><span>Tus mensajes y comentarios, respondidos solos</span></div>
+    <div class="auth-box" id="authBox">
+      <form id="loginForm" novalidate>
+        <h2>Hola de nuevo 👋</h2>
+        <p class="auth-sub">Entra para ver tus conversaciones.</p>
+        <div class="fld">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          <input id="login" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder=" ">
+          <label for="login">Correo o usuario</label>
+        </div>
+        <div class="fld">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <input id="password" type="password" autocomplete="current-password" placeholder=" " required>
+          <label for="password">Contraseña</label>
+          <button type="button" class="eye" data-eye="password" aria-label="Mostrar contraseña"></button>
+        </div>
+        <div class="caps hidden" data-caps="password"></div>
+        <div class="auth-links"><button type="button" id="forgotBtn">¿Olvidaste tu contraseña?</button></div>
+        <div class="auth-help hidden" id="forgotBox">
+          <strong>¿Te dieron acceso?</strong> Pídele a quien te invitó un enlace nuevo: con él creas otra contraseña.<br>
+          <strong>¿Eres la cuenta maestra?</strong> Si tienes la sesión abierta en otro equipo, cámbiala en Mi perfil. Si no, en Cloudflare → Storage &amp; Databases → D1 → autorespuestas → Console, ejecuta <code>DELETE FROM settings WHERE key = 'admin_pw'</code> y vuelve aquí: podrás crear una nueva con tu código de instalación.
+        </div>
+        <button class="auth-btn" type="submit"><span class="lbl">Entrar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="spin"><i></i></span><span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+        <div id="loginError" class="auth-err" role="alert"></div>
+      </form>
+
+      <form id="inviteForm" class="hidden" novalidate>
+        <h2 id="invTitle">Bienvenida</h2>
+        <p class="auth-sub" id="invSub">Crea tu contraseña para entrar al panel.</p>
+        <div id="invBiz" class="auth-biz hidden"></div>
+        <div class="fld">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <input id="invPw" type="password" autocomplete="new-password" minlength="8" placeholder=" " required>
+          <label for="invPw">Contraseña nueva</label>
+          <button type="button" class="eye" data-eye="invPw" aria-label="Mostrar contraseña"></button>
+        </div>
+        <div class="strength" data-strength="invPw"><i></i></div><div class="strength-t" data-strength-t="invPw">Usa al menos 8 caracteres</div>
+        <div class="caps hidden" data-caps="invPw"></div>
+        <div class="fld">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <input id="invPw2" type="password" autocomplete="new-password" minlength="8" placeholder=" " required>
+          <label for="invPw2">Repite la contraseña</label>
+          <button type="button" class="eye" data-eye="invPw2" aria-label="Mostrar contraseña"></button>
+        </div>
+        <button class="auth-btn" type="submit"><span class="lbl">Crear contraseña y entrar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="spin"><i></i></span><span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+        <div id="invError" class="auth-err" role="alert"></div>
+      </form>
+
+      <form id="setupForm" class="hidden" novalidate>
+        <h2>Crea tu contraseña</h2>
+        <p class="auth-sub">Es la primera vez que entras. Esta contraseña protege tu panel.</p>
+        <div id="codeWrap">
+          <div class="fld">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>
+            <input id="setupCode" autocomplete="off" placeholder=" ">
+            <label for="setupCode">Código de instalación</label>
+          </div>
+          <div class="strength-t">Es el valor de SETUP_CODE que pusiste en Cloudflare.</div>
+        </div>
+        <div class="fld">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <input id="newPw" type="password" autocomplete="new-password" minlength="8" placeholder=" " required>
+          <label for="newPw">Contraseña nueva</label>
+          <button type="button" class="eye" data-eye="newPw" aria-label="Mostrar contraseña"></button>
+        </div>
+        <div class="strength" data-strength="newPw"><i></i></div><div class="strength-t" data-strength-t="newPw">Usa al menos 8 caracteres</div>
+        <div class="caps hidden" data-caps="newPw"></div>
+        <div class="fld">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <input id="newPw2" type="password" autocomplete="new-password" minlength="8" placeholder=" " required>
+          <label for="newPw2">Repite la contraseña</label>
+          <button type="button" class="eye" data-eye="newPw2" aria-label="Mostrar contraseña"></button>
+        </div>
+        <button class="auth-btn" type="submit"><span class="lbl">Crear y entrar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="spin"><i></i></span><span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+        <div id="setupError" class="auth-err" role="alert"></div>
+      </form>
+    </div>
   </div>
 </section>
 
@@ -623,20 +765,22 @@ function showAuth(d = {}) {
       $("invSub").textContent = `Crea tu contraseña. Para entrar usarás: ${r.login}`;
       const biz = r.stores.includes("*") ? "Todas las tiendas" : r.stores.length ? r.stores.join(", ") : "";
       if (biz) {
-        $("invBiz").innerHTML = `Vas a manejar: <strong>${esc(biz)}</strong>`;
+        $("invBiz").innerHTML = `${ICON.store}<span>Vas a manejar: <strong>${esc(biz)}</strong></span>`;
         $("invBiz").classList.remove("hidden");
         document.title = `Acceso a ${r.stores.includes("*") ? "Autorespuestas" : r.stores.join(", ")}`;
       }
     })
       .catch((e) => { $("invError").textContent = e.message; });
-    $("invPw").focus(); return;
+    try { if (!matchMedia("(pointer:coarse)").matches) $("invPw").focus(); } catch {}
+    return;
   }
   $("inviteForm").classList.add("hidden");
   const setup = !!d.setup_required;
   $("loginForm").classList.toggle("hidden", setup);
   $("setupForm").classList.toggle("hidden", !setup);
   $("codeWrap").classList.toggle("hidden", !d.needs_code);
-  (setup ? $("newPw") : $("password")).focus();
+  // En el teléfono no se abre el teclado solo
+  try { if (!matchMedia("(pointer:coarse)").matches) (setup ? $("newPw") : $("login").value ? $("password") : $("login")).focus({ preventScroll: true }); } catch {}
 }
 async function boot() {
   swRegistration();
@@ -661,22 +805,75 @@ async function boot() {
   render();
   if (!BELL.started) { BELL.started = true; startBell(); } else refreshBell();
 }
-$("loginForm").addEventListener("submit", async (e) => {
-  e.preventDefault(); $("loginError").textContent = "";
-  try { await api("/api/login", { method: "POST", body: { login: $("login").value, password: $("password").value } }); $("password").value = ""; boot(); }
-  catch (err) { $("loginError").textContent = err.message; }
+/* ---------- pantalla de entrada: ojito, mayúsculas, fuerza, animaciones ---------- */
+const EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="lid"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></g><path class="slash" d="M4 4l16 16"/></svg>';
+document.querySelectorAll("[data-eye]").forEach((b) => {
+  b.innerHTML = EYE_SVG;
+  b.onclick = () => {
+    const inp = $(b.dataset.eye), show = inp.type === "password";
+    inp.type = show ? "text" : "password"; b.classList.toggle("on", show);
+    b.setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña");
+    inp.focus({ preventScroll: true }); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
+  };
 });
-$("inviteForm").addEventListener("submit", async (e) => {
-  e.preventDefault(); $("invError").textContent = "";
-  if ($("invPw").value !== $("invPw2").value) return ($("invError").textContent = "Las contraseñas no coinciden");
-  try { await api("/api/invite", { method: "POST", body: { token: inviteToken, password: $("invPw").value } }); boot(); }
-  catch (err) { $("invError").textContent = err.message; }
+const CAPS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 9h-4v6H8v-6H4z"/></svg>';
+document.querySelectorAll("[data-caps]").forEach((box) => {
+  const inp = $(box.dataset.caps);
+  const check = (e) => { if (!e.getModifierState) return; const on = e.getModifierState("CapsLock"); box.innerHTML = on ? CAPS_SVG + " Mayúsculas activadas" : ""; box.classList.toggle("hidden", !on); };
+  inp.addEventListener("keydown", check); inp.addEventListener("keyup", check);
+  inp.addEventListener("blur", () => box.classList.add("hidden"));
 });
-$("setupForm").addEventListener("submit", async (e) => {
-  e.preventDefault(); $("setupError").textContent = "";
-  if ($("newPw").value !== $("newPw2").value) return ($("setupError").textContent = "Las contraseñas no coinciden");
-  try { await api("/api/setup", { method: "POST", body: { password: $("newPw").value, code: $("setupCode").value } }); boot(); }
-  catch (err) { $("setupError").textContent = err.message; }
+document.querySelectorAll("[data-strength]").forEach((bar) => {
+  const inp = $(bar.dataset.strength), txt = document.querySelector(`[data-strength-t="${bar.dataset.strength}"]`), fill = bar.querySelector("i");
+  inp.addEventListener("input", () => {
+    const v = inp.value; let sc = 0;
+    if (v.length >= 8) sc++; if (v.length >= 12) sc++; if (/[A-Z]/.test(v) && /[a-z]/.test(v)) sc++; if (/\d/.test(v)) sc++; if (/[^A-Za-z0-9]/.test(v)) sc++;
+    const lv = v.length < 8 ? 0 : sc <= 2 ? 1 : sc <= 3 ? 2 : 3;
+    fill.style.width = v ? [20, 45, 72, 100][lv] + "%" : "0";
+    fill.style.background = ["#dc2626", "#f59e0b", "#0e7c86", "#16a34a"][lv];
+    txt.textContent = !v ? "Usa al menos 8 caracteres" : v.length < 8 ? `Te faltan ${8 - v.length} caracteres` : ["", "Aceptable", "Buena", "Muy segura"][lv];
+  });
+});
+$("forgotBtn").onclick = () => $("forgotBox").classList.toggle("hidden");
+async function authSubmit(form, errEl, fn) {
+  const btn = form.querySelector(".auth-btn"), box = $("authBox");
+  errEl.textContent = ""; btn.disabled = true; btn.classList.add("loading");
+  try {
+    await fn();
+    btn.classList.remove("loading"); btn.classList.add("done");
+    await new Promise((r) => setTimeout(r, 550));
+    form.querySelectorAll('input[type="text"],input[type="password"]').forEach((i) => { if (i.id !== "login") i.value = ""; });
+    form.querySelectorAll("[data-eye]").forEach((b) => { $(b.dataset.eye).type = "password"; b.classList.remove("on"); });
+    await boot();
+  } catch (err) {
+    errEl.textContent = err.message;
+    box.classList.remove("shake"); void box.offsetWidth; box.classList.add("shake");
+  } finally { btn.disabled = false; btn.classList.remove("loading", "done"); }
+}
+const authFail = (msg) => { throw new Error(msg); };
+
+$("loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  authSubmit($("loginForm"), $("loginError"), async () => {
+    if (!$("password").value) authFail("Escribe tu contraseña");
+    await api("/api/login", { method: "POST", body: { login: $("login").value, password: $("password").value } });
+  });
+});
+$("inviteForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  authSubmit($("inviteForm"), $("invError"), async () => {
+    if ($("invPw").value.length < 8) authFail("La contraseña debe tener al menos 8 caracteres");
+    if ($("invPw").value !== $("invPw2").value) authFail("Las contraseñas no coinciden");
+    await api("/api/invite", { method: "POST", body: { token: inviteToken, password: $("invPw").value } });
+  });
+});
+$("setupForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  authSubmit($("setupForm"), $("setupError"), async () => {
+    if ($("newPw").value.length < 8) authFail("La contraseña debe tener al menos 8 caracteres");
+    if ($("newPw").value !== $("newPw2").value) authFail("Las contraseñas no coinciden");
+    await api("/api/setup", { method: "POST", body: { password: $("newPw").value, code: $("setupCode").value } });
+  });
 });
 $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
 
