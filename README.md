@@ -78,6 +78,10 @@ Listo. A partir de aquí todo se hace en el panel.
 - **Reglas:** respuestas fijas por palabra clave, que van antes que la IA.
 - **Actividad:** todo lo que llegó y lo que respondió el bot, con el ID de la publicación. También la lista de **Contactos**, donde puedes pausar o reanudar el bot con cada persona.
 
+### Notificaciones al teléfono
+**Configuración → 4 · Notificaciones en este teléfono → Activar notificaciones.** Te llega un aviso cada vez que el bot pase un cliente a una persona.
+En iPhone (iOS 16.4 o superior): primero abre el panel en Safari → **Compartir** → **Agregar a inicio**, y activa las notificaciones entrando desde ese ícono.
+
 ### Resumen
 Cifras, gráfico por día, cómo respondió el bot, reglas más usadas, lista **Por atender** y estado de cada tienda.
 
@@ -118,6 +122,24 @@ No se borra nada: tiendas, cuentas, prompts y registros se quedan.
 
 ---
 
+## Funciones nuevas (todo se configura en el panel)
+
+- **Conversaciones**: los DMs de cada cliente, con quién respondió cada mensaje (cliente, IA, regla, tú desde la app, panel). Puedes responder desde aquí (dentro de las 24 h que permite Meta), usar plantillas, pausar o reanudar el bot e ignorar cuentas.
+- **Tiendas → Configurar** tiene pestañas: General, IA, Funciones, Mensajes y Avisos. Las funciones vienen apagadas:
+  - Historias (contexto, agradecer menciones, reacciones con emoji).
+  - Horario de atención.
+  - Reanudar el bot solo después de X horas.
+  - Pausar el bot cuando respondes tú desde la app.
+  - Seguimiento automático si el cliente deja de responder.
+  - Cuentas ignoradas.
+- **Mensajes**: en todos se puede usar `{nombre}` (primer nombre del cliente) y `{usuario}` (su @). Si no hay nombre, la frase queda bien sin él.
+- **Pase a una persona con motivo**: pago, reclamo, persona, mayor u otro. Cada motivo puede tener su propio mensaje, y la notificación te dice el motivo.
+- **Si DeepSeek falla**: el bot reintenta y, si sigue fallando, envía el «Mensaje si la IA falla» y te avisa.
+- **Usuarios**: tú eres la cuenta maestra. Creas usuarios de Equipo o Cliente, eliges sus tiendas y sus permisos, y les mandas un enlace para que creen su contraseña. El registro de acciones guarda quién hizo qué.
+- **Estadísticas**: seguidores, alcance, visualizaciones, interacciones y las mejores y peores publicaciones de cada cuenta. Necesita el permiso de estadísticas: vuelve a conectar la cuenta con «Conectar con Meta».
+- **Exportar** (en Actividad): actividad, contactos y conversaciones en CSV para Excel.
+- **Tareas programadas**: el sistema revisa cada hora los seguimientos y los clientes por reanudar. Una vez al día renueva tokens y guarda los seguidores.
+
 ## Límites que pone Meta
 - **Mensajes privados:** solo se responde dentro de las 24 h siguientes al mensaje del cliente (el bot responde al instante).
 - **Comentario → mensaje privado:** 1 por comentario (en Instagram, dentro de 7 días).
@@ -133,7 +155,7 @@ No se borra nada: tiendas, cuentas, prompts y registros se quedan.
 | Cloudflare dice que el nombre no coincide | El nombre del Worker debe ser exactamente `autorespuestas`, igual que en `wrangler.jsonc`. |
 | Cloudflare no encuentra `wrangler.jsonc` | Los archivos quedaron dentro de otra carpeta en GitHub. Súbelos sueltos, en la raíz del repositorio (paso 1-A.6). |
 | El despliegue falla por otro motivo | Worker → **Deployments** → abre el último → **View build log** y copia el error. |
-| No recuerdo el código de entrada | Worker → Settings → Variables and Secrets → edita `SETUP_CODE` con un código nuevo. Solo sirve mientras no hayas creado la contraseña. |
+| «El código de instalación no coincide» o no lo recuerdo | Worker → Settings → Variables and Secrets → edita `SETUP_CODE` con un código simple sin espacios (ej. `ISA2026`) → Deploy, espera 1 minuto y recarga el panel. Solo sirve mientras no hayas creado la contraseña. |
 | «Conectar con Meta» dice que falta configurar | Configuración → 1: pega el ID y la clave secreta de la app. |
 | Meta dice «URL de redireccionamiento no válida» | Copia el redireccionamiento exacto del panel (Configuración → 2) en tu app de Meta. |
 | No aparece nada en Actividad | Revisa que la cuenta tenga **tienda asignada**, los webhooks (sección 3), el botón **↻** en Cuentas conectadas y el modo Live. |

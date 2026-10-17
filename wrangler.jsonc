@@ -6,7 +6,8 @@
   "assets": { "directory": "./public", "binding": "ASSETS" },
   // La base de datos se crea sola la primera vez que Cloudflare publica. No hace falta ningún ID.
   "d1_databases": [{ "binding": "DB", "database_name": "autorespuestas" }],
-  // Todos los días 9:00 a. m. hora de Caracas (13:00 UTC): revisa y renueva tokens, limpia registros viejos
-  "triggers": { "crons": ["0 13 * * *"] },
+  // Cada hora: seguimientos automáticos y reanudar clientes en pausa.
+  // Una vez al día (desde las 9:00 a. m. de Caracas): renueva tokens, guarda los seguidores del día y limpia registros viejos.
+  "triggers": { "crons": ["0 * * * *"] },
   "observability": { "enabled": true }
 }
