@@ -284,7 +284,14 @@ tr.click:hover td{background:#fafafa}
 .thumb.sm{width:44px;height:44px}
 .thumb.story{height:86px;border-radius:10px}
 table.posts td{vertical-align:middle}
-.userchip{color:var(--muted);font-size:13px;white-space:nowrap}
+.mebtn{display:inline-flex;align-items:center;gap:8px;border:0;background:none;cursor:pointer;padding:4px 8px 4px 4px;border-radius:999px;font-weight:600;color:var(--ink2);max-width:220px}
+.mebtn:hover{background:#f3f4f6}
+.mebtn .avatar{width:30px;height:30px;font-size:13px}
+.mebtn .me-txt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;min-width:0}
+.mebtn .me-txt small{color:var(--muted);font-weight:500;font-size:11.5px}
+@media (max-width:800px){.mebtn .me-txt{display:none}}
+.dev-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.dev-row:last-child{border-bottom:0}
 
 /* acceso */
 .auth{max-width:380px;margin:12vh auto;padding:0 16px}
@@ -342,7 +349,7 @@ table.posts td{vertical-align:middle}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
         <span id="bellCount" class="bell-count hidden">0</span>
       </button>
-      <span class="userchip hide-sm" id="userChip"></span>
+      <button class="mebtn" id="userChip" title="Mi perfil"></button>
       <button id="logoutBtn" class="btn small">Salir</button>
       <div id="bellPanel" class="bellpanel hidden" role="dialog" aria-label="Clientes por atender"></div>
     </div>
@@ -532,6 +539,12 @@ const testChats = {};
 const brandById = (id) => S.brands.find((b) => b.id === id);
 const me = () => S.session.user || { role: "maestro", perms: [] };
 const isMaestro = () => me().role === "maestro";
+const ROLE_NAME = { maestro: "Cuenta maestra", equipo: "Equipo", cliente: "Cliente" };
+function drawMe() {
+  const u = me(), n = String(u.name || "?").trim();
+  $("userChip").innerHTML = `<span class="avatar">${esc((n[0] || "?").toUpperCase())}</span><span class="me-txt"><span class="ell" style="max-width:150px">${esc(n)}</span><small>${ROLE_NAME[u.role] || ""}</small></span>`;
+  $("userChip").onclick = () => go("perfil");
+}
 const can = (perm) => isMaestro() || (me().perms || []).includes(perm);
 const brandAccounts = (id) => S.accounts.filter((a) => a.brand_id === id);
 const storeOn = (b) => b.active && brandAccounts(b.id).length > 0;
@@ -583,7 +596,7 @@ async function boot() {
   } catch (d) { showAuth(d || {}); return; }
   if (inviteToken) { inviteToken = null; try { history.replaceState(null, "", location.pathname); } catch {} }
   S.session = s;
-  $("userChip").textContent = s.user && s.user.role !== "maestro" ? `${s.user.name} · ${s.user.role === "cliente" ? "Cliente" : "Equipo"}` : "";
+  drawMe();
   $("auth").classList.add("hidden"); $("app").classList.remove("hidden");
   S.route = readHash() || defaultRoute();
   let q; try { q = new URLSearchParams(location.search); } catch { q = new URLSearchParams(); }
@@ -617,10 +630,10 @@ $("setupForm").addEventListener("submit", async (e) => {
 $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
 
 /* ================= navegación ================= */
-const VIEWS = { conversaciones: "Conversaciones", tiendas: "Tiendas", redes: "Redes sociales", resumen: "Resumen", estadisticas: "Estadísticas", usuarios: "Usuarios", configuracion: "Configuración" };
+const VIEWS = { tiendas: "Tiendas", conversaciones: "Conversaciones", perfil: "Mi perfil", redes: "Redes sociales", resumen: "Resumen", estadisticas: "Estadísticas", usuarios: "Usuarios", configuracion: "Configuración" };
 const TABS = { cuentas: "Cuentas conectadas", catalogo: "Posts de catálogo", historias: "Historias", prompts: "Prompts", reglas: "Reglas", actividad: "Actividad" };
 const TAB_PERM = { cuentas: "maestro", catalogo: "catalogo", historias: "catalogo", prompts: "prompts", reglas: "reglas", actividad: "actividad" };
-const VIEW_PERM = { conversaciones: "conversaciones", resumen: "resumen", estadisticas: "estadisticas", usuarios: "maestro" };
+const VIEW_PERM = { conversaciones: "conversaciones", resumen: "resumen", estadisticas: "estadisticas", usuarios: "maestro", configuracion: "maestro" };
 const tabOk = (t) => (TAB_PERM[t] === "maestro" ? isMaestro() : can(TAB_PERM[t]));
 const viewOk = (v) => (v === "redes" ? Object.keys(TABS).some(tabOk) : !VIEW_PERM[v] || (VIEW_PERM[v] === "maestro" ? isMaestro() : can(VIEW_PERM[v])));
 const defaultRoute = () => (isMaestro() || !viewOk("conversaciones") ? "tiendas" : "conversaciones");
@@ -658,7 +671,7 @@ function renderNav() {
   const accIssues = S.accounts.filter((a) => tokenStatus(a).cls === "bad" || !a.brand_id).length;
   const cfgIssue = !S.session.ai_ready || (!S.session.ig_login && !S.session.fb_login);
   const item = (v, icon, label, flag) => (viewOk(v) ? `<a class="nav ${v === S.view ? "on" : ""}" href="#${v}">${ICON[icon]}<span>${label}</span>${flag ? '<span class="dot" title="Hay algo por revisar"></span>' : ""}</a>` : "");
-  $("side").innerHTML = item("conversaciones", "chat", "Conversaciones") + item("tiendas", "store", "Tiendas") + item("redes", "ig", "Redes sociales", isMaestro() && accIssues) + item("resumen", "chart", "Resumen")
+  $("side").innerHTML = item("tiendas", "store", "Tiendas") + item("conversaciones", "chat", "Conversaciones") + item("redes", "ig", "Redes sociales", isMaestro() && accIssues) + item("resumen", "chart", "Resumen")
     + item("estadisticas", "trend", "Estadísticas") + item("usuarios", "users", "Usuarios") + item("configuracion", "gear", "Configuración", isMaestro() && cfgIssue)
     + `<div class="side-foot">${S.brands.length} tienda${S.brands.length === 1 ? "" : "s"} · ${S.accounts.length} cuenta${S.accounts.length === 1 ? "" : "s"}</div>`;
 }
@@ -674,6 +687,7 @@ function render() {
   else if (view === "resumen") renderResumen();
   else if (view === "estadisticas") renderInsights();
   else if (view === "usuarios") renderUsers();
+  else if (view === "perfil") renderProfile();
   else renderConfig();
 }
 
@@ -1693,7 +1707,7 @@ async function setupPush() {
       const { key } = await api("/api/push/key");
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(key) });
       await api("/api/push/subscribe", { method: "POST", body: { subscription: sub.toJSON(), label: deviceLabel() } });
-      await refresh(); good("Notificaciones activadas. Toca «Enviar prueba» para verificar.");
+      await refresh(); loadDevices(); good("Notificaciones activadas. Toca «Enviar prueba» para verificar.");
     } catch (e) { on.disabled = false; bad(e.message || String(e)); }
   };
   test.onclick = async () => {
@@ -1704,7 +1718,7 @@ async function setupPush() {
   };
   off.onclick = async () => {
     try { await api("/api/push/subscribe", { method: "DELETE", body: { endpoint: sub.endpoint } }); await sub.unsubscribe(); } catch {}
-    await refresh(); good("Notificaciones desactivadas en este teléfono.");
+    await refresh(); loadDevices(); good("Notificaciones desactivadas en este teléfono.");
   };
 }
 
@@ -2102,14 +2116,103 @@ function openUser(x) {
   dlg.showModal();
 }
 
+
+/* ================= MI PERFIL ================= */
+async function renderProfile() {
+  const u = me(), M = isMaestro();
+  const myN = u.notify || {};
+  const stores = u.brands && !u.brands.includes("*") ? u.brands.map((id) => brandById(id)?.name).filter(Boolean).join(", ") || "Ninguna" : "Todas";
+  $("main").innerHTML = `
+    <div class="row" style="gap:14px"><span class="avatar" style="width:52px;height:52px;font-size:22px">${esc((String(u.name || "?").trim()[0] || "?").toUpperCase())}</span>
+      <div><h1 class="page-title" style="font-size:24px">${esc(u.name)}</h1><p class="page-sub" style="margin:2px 0 0">${ROLE_NAME[u.role] || ""}${M ? "" : " · Tiendas: " + esc(stores)}</p></div></div>
+    <hr class="divider">
+    <div class="card">
+      <div class="card-h"><div><h2>Tus datos</h2><p>${M ? "Con tu correo puedes entrar al panel como cualquier usuario. Si lo dejas vacío, entras dejando el usuario vacío." : "Tu rol, tus tiendas y tus permisos solo los cambia la cuenta maestra."}</p></div></div>
+      <div class="grid2" style="gap:0 16px;max-width:720px">
+        <div><label class="f" for="pfName">Nombre</label><input id="pfName" value="${esc(u.name === "Maestro" ? "" : u.name)}" placeholder="Ej: Isabel Moreno"></div>
+        <div><label class="f" for="pfLogin">${M ? "Correo o usuario para entrar" : "Usuario o correo para entrar"}</label><input id="pfLogin" value="${esc(u.login || "")}" ${M ? "" : "disabled"} placeholder="${M ? "tucorreo@gmail.com" : ""}" autocomplete="off"></div>
+      </div>
+      ${M ? "" : `<div class="help">Para cambiar tu usuario de entrada, pídeselo a la cuenta maestra.</div>`}
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="pfSave">Guardar</button><span class="small" id="pfOut"></span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>Notificaciones</h2><p>Te aviso al teléfono cuando un cliente necesita una persona (pago enviado, reclamo, etc.), aunque no tengas el panel abierto.</p></div>
+        <span class="pill gray" id="pushPill">…</span></div>
+      <div class="small" id="pushInfo" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary hidden" id="pushOn">Activar en este teléfono</button><button class="btn hidden" id="pushTest">Enviar prueba</button><button class="btn danger hidden" id="pushOff">Desactivar en este teléfono</button></div>
+      <div class="small" id="pushOut" style="margin-top:10px"></div>
+      <label class="f">Qué avisos quiero recibir</label>
+      <div class="checks" id="myNotify">${Object.entries(NOTIFY_LABELS).map(([k, [l, h]]) => `<label class="check"><input type="checkbox" value="${k}" ${myN[k] !== false ? "checked" : ""}> <span>${esc(l)}${h ? `<br><span class="small muted" style="font-weight:400">${esc(h)}</span>` : ""}</span></label>`).join("")}</div>
+      <div class="help">Valen para todos tus teléfonos. Cada tienda decide además qué avisos manda (Tiendas → Configurar → Avisos).</div>
+      <label class="f">Tus teléfonos con avisos activos</label>
+      <div id="pfDevices" class="small muted">Cargando…</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>Contraseña</h2><p>Al cambiarla se cierran tus otras sesiones abiertas.</p></div></div>
+      <div class="grid2" style="gap:0 16px;max-width:720px">
+        <div><label class="f" for="pwCur">Contraseña actual</label><input id="pwCur" type="password" autocomplete="current-password"></div><div></div>
+        <div><label class="f" for="pwNew">Nueva contraseña</label><input id="pwNew" type="password" autocomplete="new-password"></div>
+        <div><label class="f" for="pwNew2">Repite la nueva</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn" id="pwSave">Cambiar contraseña</button><span class="small" id="pwOut"></span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><h2>Tu actividad reciente</h2><p>Lo último que hiciste en el panel.</p></div></div>
+      <div id="pfAct" class="small muted" style="margin-top:8px">Cargando…</div>
+    </div>`;
+  const ok = (el, t) => ($(el).innerHTML = `<span style="color:var(--ok)">${t}</span>`);
+  const bad = (el, t) => ($(el).innerHTML = `<span style="color:var(--bad)">${esc(t)}</span>`);
+  $("pfSave").onclick = async () => {
+    try {
+      const r = await api("/api/me", { method: "PUT", body: { name: $("pfName").value, login: $("pfLogin").value } });
+      S.session.user = r.user; drawMe(); ok("pfOut", "Guardado.");
+      if (M && r.user.login) toast(`Ahora puedes entrar con ${r.user.login} y tu contraseña`, 6000);
+    } catch (e) { bad("pfOut", e.message); }
+  };
+  $("myNotify").querySelectorAll("input").forEach((i) => (i.onchange = async () => {
+    const notify = Object.fromEntries([...$("myNotify").querySelectorAll("input")].map((x) => [x.value, x.checked]));
+    try { const r = await api("/api/me/notify", { method: "PUT", body: { notify } }); S.session.user.notify = r.notify; toast("Avisos guardados"); } catch (e) { toast(e.message); i.checked = !i.checked; }
+  }));
+  $("pwSave").onclick = async () => {
+    if ($("pwNew").value !== $("pwNew2").value) return bad("pwOut", "Las contraseñas nuevas no coinciden");
+    try { await api("/api/password", { method: "PUT", body: { current: $("pwCur").value, password: $("pwNew").value } }); ["pwCur", "pwNew", "pwNew2"].forEach((i) => ($(i).value = "")); ok("pwOut", "Contraseña cambiada."); }
+    catch (e) { bad("pwOut", e.message); }
+  };
+  await setupPush();
+  loadDevices();
+  try {
+    const act = await api("/api/me/activity");
+    if (!$("pfAct")) return;
+    const row = (a) => `<div class="list-row"><span><strong style="color:var(--ink)">${esc(a.action)}</strong>${a.detail ? `<br><span class="muted">${esc(a.detail)}</span>` : ""}${a.brand_id && brandById(a.brand_id) ? ` <span class="pill gray">${esc(brandById(a.brand_id).name)}</span>` : ""}</span><span class="muted" style="flex:none">${esc(agoText(a.at))}</span></div>`;
+    $("pfAct").innerHTML = act.length ? act.slice(0, 8).map(row).join("") + (act.length > 8 ? `<div id="pfMore" class="hidden">${act.slice(8).map(row).join("")}</div><button class="btn small" id="pfMoreBtn" style="margin-top:10px">Ver más</button>` : "") : "Todavía no hay actividad.";
+    if ($("pfMoreBtn")) $("pfMoreBtn").onclick = () => { $("pfMore").classList.remove("hidden"); $("pfMoreBtn").remove(); };
+  } catch (e) { if ($("pfAct")) $("pfAct").textContent = e.message; }
+}
+async function loadDevices() {
+  const el = $("pfDevices"); if (!el) return;
+  let mine = null;
+  try { const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null; const sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null; mine = sub && sub.endpoint; } catch {}
+  try {
+    const list = await api("/api/me/devices");
+    el.innerHTML = list.length ? list.map((d) => `<div class="dev-row"><span><strong style="color:var(--ink)">${esc(d.label || "Teléfono")}</strong>${d.endpoint === mine ? ' <span class="pill ok">Este</span>' : ""}<br><span class="muted">Activado ${esc(fmt(d.created_at))}</span></span>
+      <button class="btn small danger" data-dev="${esc(d.endpoint)}">Quitar</button></div>`).join("") : "Ninguno todavía. Actívalas arriba desde tu teléfono.";
+    el.querySelectorAll("[data-dev]").forEach((b) => (b.onclick = async () => {
+      if (!confirm("¿Quitar los avisos de este teléfono?")) return;
+      try { await api("/api/me/devices", { method: "DELETE", body: { endpoint: b.dataset.dev } }); toast("Teléfono quitado"); if (b.dataset.dev === mine) setupPush(); loadDevices(); } catch (e) { toast(e.message); }
+    }));
+  } catch (e) { el.textContent = e.message; }
+}
+
 /* ================= CONFIGURACIÓN ================= */
 async function renderConfig() {
   const M = isMaestro();
-  $("main").innerHTML = `<h1 class="page-title">Configuración</h1><p class="page-sub">${M ? "Lo que conecta el panel con Meta y con la IA. Todo se pega aquí; no hace falta tocar código." : "Tus notificaciones y tu contraseña."}</p><hr class="divider"><div id="cfgBody"><div class="empty">Cargando…</div></div>`;
+  $("main").innerHTML = `<h1 class="page-title">Configuración</h1><p class="page-sub">Lo que conecta el sistema con Meta y con la IA. Solo la ve la cuenta maestra.</p><hr class="divider"><div id="cfgBody"><div class="empty">Cargando…</div></div>`;
   let c = { callbacks: {}, deepseek: {} };
   if (M) { try { c = await api("/api/config"); } catch (e) { $("cfgBody").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; } }
   if (!$("cfgBody")) return;
-  const myN = me().notify || {};
   const copyRow = (label, value, extra = "") => `<span class="muted">${label}</span><div class="row" style="gap:8px"><button class="copy" data-copy="${esc(value)}">${esc(value)}</button>${extra}</div>`;
   const igReady = c.ig_app_id && c.ig_app_secret, fbReady = c.fb_app_id && c.fb_app_secret;
   $("cfgBody").innerHTML = `${M ? `
@@ -2147,40 +2250,10 @@ async function renderConfig() {
       <div class="small" id="dsOut" style="margin-top:10px">${c.deepseek.source === "secreto" ? '<span class="muted">Se está usando una clave guardada en Cloudflare. Si pegas una aquí, se usa esta.</span>' : ""}</div>
     </div>` : ""}
 
-    <div class="card">
-      <div class="card-h"><div><h2>${M ? "4 · " : ""}Notificaciones en este teléfono</h2><p>Te aviso al teléfono cuando un cliente necesita una persona (pago enviado, reclamo, etc.), aunque no tengas el panel abierto.</p></div>
-        <span class="pill gray" id="pushPill">…</span></div>
-      <div class="small" id="pushInfo" style="margin-top:10px"></div>
-      <div class="row" style="margin-top:12px"><button class="btn primary hidden" id="pushOn">Activar notificaciones</button><button class="btn hidden" id="pushTest">Enviar prueba</button><button class="btn danger hidden" id="pushOff">Desactivar en este teléfono</button></div>
-      <div class="small" id="pushOut" style="margin-top:10px"></div>
-      <label class="f">Qué avisos quiero recibir</label>
-      <div class="checks" id="myNotify">${Object.entries(NOTIFY_LABELS).map(([k, [l, h]]) => `<label class="check"><input type="checkbox" value="${k}" ${myN[k] !== false ? "checked" : ""}> <span>${esc(l)}${h ? `<br><span class="small muted" style="font-weight:400">${esc(h)}</span>` : ""}</span></label>`).join("")}</div>
-      <div class="help">Valen para todos tus teléfonos. Cada tienda decide además qué avisos manda (Tiendas → Configurar → Avisos).</div>
-    </div>
-
-    <div class="card">
-      <div class="card-h"><div><h2>${M ? "5 · " : ""}Contraseña${M ? " del panel" : ""}</h2><p>Al cambiarla se cierran tus otras sesiones abiertas.</p></div></div>
-      <div class="grid2" style="gap:0 16px;max-width:720px">
-        <div><label class="f" for="pwCur">Contraseña actual</label><input id="pwCur" type="password" autocomplete="current-password"></div><div></div>
-        <div><label class="f" for="pwNew">Nueva contraseña</label><input id="pwNew" type="password" autocomplete="new-password"></div>
-        <div><label class="f" for="pwNew2">Repite la nueva</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
-      </div>
-      <div class="row" style="margin-top:14px"><button class="btn" id="pwSave">Cambiar contraseña</button><span class="small" id="pwOut"></span></div>
-    </div>`;
+    <div class="info">Tus notificaciones, tu contraseña y tus datos ahora están en <a href="#perfil">Mi perfil</a> (toca tu nombre arriba a la derecha).</div>`;
   bindCopy($("cfgBody"));
   const ok = (el, t) => ($(el).innerHTML = `<span style="color:var(--ok)">${t}</span>`);
   const bad = (el, t) => ($(el).innerHTML = `<span style="color:var(--bad)">${esc(t)}</span>`);
-  $("myNotify").querySelectorAll("input").forEach((i) => (i.onchange = async () => {
-    const notify = Object.fromEntries([...$("myNotify").querySelectorAll("input")].map((x) => [x.value, x.checked]));
-    try { const r = await api("/api/me/notify", { method: "PUT", body: { notify } }); S.session.user.notify = r.notify; toast("Avisos guardados"); } catch (e) { toast(e.message); i.checked = !i.checked; }
-  }));
-  setupPush();
-  $("pwSave").onclick = async () => {
-    if ($("pwNew").value !== $("pwNew2").value) return bad("pwOut", "Las contraseñas nuevas no coinciden");
-    try { await api("/api/password", { method: "PUT", body: { current: $("pwCur").value, password: $("pwNew").value } }); ["pwCur", "pwNew", "pwNew2"].forEach((i) => ($(i).value = "")); ok("pwOut", "Contraseña cambiada."); }
-    catch (e) { bad("pwOut", e.message); }
-  };
-  if (!M) return;
   const refreshSession = async () => { S.session = await api("/api/session"); renderNav(); };
   $("metaSave").onclick = async () => {
     try {
