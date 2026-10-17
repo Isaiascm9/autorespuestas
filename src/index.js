@@ -225,7 +225,7 @@ async function getConfig(env) {
     verifyToken: s.verify_token || env.IG_VERIFY_TOKEN || "",
     deepseekKey: s.deepseek_api_key || env.DEEPSEEK_API_KEY || "",
     deepseekSource: s.deepseek_api_key ? "panel" : env.DEEPSEEK_API_KEY ? "secreto" : null,
-    adminPw: s.admin_pw || "", maestroNotify: s.maestro_notify || "",
+    adminPw: s.admin_pw || "", maestroNotify: s.maestro_notify || "", maestroName: s.maestro_name || "", maestroLogin: s.maestro_login || "",
     sessionSecret: s.session_secret || "",
   };
 }
@@ -1090,7 +1090,7 @@ function userFromRow(r) {
 
 async function loadUser(env, cfg, id) {
   if (id === "maestro") {
-    return { id: "maestro", name: "Maestro", role: "maestro", perms: Object.keys(PERMS), brands: ["*"], active: true,
+    return { id: "maestro", name: cfg.maestroName || "Maestro", login: cfg.maestroLogin || null, role: "maestro", perms: Object.keys(PERMS), brands: ["*"], active: true, has_password: true,
       notify: userNotify(parseJson(cfg.maestroNotify, {})), pwTag: (cfg.adminPw || "env").slice(0, 32) };
   }
   return userFromRow(await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(String(id)).first());
@@ -1163,7 +1163,9 @@ async function cleanUserInput(env, b, existing) {
     out.login = normalize(String(b.login || "")).replace(/\s+/g, "").slice(0, 120);
     if (!out.login || out.login === "maestro") throw httpError(400, "Escribe un usuario o correo válido");
     const dup = await env.DB.prepare("SELECT id FROM users WHERE login = ?").bind(out.login).first();
-    if (dup && (!existing || dup.id !== existing.id)) throw httpError(400, "Ya hay otro usuario con ese usuario o correo");
+    const mLogin = await env.DB.prepare("SELECT value FROM settings WHERE key = 'maestro_login'").first();
+    if ((dup && (!existing || dup.id !== existing.id)) || (mLogin && mLogin.value === out.login && (!existing || existing.id !== "maestro"))) throw httpError(400, "Ya hay otro usuario con ese usuario o correo");
+    if (existing && existing.id === "maestro" && dup) throw httpError(400, "Ya hay otro usuario con ese usuario o correo");
   }
   if (b.role !== undefined) out.role = b.role === "cliente" ? "cliente" : "equipo";
   if (b.perms !== undefined) out.perms = JSON.stringify((Array.isArray(b.perms) ? b.perms : []).filter((p) => PERMS[p]));
@@ -1332,7 +1334,7 @@ async function api(req, env, url) {
     const { password, login } = await body();
     const who = normalize(String(login || "")).replace(/\s+/g, "");
     let u = null;
-    if (!who || who === "maestro") {
+    if (!who || who === "maestro" || (cfg.maestroLogin && who === cfg.maestroLogin)) {
       if (await checkPassword(cfg, env, String(password || ""))) u = await loadUser(env, cfg, "maestro");
     } else {
       const row = await env.DB.prepare("SELECT * FROM users WHERE login = ? AND active = 1").bind(who).first();
@@ -1341,7 +1343,7 @@ async function api(req, env, url) {
         if (safeEqual(await hashPassword(String(password || ""), salt), row.pw)) u = userFromRow(row);
       }
     }
-    if (!u) { await sleep(800); return json({ error: who && who !== "maestro" ? "Usuario o contraseña incorrectos" : "Contraseña incorrecta" }, 401); }
+    if (!u) { await sleep(800); return json({ error: who && who !== "maestro" && who !== cfg.maestroLogin ? "Usuario o contraseña incorrectos" : "Contraseña incorrecta" }, 401); }
     if (u.id !== "maestro") await env.DB.prepare("UPDATE users SET last_login = ? WHERE id = ?").bind(nowIso(), u.id).run();
     await audit(env, u, "Entró al panel");
     return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(await makeSession(cfg, u), 2592000) });
@@ -1391,6 +1393,34 @@ async function api(req, env, url) {
     await audit(env, u, "Cambió su contraseña");
     const fresh = await getConfig(env);
     return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(await makeSession(fresh, await loadUser(env, fresh, u.id)), 2592000) });
+  }
+  if (p === "/api/me" && m === "PUT") {
+    const b = await body();
+    const name = String(b.name || "").trim().slice(0, 80);
+    if (!name) return json({ error: "Escribe tu nombre" }, 400);
+    if (u.role === "maestro") {
+      let login = "";
+      if (String(b.login || "").trim()) login = (await cleanUserInput(env, { login: b.login }, { id: "maestro" })).login;
+      await setSetting(env, "maestro_name", name);
+      await setSetting(env, "maestro_login", login || null);
+    } else {
+      await env.DB.prepare("UPDATE users SET name = ? WHERE id = ?").bind(name, u.id).run();
+    }
+    await audit(env, { ...u, name }, "Actualizó sus datos");
+    return json({ user: userOut(await loadUser(env, await getConfig(env), u.id)) });
+  }
+  if (p === "/api/me/devices" && m === "GET") {
+    const { results } = await env.DB.prepare("SELECT endpoint, label, created_at FROM push_subs WHERE COALESCE(user_id, 'maestro') = ? ORDER BY created_at DESC").bind(u.id).all();
+    return json(results);
+  }
+  if (p === "/api/me/devices" && m === "DELETE") {
+    const { endpoint } = await body();
+    await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ? AND COALESCE(user_id, 'maestro') = ?").bind(String(endpoint || ""), u.id).run();
+    return json({ ok: true });
+  }
+  if (p === "/api/me/activity" && m === "GET") {
+    const { results } = await env.DB.prepare("SELECT at, brand_id, action, detail FROM audit WHERE user_id = ? ORDER BY id DESC LIMIT 40").bind(u.id).all();
+    return json(results);
   }
   if (p === "/api/me/notify" && m === "PUT") {
     const n = userNotify((await body()).notify || {});
