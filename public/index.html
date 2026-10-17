@@ -14,7 +14,7 @@
   --bg:#f6f7f9;--card:#fff;--ink:#111827;--ink2:#374151;--muted:#6b7280;--line:#e5e7eb;--line2:#d1d5db;
   --accent:#0e7c86;--accent-soft:#e6f4f5;--ok:#15803d;--ok-soft:#dcfce7;--bad:#dc2626;--bad-soft:#fef2f2;
   --warn-soft:#fffbeb;--warn-line:#fcd34d;--warn-ink:#92400e;--radius:12px;
-  --series-1:#2a78d6;--series-2:#eb6834;--grid:#eceff3;
+  --series-1:#2a78d6;--series-2:#eb6834;--grid:#eceff3;--cmp:#8b93a1;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -216,6 +216,45 @@ dialog::backdrop{background:rgba(17,24,39,.45)}
 .chart-wrap svg{width:100%;height:auto;display:block}
 .legend{display:flex;gap:14px;font-size:13px;color:var(--muted)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend i.dash{width:16px;height:0;border-top:2px dashed var(--cmp);border-radius:0;vertical-align:3px}
+.delta{font-weight:700;white-space:nowrap}
+.delta.up{color:var(--ok)}
+.delta.down{color:var(--bad)}
+.hbar.wide{grid-template-columns:130px 1fr 150px}
+/* selector de fechas */
+.dp-wrap{position:relative}
+.dp-btn{gap:8px}
+.dp-btn svg{width:16px;height:16px}
+.dp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(17,24,39,.18);width:min(760px,calc(100vw - 32px))}
+.dp-body{display:grid;grid-template-columns:180px minmax(0,1fr)}
+.dp-presets{border-right:1px solid var(--line);padding:8px 0;display:flex;flex-direction:column}
+.dp-presets button{border:0;background:none;text-align:left;padding:8px 14px;cursor:pointer;font-weight:500;color:var(--ink2)}
+.dp-presets button:hover{background:#f3f4f6}
+.dp-presets button.on{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.dp-cal{padding:10px 16px}
+.dp-nav{display:flex;justify-content:space-between;align-items:center}
+.dp-nav .icon-btn{font-size:20px;line-height:1;width:32px;height:32px}
+.dp-months{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.dp-mname{text-align:center;font-weight:700;margin:4px 0 6px}
+.dp-wd,.dp-days{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
+.dp-wd span{font-size:11.5px;color:var(--muted);padding:2px 0}
+.dp-days button{border:0;background:none;height:32px;cursor:pointer;font-variant-numeric:tabular-nums;border-radius:0;color:var(--ink)}
+.dp-days button:hover:not(:disabled){background:#eef0f3;border-radius:8px}
+.dp-days button.in{background:var(--accent-soft)}
+.dp-days button.edge{background:var(--accent);color:#fff;border-radius:8px;font-weight:700}
+.dp-days button.today:not(.edge){font-weight:800;text-decoration:underline}
+.dp-days button:disabled{color:#c4c8cf;cursor:default}
+.dp-inputs{display:flex;gap:10px;margin-top:10px}
+.dp-inputs label{flex:1;display:flex;flex-direction:column;gap:4px;font-weight:600}
+.dp-inputs input{padding:6px 8px}
+.dp-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);background:#fafafa;border-radius:0 0 14px 14px}
+@media (max-width:760px){
+  .dp-pop{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:calc(100vh - 80px);overflow-y:auto}
+  .dp-body{grid-template-columns:1fr}
+  .dp-presets{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;gap:4px;padding:8px;max-height:none}
+  .dp-presets button{border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px}
+  .dp-presets label,.dp-presets select{flex-basis:100%}
+}
 .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-100%);opacity:0;transition:opacity .08s}
 .hbar{display:grid;grid-template-columns:130px 1fr 80px;align-items:center;gap:8px;margin:7px 0}
 .hbar .track{height:10px;background:var(--grid);border-radius:5px;overflow:hidden}
@@ -455,6 +494,7 @@ const ICON = {
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
   warn: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
@@ -1913,10 +1953,11 @@ function lastPerGroup(points, mode) {
   return [...map.values()];
 }
 function niceMax(raw) { const rough = Math.max(1, raw / 4), mag = Math.pow(10, Math.floor(Math.log10(rough))); const step = [1, 2, 5, 10].find((m) => rough <= m * mag) * mag; return { step, max: Math.max(step * 2, Math.ceil(raw / step) * step) }; }
-function drawBars(el, pts, name, color = "var(--series-1)") {
+function drawBars(el, pts, name, color = "var(--series-1)", cmp = null, cmpName = "Periodo anterior") {
   if (!pts.some((p) => p.v !== null)) { el.innerHTML = `<p class="muted small">Sin datos para este periodo.</p>`; return; }
   const W = el.clientWidth && el.clientWidth < 520 ? 360 : 640, H = 200, L = 40, R = 8, T = 10, B = 26, pw = W - L - R, ph = H - T - B;
-  const { step, max } = niceMax(Math.max(0, ...pts.map((p) => p.v || 0)));
+  const cv = cmp ? pts.map((_, i) => (cmp[i] ? cmp[i].v : null)) : [];
+  const { step, max } = niceMax(Math.max(0, ...pts.map((p) => p.v || 0), ...cv.map((x) => x || 0)));
   const y = (v) => T + ph - (v / max) * ph, band = pw / pts.length, bw = Math.max(3, Math.min(28, band * 0.62)), every = Math.ceil(pts.length / 8);
   let g = "", bars = "", hits = "";
   for (let v = 0; v <= max + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${nf(Math.round(v))}</text>`;
@@ -1928,11 +1969,18 @@ function drawBars(el, pts, name, color = "var(--series-1)") {
     if (show) bars += `<text x="${isLast && n > 1 ? x + bw : x + bw / 2}" y="${H - 8}" text-anchor="${isLast && n > 1 ? "end" : "middle"}" font-size="11" fill="var(--muted)">${esc(p.label)}</text>`;
     hits += `<rect x="${L + i * band}" y="${T}" width="${band}" height="${ph}" fill="transparent" data-i="${i}"/>`;
   });
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(name)}">${g}<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#c8c7c1"/>${bars}${hits}</svg><div class="tip"></div>`;
-  const tip = el.querySelector(".tip");
+  let line = "";
+  if (cmp && cv.some((x) => x !== null)) {
+    let dpath = "", pen = false;
+    cv.forEach((val, i) => { if (val === null) { pen = false; return; } const cx = L + (i + 0.5) * band; dpath += `${pen ? "L" : "M"}${cx},${y(val)}`; pen = true; });
+    line = `<path d="${dpath}" fill="none" stroke="var(--cmp)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>`;
+  }
+  el.innerHTML = `${cmp ? `<div class="legend" style="margin-bottom:4px"><span><i style="background:${color}"></i>Este periodo</span><span><i class="dash"></i>${esc(cmpName)}</span></div>` : ""}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(name)}">${g}<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#c8c7c1"/>${bars}${line}${hits}</svg><div class="tip"></div>`;
+  const tip = el.querySelector(".tip"), svg = el.querySelector("svg");
   el.querySelectorAll("[data-i]").forEach((r) => {
-    r.onmouseenter = () => { const p = pts[+r.dataset.i]; tip.innerHTML = `<strong>${esc(p.full.split("-").reverse().join("/"))}</strong><br>${esc(name)}: ${p.v === null ? "sin dato" : nf(p.v)}`;
-      tip.style.left = ((L + (+r.dataset.i + 0.5) * band) / W) * 100 + "%"; tip.style.top = (y(p.v || 0) / H) * el.clientHeight - 6 + "px"; tip.style.opacity = 1; };
+    r.onmouseenter = () => { const i = +r.dataset.i, p = pts[i];
+      tip.innerHTML = `<strong>${esc(p.full.split("-").reverse().join("/"))}</strong><br>${esc(name)}: ${p.v === null ? "sin dato" : nf(p.v)}${cmp && cmp[i] ? `<br><span style="opacity:.8">${esc(cmp[i].full.split("-").reverse().join("/"))}: ${cmp[i].v === null ? "sin dato" : nf(cmp[i].v)}</span>` : ""}`;
+      tip.style.left = ((L + (i + 0.5) * band) / W) * 100 + "%"; tip.style.top = svg.offsetTop + (y(Math.max(p.v || 0, cv[i] || 0)) / H) * svg.clientHeight - 6 + "px"; tip.style.opacity = 1; };
     r.onmouseleave = () => (tip.style.opacity = 0);
   });
 }
@@ -1953,9 +2001,116 @@ function drawLine(el, pts, name) {
   });
 }
 
+/* ---------- Selector de fechas (como el de Meta) ---------- */
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const todayLocal = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const dAdd = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+const dDays = (a, b) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5) + 1;
+const monthEnd = (y, m) => `${y}-${String(m).padStart(2, "0")}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const dLabel = (d, year = true) => { const [y, m, dd] = d.split("-").map(Number); return `${dd} ${MES3[m - 1]}${year ? " " + y : ""}`; };
+function rangeLabel(from, to) {
+  const [y1, m1, d1] = from.split("-").map(Number), [y2, m2] = to.split("-").map(Number);
+  if (d1 === 1 && y1 === y2 && m1 === m2 && to === monthEnd(y2, m2)) return `${cap(MESES[m1 - 1])} ${y1}`;
+  if (from === to) return dLabel(from);
+  return `${dLabel(from, y1 !== y2)} – ${dLabel(to)}`;
+}
+function presets() {
+  const t = todayLocal(), [y, m] = t.split("-").map(Number), dow = (new Date(t + "T12:00:00Z").getUTCDay() + 6) % 7;
+  const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+  const last = (n) => ({ from: dAdd(t, -(n - 1)), to: t });
+  return [
+    ["today", "Hoy", { from: t, to: t }], ["yesterday", "Ayer", { from: dAdd(t, -1), to: dAdd(t, -1) }],
+    ["last7", "Últimos 7 días", last(7)], ["last14", "Últimos 14 días", last(14)], ["last28", "Últimos 28 días", last(28)],
+    ["last30", "Últimos 30 días", last(30)], ["last90", "Últimos 90 días", last(90)],
+    ["thisweek", "Esta semana", { from: dAdd(t, -dow), to: t }], ["lastweek", "Semana pasada", { from: dAdd(t, -dow - 7), to: dAdd(t, -dow - 1) }],
+    ["thismonth", "Este mes", { from: `${y}-${String(m).padStart(2, "0")}-01`, to: t }],
+    ["lastmonth", "Mes pasado", { from: `${py}-${String(pm).padStart(2, "0")}-01`, to: monthEnd(py, pm) }],
+  ];
+}
+function monthOptions() {
+  const t = todayLocal(); let [y, m] = t.split("-").map(Number); const out = [];
+  for (let i = 0; i < 24; i++) { out.push({ value: `${y}-${String(m).padStart(2, "0")}`, label: `${cap(MESES[m - 1])} ${y}` }); m--; if (!m) { m = 12; y--; } }
+  return out;
+}
+const periodName = (I) => (I.preset && I.preset !== "custom" ? (presets().find((p) => p[0] === I.preset) || [, rangeLabel(I.from, I.to)])[1] : rangeLabel(I.from, I.to));
+function cmpName(d) {
+  const c = d && d.compare; if (!c) return "";
+  if (c.mode === "month") { const [y, m, dd] = c.from.split("-").map(Number); if (dd === 1 && c.to === monthEnd(y, m)) return cap(MESES[m - 1]); return "el mes anterior"; }
+  return "el periodo anterior";
+}
+
+function openDatePicker(anchor, onApply) {
+  const I = S.ins, t = todayLocal(), minD = dAdd(t, -730);
+  const st = { from: I.from, to: I.to, preset: I.preset, cmp: I.cmp, picking: false, view: I.to.slice(0, 7) };
+  document.querySelectorAll(".dp-pop").forEach((x) => x.remove());
+  const pop = document.createElement("div");
+  pop.className = "dp-pop"; pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "Elegir fechas");
+  anchor.parentElement.appendChild(pop);
+  const monthGrid = (ym) => {
+    const [y, m] = ym.split("-").map(Number), first = `${ym}-01`, startDow = (new Date(first + "T12:00:00Z").getUTCDay() + 6) % 7, end = monthEnd(y, m);
+    let cells = "";
+    for (let i = 0; i < startDow; i++) cells += `<span></span>`;
+    for (let d = first; d <= end; d = dAdd(d, 1)) {
+      const dis = d > t || d < minD, inR = st.to && d >= st.from && d <= st.to, edge = d === st.from || d === st.to;
+      cells += `<button type="button" data-day="${d}" class="${inR ? "in" : ""} ${edge ? "edge" : ""} ${d === t ? "today" : ""}" ${dis ? "disabled" : ""}>${Number(d.slice(8))}</button>`;
+    }
+    return `<div class="dp-month"><div class="dp-mname">${cap(MESES[m - 1])} ${y}</div><div class="dp-wd">${["L", "M", "M", "J", "V", "S", "D"].map((x) => `<span>${x}</span>`).join("")}</div><div class="dp-days">${cells}</div></div>`;
+  };
+  const prevYm = (ym, n = 1) => { let [y, m] = ym.split("-").map(Number); m -= n; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}-${String(m).padStart(2, "0")}`; };
+  const draw = () => {
+    const two = window.innerWidth > 760;
+    const months = two ? [prevYm(st.view), st.view] : [st.view];
+    const days = st.to ? dDays(st.from, st.to) : 1;
+    pop.innerHTML = `
+      <div class="dp-body">
+        <div class="dp-presets">${presets().map(([k, l]) => `<button type="button" data-p="${k}" class="${st.preset === k ? "on" : ""}">${l}</button>`).join("")}
+          <label class="small muted" style="margin:8px 10px 4px">Un mes específico</label>
+          <select id="dpMonth" style="margin:0 6px 6px;width:calc(100% - 12px)"><option value="">Elegir mes…</option>${monthOptions().map((o) => `<option value="${o.value}" ${st.preset === "m:" + o.value ? "selected" : ""}>${o.label}</option>`).join("")}</select></div>
+        <div class="dp-cal">
+          <div class="dp-nav"><button type="button" class="icon-btn" id="dpPrev" aria-label="Mes anterior">‹</button><span class="small muted">${st.picking ? "Toca el día final" : "Toca el día de inicio"}</span><button type="button" class="icon-btn" id="dpNext" aria-label="Mes siguiente" ${st.view >= t.slice(0, 7) ? "disabled" : ""}>›</button></div>
+          <div class="dp-months">${months.map(monthGrid).join("")}</div>
+          <div class="dp-inputs"><label class="small">Desde<input type="date" id="dpFrom" value="${st.from}" min="${minD}" max="${t}"></label><label class="small">Hasta<input type="date" id="dpTo" value="${st.to || st.from}" min="${minD}" max="${t}"></label></div>
+        </div>
+      </div>
+      <div class="dp-foot">
+        <label class="small" style="display:flex;align-items:center;gap:8px;font-weight:600">Comparar con
+          <select id="dpCmp" style="width:auto"><option value="none" ${st.cmp === "none" ? "selected" : ""}>No comparar</option><option value="prev" ${st.cmp === "prev" ? "selected" : ""}>Periodo anterior</option><option value="month" ${st.cmp === "month" ? "selected" : ""}>Mes anterior</option></select></label>
+        <span class="small muted">${st.to ? `${rangeLabel(st.from, st.to)} · ${days} día${days === 1 ? "" : "s"}` : ""}</span>
+        <div class="row" style="gap:8px;margin-left:auto"><button type="button" class="btn small" id="dpCancel">Cancelar</button><button type="button" class="btn small primary" id="dpApply" ${st.to ? "" : "disabled"}>Aplicar</button></div>
+      </div>`;
+    pop.querySelectorAll("[data-p]").forEach((b) => (b.onclick = () => { const p = presets().find((x) => x[0] === b.dataset.p)[2]; Object.assign(st, p, { preset: b.dataset.p, picking: false, view: p.to.slice(0, 7) }); draw(); }));
+    $("dpMonth").onchange = (e) => { if (!e.target.value) return; const [y, m] = e.target.value.split("-").map(Number); Object.assign(st, { from: `${e.target.value}-01`, to: monthEnd(y, m) > t ? t : monthEnd(y, m), preset: "m:" + e.target.value, picking: false, view: e.target.value }); draw(); };
+    pop.querySelectorAll("[data-day]").forEach((b) => (b.onclick = () => {
+      const d = b.dataset.day;
+      if (!st.picking) { st.from = d; st.to = null; st.picking = true; }
+      else { if (d < st.from) { st.to = st.from; st.from = d; } else st.to = d; st.picking = false; }
+      st.preset = "custom"; draw();
+    }));
+    $("dpPrev").onclick = () => { st.view = prevYm(st.view); draw(); };
+    $("dpNext").onclick = () => { st.view = prevYm(st.view, -1); draw(); };
+    const typed = () => { let a = $("dpFrom").value, b = $("dpTo").value; if (!a || !b) return; if (b < a) [a, b] = [b, a]; Object.assign(st, { from: a, to: b, preset: "custom", picking: false, view: b.slice(0, 7) }); draw(); };
+    $("dpFrom").onchange = typed; $("dpTo").onchange = typed;
+    $("dpCmp").onchange = (e) => { st.cmp = e.target.value; };
+    $("dpCancel").onclick = close;
+    $("dpApply").onclick = () => {
+      if (dDays(st.from, st.to) > 366) return toast("Elige un periodo de máximo 1 año", 5000);
+      close(); onApply({ from: st.from, to: st.to, preset: st.preset, cmp: st.cmp });
+    };
+  };
+  const outside = (e) => { if (!pop.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) close(); };
+  const esc2 = (e) => { if (e.key === "Escape") close(); };
+  function close() { pop.remove(); document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", esc2); anchor.setAttribute("aria-expanded", "false"); }
+  setTimeout(() => { document.addEventListener("mousedown", outside); document.addEventListener("keydown", esc2); });
+  anchor.setAttribute("aria-expanded", "true");
+  draw();
+}
+
 async function renderInsights(force) {
   const accs = S.accounts;
-  const I = (S.ins ||= { acc: "", days: 30, group: "day" });
+  if (!S.ins) { const p = presets().find((x) => x[0] === "last30")[2]; S.ins = { acc: "", from: p.from, to: p.to, preset: "last30", cmp: "prev", group: "day" }; }
+  const I = S.ins;
   if (!accs.find((a) => a.id === I.acc)) I.acc = (accs.find((a) => a.platform === "instagram") || accs[0] || {}).id || "";
   $("main").innerHTML = `
     <h1 class="page-title">${ICON.chart} Estadísticas</h1>
@@ -1964,30 +2119,42 @@ async function renderInsights(force) {
     ${!accs.length ? `<div class="empty">No hay cuentas conectadas a tus tiendas.</div>` : `
     <div class="row" style="justify-content:space-between">
       <div class="row"><select id="inAcc" style="width:auto">${accs.map((a) => `<option value="${esc(a.id)}" ${a.id === I.acc ? "selected" : ""}>${a.platform === "facebook" ? "FB" : "IG"} · ${esc(a.name)}${a.brand_id && brandById(a.brand_id) ? " — " + esc(brandById(a.brand_id).name) : ""}</option>`).join("")}</select>
-        <nav class="seg">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${I.days === d ? "on" : ""}">${d} días</button>`).join("")}</nav>
+        <div class="dp-wrap"><button class="btn dp-btn" id="inRange" aria-haspopup="dialog" aria-expanded="false">${ICON.cal}<span>${esc(periodName(I))}</span>${I.cmp !== "none" ? `<span class="pill gray" style="font-size:11px">vs. ${I.cmp === "month" ? "mes anterior" : "periodo anterior"}</span>` : ""}<span aria-hidden="true">▾</span></button></div>
         <nav class="seg">${[["day", "Por día"], ["week", "Por semana"], ["month", "Por mes"]].map(([k, l]) => `<button data-g="${k}" class="${I.group === k ? "on" : ""}">${l}</button>`).join("")}</nav></div>
       <div class="row" style="gap:8px"><button class="btn small" id="inPng" disabled title="Descargar como imagen">${ICON.down} Imagen</button><button class="btn small" id="inPdf" disabled title="Descargar como PDF">${ICON.down} PDF</button>
       <button class="btn small" id="inReload">${ICON.refresh} Actualizar</button></div>
     </div>
+    <p class="small muted" style="margin:8px 0 0">${esc(rangeLabel(I.from, I.to))} · ${dDays(I.from, I.to)} día${dDays(I.from, I.to) === 1 ? "" : "s"}</p>
     <div id="ins"><div class="empty">Cargando estadísticas… (la primera vez tarda unos segundos)</div></div>`}`;
   if (!accs.length) return;
   $("inAcc").onchange = (e) => { I.acc = e.target.value; renderInsights(); };
-  $("main").querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => { I.days = +b.dataset.d; renderInsights(); }));
+  $("inRange").onclick = () => { if (document.querySelector(".dp-pop")) return; openDatePicker($("inRange"), (r) => { Object.assign(I, r); renderInsights(); }); };
   $("main").querySelectorAll("[data-g]").forEach((b) => (b.onclick = () => { I.group = b.dataset.g; if (I.data) drawInsights(I.data); $("main").querySelectorAll("[data-g]").forEach((x) => x.classList.toggle("on", x === b)); }));
   $("inReload").onclick = () => renderInsights(true);
   $("inPng").onclick = () => downloadReport("png", $("inPng"));
   $("inPdf").onclick = () => downloadReport("pdf", $("inPdf"));
-  const acc = I.acc, days = I.days;
-  try { I.data = await api(`/api/insights?account=${acc}&days=${days}${force ? "&force=1" : ""}`); }
+  const key = `${I.acc}|${I.from}|${I.to}|${I.cmp}`;
+  I.data = null;
+  try { I.data = await api(`/api/insights?account=${I.acc}&from=${I.from}&to=${I.to}&cmp=${I.cmp}${force ? "&force=1" : ""}`); }
   catch (e) { if ($("ins")) $("ins").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
-  if (I.acc !== acc || I.days !== days || !$("ins")) return;
+  if (key !== `${I.acc}|${I.from}|${I.to}|${I.cmp}` || !$("ins")) return;
   drawInsights(I.data);
   if ($("inPng")) { $("inPng").disabled = false; $("inPdf").disabled = false; }
 }
 
+/** Cambio frente al periodo comparado: { pct, up, text } o null */
+function deltaOf(cur, prev) {
+  if (cur === null || cur === undefined || prev === null || prev === undefined) return null;
+  if (prev === 0) return cur === 0 ? { pct: 0, up: null, text: "igual" } : { pct: null, up: true, text: "↑ antes 0" };
+  const pct = Math.round(((cur - prev) / prev) * 1000) / 10;
+  return { pct, up: pct > 0 ? true : pct < 0 ? false : null, text: `${pct > 0 ? "↑ " : pct < 0 ? "↓ " : ""}${Math.abs(pct).toLocaleString("es-VE")}%` };
+}
+
 function drawInsights(d) {
-  const I = S.ins, t = d.totals, snaps = d.snapshots || [];
+  const I = S.ins, t = d.totals, snaps = d.snapshots || [], c = d.compare, ct = c ? c.totals : {};
   const v = (n) => (n === null || n === undefined ? "—" : nf(n));
+  const vs = cmpName(d);
+  const dl = (cur, prev) => { const x = c ? deltaOf(cur, prev) : null; if (!x) return ""; return `<span class="delta ${x.up === true ? "up" : x.up === false ? "down" : ""}" title="${esc(nf(prev))} en ${esc(rangeLabel(c.from, c.to))}">${esc(x.text)}</span> <span class="muted">vs. ${esc(vs)}</span>`; };
   const first = snaps[0], lastS = snaps[snaps.length - 1];
   const delta = first && lastS && snaps.length > 1 ? lastS.followers - first.followers : null;
   const net = t.follows !== null && t.unfollows !== null && t.follows !== undefined ? t.follows - t.unfollows : null;
@@ -2001,33 +2168,38 @@ function drawInsights(d) {
       <td style="min-width:180px"><span class="pill gray">${esc(p.type)}</span> <span class="small muted">${esc(new Date(p.timestamp).toLocaleDateString("es-VE"))}</span><div class="post-cap small">${esc(p.caption || "(sin texto)")}</div></td>
       <td>${v(p.reach)}</td><td><strong>${v(p.interactions)}</strong></td><td>${rate(p)}</td><td>${v(p.likes)}</td><td>${v(p.comments)}</td>${d.platform === "instagram" ? `<td>${v(p.saves)}</td>` : ""}<td>${v(p.shares)}</td></tr>`).join("")}</tbody></table></div>`;
   const permIssue = (d.errors || []).some((e) => /permission|permiso|scope|#10|#200|OAuth/i.test(e));
+  const gl = I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes";
+  const kpi = (l, val, sub) => `<div class="kpi"><div class="l">${l}</div><div class="v">${val}</div><div class="s">${sub || "&nbsp;"}</div></div>`;
   $("ins").innerHTML = `
     ${(d.errors || []).length ? `<div class="warnbox"><strong>${ICON.warn} Algunos datos no llegaron</strong>
       ${permIssue ? `<div class="why">Falta el permiso de estadísticas. Ve a <a href="#redes/cuentas">Cuentas conectadas</a> → Conectar con Meta y vuelve a conectar esta cuenta aceptando todos los permisos.</div>` : `<div class="why">Meta no entregó estos números (a veces pasa con cuentas nuevas o de menos de 100 seguidores).</div>`}
       <details style="margin-top:6px"><summary class="small">Ver detalle</summary><div class="small">${d.errors.map(esc).join("<br>")}</div></details></div>` : ""}
+    ${c ? `<p class="small muted" style="margin:12px 0 0">Comparado con <strong>${esc(rangeLabel(c.from, c.to))}</strong>.</p>` : ""}
     <div class="kpis">
-      <div class="kpi"><div class="l">Seguidores</div><div class="v">${v(d.profile && d.profile.followers)}</div><div class="s">${delta !== null ? `${delta >= 0 ? "+" : ""}${nf(delta)} desde ${esc(first.date.split("-").reverse().join("/"))}` : net !== null ? `${net >= 0 ? "+" : ""}${nf(net)} en el periodo` : "&nbsp;"}</div></div>
-      <div class="kpi"><div class="l">Seguidores nuevos</div><div class="v">${v(t.follows ?? t.new_followers)}</div><div class="s">${t.unfollows !== null && t.unfollows !== undefined ? nf(t.unfollows) + " dejaron de seguir" : "&nbsp;"}</div></div>
-      <div class="kpi"><div class="l">Alcance${d.approx ? " (aprox.)" : ""}</div><div class="v">${v(t.reach)}</div><div class="s">cuentas que te vieron</div></div>
-      <div class="kpi"><div class="l">Visualizaciones</div><div class="v">${v(t.views)}</div><div class="s">&nbsp;</div></div>
-      <div class="kpi"><div class="l">Interacciones</div><div class="v">${v(t.interactions)}</div><div class="s">${t.engaged !== null && t.engaged !== undefined ? nf(t.engaged) + " cuentas" : "&nbsp;"}</div></div>
-      ${d.platform === "instagram" ? `<div class="kpi"><div class="l">Toques en enlaces</div><div class="v">${v(t.link_taps)}</div><div class="s">del perfil</div></div>` : ""}
+      ${kpi("Seguidores", v(d.profile && d.profile.followers), delta !== null ? `${delta >= 0 ? "+" : ""}${nf(delta)} desde ${esc(first.date.split("-").reverse().join("/"))}` : net !== null ? `${net >= 0 ? "+" : ""}${nf(net)} en el periodo` : "")}
+      ${kpi("Seguidores nuevos", v(t.follows ?? t.new_followers), c ? dl(t.follows ?? t.new_followers, ct.follows ?? ct.new_followers) : t.unfollows !== null && t.unfollows !== undefined ? nf(t.unfollows) + " dejaron de seguir" : "")}
+      ${kpi(`Alcance${d.approx ? " (aprox.)" : ""}`, v(t.reach), c ? dl(t.reach, ct.reach) : "cuentas que te vieron")}
+      ${kpi("Visualizaciones", v(t.views), dl(t.views, ct.views))}
+      ${kpi("Interacciones", v(t.interactions), c ? dl(t.interactions, ct.interactions) : t.engaged !== null && t.engaged !== undefined ? nf(t.engaged) + " cuentas" : "")}
+      ${d.platform === "instagram" ? kpi("Toques en enlaces", v(t.link_taps), c ? dl(t.link_taps, ct.link_taps) : "del perfil") : ""}
+      ${kpi("Publicaciones", v(t.posts), dl(t.posts, ct.posts))}
     </div>
     <div class="grid2">
-      <div class="card"><h2 style="font-size:16px;margin:0">Alcance ${I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes"}</h2>${I.group !== "day" ? `<p class="small muted" style="margin:2px 0 0">Suma del alcance de cada día.</p>` : ""}<div class="chart-wrap" id="chReach" style="margin-top:10px"></div></div>
-      <div class="card"><h2 style="font-size:16px;margin:0">Seguidores nuevos ${I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes"}</h2>${d.platform === "instagram" ? `<p class="small muted" style="margin:2px 0 0">Instagram solo da este dato de los últimos 30 días.</p>` : ""}<div class="chart-wrap" id="chNew" style="margin-top:10px"></div></div>
+      <div class="card"><h2 style="font-size:16px;margin:0">Alcance ${gl}</h2>${I.group !== "day" ? `<p class="small muted" style="margin:2px 0 0">Suma del alcance de cada día.</p>` : ""}<div class="chart-wrap" id="chReach" style="margin-top:10px"></div></div>
+      <div class="card"><h2 style="font-size:16px;margin:0">Seguidores nuevos ${gl}</h2>${d.platform === "instagram" ? `<p class="small muted" style="margin:2px 0 0">Instagram solo da este dato de los últimos 30 días.</p>` : ""}<div class="chart-wrap" id="chNew" style="margin-top:10px"></div></div>
     </div>
     <div class="card"><h2 style="font-size:16px;margin:0">Total de seguidores</h2>
-      ${snaps.length >= 2 ? `<div class="chart-wrap" id="chFol" style="margin-top:10px"></div>` : `<p class="muted small" style="margin-bottom:0">El sistema guarda cada día cuántos seguidores tienes. La gráfica se llena sola a partir de ${snaps.length ? "hoy" : "mañana"}.</p>`}</div>
+      ${snaps.length >= 2 ? `<div class="chart-wrap" id="chFol" style="margin-top:10px"></div>` : `<p class="muted small" style="margin-bottom:0">El sistema guarda cada día cuántos seguidores tienes. ${snaps.length ? "Para este periodo todavía hay un solo día guardado." : "No hay días guardados en este periodo."}</p>`}</div>
     ${d.platform === "instagram" && (t.likes !== null || t.saves !== null) ? `<div class="card"><h2 style="font-size:16px;margin:0">Cómo interactúan</h2>
-      ${(() => { const items = [["Me gusta", t.likes], ["Comentarios", t.comments], ["Guardados", t.saves], ["Compartidos", t.shares]].filter(([, n]) => n !== null && n !== undefined); const mx = Math.max(1, ...items.map(([, n]) => n));
-        return items.map(([l, n]) => `<div class="hbar"><span>${l}</span><div class="track"><div class="fill" style="width:${(n / mx) * 100}%"></div></div><span class="n">${nf(n)}</span></div>`).join(""); })()}</div>` : ""}
+      ${(() => { const items = [["Me gusta", t.likes, ct.likes], ["Comentarios", t.comments, ct.comments], ["Guardados", t.saves, ct.saves], ["Compartidos", t.shares, ct.shares]].filter(([, n]) => n !== null && n !== undefined); const mx = Math.max(1, ...items.map(([, n]) => n));
+        return items.map(([l, n, p]) => `<div class="hbar wide"><span>${l}</span><div class="track"><div class="fill" style="width:${(n / mx) * 100}%"></div></div><span class="n">${nf(n)}${c ? " " + dl(n, p).replace(/ <span class="muted">.*<\/span>$/, "") : ""}</span></div>`).join(""); })()}</div>` : ""}
     <div class="card"><h2 style="font-size:16px;margin:0">Mejores publicaciones del periodo</h2><p class="small muted" style="margin:2px 0 8px">Ordenadas por interacciones (me gusta, comentarios, guardados y compartidos). Tasa = interacciones ÷ alcance.</p>
       ${top.length ? postTable(top) : `<p class="muted">No publicaste en este periodo.</p>`}</div>
     ${worst.length ? `<div class="card"><h2 style="font-size:16px;margin:0">Publicaciones con menos interacción</h2><p class="small muted" style="margin:2px 0 8px">Sirve para ver qué tipo de contenido no conectó.</p>${postTable(worst)}</div>` : ""}
-    <p class="small muted">Datos de Meta${d.cached_at ? " · actualizados " + esc(agoText(d.cached_at)) : ""} · se guardan 3 horas para no gastar el límite de consultas. Usa «Actualizar» para pedirlos de nuevo.</p>`;
-  drawBars($("chReach"), groupSeries(d.series, "reach", I.group), "Alcance");
-  drawBars($("chNew"), groupSeries(d.series, "new_followers", I.group), "Seguidores nuevos", "var(--series-2)");
+    <p class="small muted">Datos de Meta${d.cached_at ? " · actualizados " + esc(agoText(d.cached_at)) : ""} · se guardan unas horas para no gastar el límite de consultas. Usa «Actualizar» para pedirlos de nuevo.</p>`;
+  const cmpLabel = c ? cap(rangeLabel(c.from, c.to)) : "";
+  drawBars($("chReach"), groupSeries(d.series, "reach", I.group), "Alcance", "var(--series-1)", c ? groupSeries(c.series, "reach", I.group) : null, cmpLabel);
+  drawBars($("chNew"), groupSeries(d.series, "new_followers", I.group), "Seguidores nuevos", "var(--series-2)", c && c.series.some((x) => x.new_followers !== null) ? groupSeries(c.series, "new_followers", I.group) : null, cmpLabel);
   if ($("chFol")) drawLine($("chFol"), lastPerGroup(snaps, I.group), "Seguidores");
 }
 
@@ -2073,35 +2245,47 @@ async function buildReportCanvas(d) {
   y = 70;
   text(brand ? brand.name : acc.name || "Estadísticas", P, y, 38, 800, C.ink);
   y += 36; text(`${acc.platform === "facebook" ? "Facebook" : "Instagram"} · ${acc.name || ""}`, P, y, 20, 500, C.ink2);
-  const end = new Date(), start = new Date(Date.now() - I.days * 864e5), df = (dt) => dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" });
-  y += 30; text(`Últimos ${I.days} días · ${df(start)} al ${df(end)}`, P, y, 18, 400, C.muted);
+  const df = (s) => s.split("-").reverse().join("/");
+  const pn = periodName(I), rl = `${df(I.from)} al ${df(I.to)}`;
+  y += 30; text(I.preset === "custom" ? rl : `${pn} · ${rl}`, P, y, 18, 500, C.ink2);
+  if (d.compare) { const cl = rangeLabel(d.compare.from, d.compare.to); y += 24; text(`Comparado con ${/^[A-ZÁÉÍÓÚ]/.test(cl) ? cl + " · " : ""}${df(d.compare.from)} al ${df(d.compare.to)}`, P, y, 15, 400, C.muted); }
   text("Reporte de estadísticas", W - P, 70, 18, 600, C.accent, "right");
   y += 32; x.fillStyle = C.line; x.fillRect(P, y, W - 2 * P, 1); y += 28;
   // números
   const first = snaps[0], lastS = snaps[snaps.length - 1], delta = first && lastS && snaps.length > 1 ? lastS.followers - first.followers : null;
-  const kpis = [["Seguidores", v(d.profile && d.profile.followers), delta !== null ? `${delta >= 0 ? "+" : ""}${nf(delta)} en el periodo` : ""],
-    ["Seguidores nuevos", v(t.follows ?? t.new_followers), t.unfollows !== null && t.unfollows !== undefined ? `${nf(t.unfollows)} dejaron de seguir` : ""],
-    ["Alcance", v(t.reach), "cuentas que te vieron"], ["Visualizaciones", v(t.views), ""],
-    ["Interacciones", v(t.interactions), t.engaged !== null && t.engaged !== undefined ? `${nf(t.engaged)} cuentas` : ""],
-    ...(d.platform === "instagram" ? [["Toques en enlaces", v(t.link_taps), "del perfil"]] : [])];
+  const c = d.compare, ct = c ? c.totals : {}, vsName = cmpName(d);
+  const dsub = (cur, prev, fallback) => { const x = c ? deltaOf(cur, prev) : null; if (!x) return [fallback || "", C.muted]; return [`${x.text} vs. ${vsName}`, x.up === true ? "#15803d" : x.up === false ? "#dc2626" : C.muted]; };
+  const kpis = [["Seguidores", v(d.profile && d.profile.followers), [delta !== null ? `${delta >= 0 ? "+" : ""}${nf(delta)} en el periodo` : "", C.muted]],
+    ["Seguidores nuevos", v(t.follows ?? t.new_followers), dsub(t.follows ?? t.new_followers, ct.follows ?? ct.new_followers, t.unfollows !== null && t.unfollows !== undefined ? `${nf(t.unfollows)} dejaron de seguir` : "")],
+    ["Alcance", v(t.reach), dsub(t.reach, ct.reach, "cuentas que te vieron")], ["Visualizaciones", v(t.views), dsub(t.views, ct.views)],
+    ["Interacciones", v(t.interactions), dsub(t.interactions, ct.interactions, t.engaged !== null && t.engaged !== undefined ? `${nf(t.engaged)} cuentas` : "")],
+    ...(d.platform === "instagram" ? [["Toques en enlaces", v(t.link_taps), dsub(t.link_taps, ct.link_taps, "del perfil")]] : []),
+    ["Publicaciones", v(t.posts), dsub(t.posts, ct.posts)]];
   const kw = (W - 2 * P - 2 * 20) / 3, kh = 118;
-  kpis.forEach(([l, val, sub], i) => {
+  kpis.forEach(([l, val, [sub, subColor]], i) => {
     const kx = P + (i % 3) * (kw + 20), ky = y + Math.floor(i / 3) * (kh + 20);
     rrect(kx, ky, kw, kh, 14, C.soft);
     text(l, kx + 22, ky + 34, 17, 500, C.muted);
     text(val, kx + 22, ky + 78, 36, 800, C.ink);
-    if (sub) text(sub, kx + 22, ky + 102, 15, 400, C.muted);
+    if (sub) text(sub, kx + 22, ky + 102, 15, subColor === C.muted ? 400 : 700, subColor);
   });
   y += Math.ceil(kpis.length / 3) * (kh + 20) + 20;
   // gráficas de barras
   const gl = I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes";
-  const bars = (title, pts, color, note) => {
+  const bars = (title, pts, color, note, cmpPts) => {
     breaks.push(y);
-    text(title, P, y + 24, 22, 700, C.ink); y += 34;
+    text(title, P, y + 24, 22, 700, C.ink);
+    if (cmpPts) {
+      font(14, 500); const l2 = cap(rangeLabel(c.from, c.to)), w2 = x.measureText(l2).width, w1 = x.measureText("Este periodo").width;
+      let lx = W - P - w2; text(l2, lx, y + 22, 14, 500, C.muted); x.strokeStyle = "#8b93a1"; x.lineWidth = 2; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(lx - 30, y + 17); x.lineTo(lx - 8, y + 17); x.stroke(); x.setLineDash([]);
+      lx = lx - 50 - w1; text("Este periodo", lx, y + 22, 14, 500, C.muted); rrect(lx - 20, y + 11, 12, 12, 3, color);
+    }
+    y += 34;
     if (note) { text(note, P, y + 14, 15, 400, C.muted); y += 22; }
     const ch = 220, cw = W - 2 * P, L = 56, top = y + 10, ph = ch - 40;
     if (!pts.some((p) => p.v !== null)) { text("Sin datos para este periodo.", P, y + 30, 16, 400, C.muted); y += 60; return; }
-    const { step, max } = niceMax(Math.max(0, ...pts.map((p) => p.v || 0)));
+    const cvals = cmpPts ? pts.map((_, i) => (cmpPts[i] ? cmpPts[i].v : null)) : [];
+    const { step, max } = niceMax(Math.max(0, ...pts.map((p) => p.v || 0), ...cvals.map((q) => q || 0)));
     const yy = (val) => top + ph - (val / max) * ph, band = (cw - L) / pts.length, bw = Math.max(4, Math.min(34, band * 0.62));
     font(13, 400);
     for (let val = 0; val <= max + 1e-9; val += step) { x.fillStyle = C.grid; x.fillRect(P + L, yy(val), cw - L, 1); text(nf(Math.round(val)), P + L - 10, yy(val) + 5, 13, 400, C.muted, "right"); }
@@ -2113,10 +2297,16 @@ async function buildReportCanvas(d) {
       if (last || (i % every === 0 && pts.length - 1 - i >= Math.max(2, every * 0.75))) text(p.label, last && pts.length > 1 ? bx + bw : bx + bw / 2, top + ph + 24, 13, 400, C.muted, last && pts.length > 1 ? "right" : "center");
     });
     x.fillStyle = "#c8c7c1"; x.fillRect(P + L, yy(0), cw - L, 1);
+    if (cmpPts && cvals.some((q) => q !== null)) {
+      x.strokeStyle = "#8b93a1"; x.lineWidth = 2.5; x.setLineDash([6, 5]); x.lineJoin = "round"; x.beginPath(); let pen = false;
+      cvals.forEach((q, i) => { if (q === null) { pen = false; return; } const px = P + L + (i + 0.5) * band; pen ? x.lineTo(px, yy(q)) : x.moveTo(px, yy(q)); pen = true; });
+      x.stroke(); x.setLineDash([]);
+    }
     y += ch + 24;
   };
-  bars(`Alcance ${gl}`, groupSeries(d.series, "reach", I.group), C.s1, I.group !== "day" ? "Suma del alcance de cada día." : "");
-  bars(`Seguidores nuevos ${gl}`, groupSeries(d.series, "new_followers", I.group), C.s2, d.platform === "instagram" ? "Instagram solo da este dato de los últimos 30 días." : "");
+  bars(`Alcance ${gl}`, groupSeries(d.series, "reach", I.group), C.s1, I.group !== "day" ? "Suma del alcance de cada día." : "", c ? groupSeries(c.series, "reach", I.group) : null);
+  bars(`Seguidores nuevos ${gl}`, groupSeries(d.series, "new_followers", I.group), C.s2, d.platform === "instagram" ? "Instagram solo da este dato de los últimos 30 días." : "",
+    c && c.series.some((q) => q.new_followers !== null) ? groupSeries(c.series, "new_followers", I.group) : null);
   // total de seguidores
   if (snaps.length >= 2) {
     breaks.push(y);
@@ -2178,7 +2368,7 @@ async function buildReportCanvas(d) {
   out.breaks = breaks.map((b) => Math.round(b * SC));
   return out;
 }
-const reportName = (d, ext) => { const acc = d.account || {}; const b = brandById(acc.brand_id); return `estadisticas-${normalize((b && b.name) || acc.name || "cuenta").replace(/[^a-z0-9]+/g, "-")}-${S.ins.days}d-${new Date().toISOString().slice(0, 10)}.${ext}`; };
+const reportName = (d, ext) => { const acc = d.account || {}; const b = brandById(acc.brand_id); return `estadisticas-${normalize((b && b.name) || acc.name || "cuenta").replace(/[^a-z0-9]+/g, "-")}-${S.ins.from}_a_${S.ins.to}.${ext}`; };
 async function saveFile(blob, name) {
   const file = new File([blob], name, { type: blob.type });
   // En el teléfono se abre el menú de compartir (WhatsApp, Fotos, Archivos…)
