@@ -316,6 +316,7 @@ table.posts td{vertical-align:middle}
     <form id="inviteForm" class="hidden">
       <h2 style="margin:0 0 4px;font-size:18px" id="invTitle">Bienvenida</h2>
       <p class="muted" style="margin:0" id="invSub">Crea tu contraseña para entrar al panel.</p>
+      <div id="invBiz" class="info hidden" style="margin-top:12px"></div>
       <label class="f" for="invPw">Contraseña nueva</label>
       <input id="invPw" type="password" autocomplete="new-password" minlength="8" required>
       <label class="f" for="invPw2">Repite la contraseña</label>
@@ -454,6 +455,7 @@ const ICON = {
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
   warn: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg>',
@@ -576,7 +578,16 @@ function showAuth(d = {}) {
   $("app").classList.add("hidden"); $("auth").classList.remove("hidden");
   if (inviteToken) {
     ["loginForm", "setupForm"].forEach((f) => $(f).classList.add("hidden")); $("inviteForm").classList.remove("hidden");
-    api(`/api/invite?token=${encodeURIComponent(inviteToken)}`).then((r) => { $("invTitle").textContent = `Hola, ${r.name}`; $("invSub").textContent = `Crea tu contraseña. Para entrar usarás: ${r.login}`; })
+    api(`/api/invite?token=${encodeURIComponent(inviteToken)}`).then((r) => {
+      $("invTitle").textContent = `Hola, ${r.name}`;
+      $("invSub").textContent = `Crea tu contraseña. Para entrar usarás: ${r.login}`;
+      const biz = r.stores.includes("*") ? "Todas las tiendas" : r.stores.length ? r.stores.join(", ") : "";
+      if (biz) {
+        $("invBiz").innerHTML = `Vas a manejar: <strong>${esc(biz)}</strong>`;
+        $("invBiz").classList.remove("hidden");
+        document.title = `Acceso a ${r.stores.includes("*") ? "Autorespuestas" : r.stores.join(", ")}`;
+      }
+    })
       .catch((e) => { $("invError").textContent = e.message; });
     $("invPw").focus(); return;
   }
@@ -1955,7 +1966,8 @@ async function renderInsights(force) {
       <div class="row"><select id="inAcc" style="width:auto">${accs.map((a) => `<option value="${esc(a.id)}" ${a.id === I.acc ? "selected" : ""}>${a.platform === "facebook" ? "FB" : "IG"} · ${esc(a.name)}${a.brand_id && brandById(a.brand_id) ? " — " + esc(brandById(a.brand_id).name) : ""}</option>`).join("")}</select>
         <nav class="seg">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${I.days === d ? "on" : ""}">${d} días</button>`).join("")}</nav>
         <nav class="seg">${[["day", "Por día"], ["week", "Por semana"], ["month", "Por mes"]].map(([k, l]) => `<button data-g="${k}" class="${I.group === k ? "on" : ""}">${l}</button>`).join("")}</nav></div>
-      <button class="btn small" id="inReload">${ICON.refresh} Actualizar</button>
+      <div class="row" style="gap:8px"><button class="btn small" id="inPng" disabled title="Descargar como imagen">${ICON.down} Imagen</button><button class="btn small" id="inPdf" disabled title="Descargar como PDF">${ICON.down} PDF</button>
+      <button class="btn small" id="inReload">${ICON.refresh} Actualizar</button></div>
     </div>
     <div id="ins"><div class="empty">Cargando estadísticas… (la primera vez tarda unos segundos)</div></div>`}`;
   if (!accs.length) return;
@@ -1963,11 +1975,14 @@ async function renderInsights(force) {
   $("main").querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => { I.days = +b.dataset.d; renderInsights(); }));
   $("main").querySelectorAll("[data-g]").forEach((b) => (b.onclick = () => { I.group = b.dataset.g; if (I.data) drawInsights(I.data); $("main").querySelectorAll("[data-g]").forEach((x) => x.classList.toggle("on", x === b)); }));
   $("inReload").onclick = () => renderInsights(true);
+  $("inPng").onclick = () => downloadReport("png", $("inPng"));
+  $("inPdf").onclick = () => downloadReport("pdf", $("inPdf"));
   const acc = I.acc, days = I.days;
   try { I.data = await api(`/api/insights?account=${acc}&days=${days}${force ? "&force=1" : ""}`); }
   catch (e) { if ($("ins")) $("ins").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
   if (I.acc !== acc || I.days !== days || !$("ins")) return;
   drawInsights(I.data);
+  if ($("inPng")) { $("inPng").disabled = false; $("inPdf").disabled = false; }
 }
 
 function drawInsights(d) {
@@ -2014,6 +2029,193 @@ function drawInsights(d) {
   drawBars($("chReach"), groupSeries(d.series, "reach", I.group), "Alcance");
   drawBars($("chNew"), groupSeries(d.series, "new_followers", I.group), "Seguidores nuevos", "var(--series-2)");
   if ($("chFol")) drawLine($("chFol"), lastPerGroup(snaps, I.group), "Seguidores");
+}
+
+/* ---------- Descargar estadísticas como imagen o PDF ---------- */
+function loadImg(src) {
+  return new Promise((res) => {
+    if (!src) return res(null);
+    const im = new Image(); im.crossOrigin = "anonymous";
+    const t = setTimeout(() => res(null), 6000);
+    im.onload = () => { clearTimeout(t); res(im); }; im.onerror = () => { clearTimeout(t); res(null); };
+    im.src = src;
+  });
+}
+function wrapLines(ctx, text, maxW, maxLines) {
+  const words = String(text || "").replace(/\s+/g, " ").trim().split(" "), lines = [];
+  let line = "";
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; if (lines.length === maxLines) break; } else line = t;
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length) {
+    let l = lines[maxLines - 1]; while (l && ctx.measureText(l + "…").width > maxW) l = l.slice(0, -1); lines[maxLines - 1] = l + "…";
+  }
+  return lines;
+}
+async function buildReportCanvas(d) {
+  const I = S.ins, acc = d.account || {}, brand = brandById(acc.brand_id), t = d.totals, snaps = d.snapshots || [];
+  const css = getComputedStyle(document.documentElement);
+  const C = { ink: "#111827", ink2: "#374151", muted: "#6b7280", line: "#e5e7eb", grid: "#eceff3", accent: css.getPropertyValue("--accent").trim() || "#0e7c86",
+    s1: css.getPropertyValue("--series-1").trim() || "#2a78d6", s2: css.getPropertyValue("--series-2").trim() || "#eb6834", soft: "#f6f7f9" };
+  const W = 1080, P = 56, SC = 2, F = "system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+  const cv = document.createElement("canvas"); cv.width = W * SC; cv.height = 6000 * SC;
+  const x = cv.getContext("2d"); x.scale(SC, SC);
+  x.fillStyle = "#fff"; x.fillRect(0, 0, W, 6000);
+  const font = (size, weight = 400) => (x.font = `${weight} ${size}px ${F}`);
+  const text = (s, px, py, size, weight, color, align = "left") => { font(size, weight); x.fillStyle = color; x.textAlign = align; x.fillText(s, px, py); x.textAlign = "left"; };
+  const rrect = (px, py, w, h, r, fill, stroke) => { x.beginPath(); x.roundRect(px, py, w, h, r); if (fill) { x.fillStyle = fill; x.fill(); } if (stroke) { x.strokeStyle = stroke; x.lineWidth = 1; x.stroke(); } };
+  const v = (n) => (n === null || n === undefined ? "—" : nf(n));
+  let y = 0;
+  const breaks = []; // puntos donde se puede cortar la página del PDF sin partir una sección
+  x.fillStyle = C.accent; x.fillRect(0, 0, W, 10);
+  y = 70;
+  text(brand ? brand.name : acc.name || "Estadísticas", P, y, 38, 800, C.ink);
+  y += 36; text(`${acc.platform === "facebook" ? "Facebook" : "Instagram"} · ${acc.name || ""}`, P, y, 20, 500, C.ink2);
+  const end = new Date(), start = new Date(Date.now() - I.days * 864e5), df = (dt) => dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  y += 30; text(`Últimos ${I.days} días · ${df(start)} al ${df(end)}`, P, y, 18, 400, C.muted);
+  text("Reporte de estadísticas", W - P, 70, 18, 600, C.accent, "right");
+  y += 32; x.fillStyle = C.line; x.fillRect(P, y, W - 2 * P, 1); y += 28;
+  // números
+  const first = snaps[0], lastS = snaps[snaps.length - 1], delta = first && lastS && snaps.length > 1 ? lastS.followers - first.followers : null;
+  const kpis = [["Seguidores", v(d.profile && d.profile.followers), delta !== null ? `${delta >= 0 ? "+" : ""}${nf(delta)} en el periodo` : ""],
+    ["Seguidores nuevos", v(t.follows ?? t.new_followers), t.unfollows !== null && t.unfollows !== undefined ? `${nf(t.unfollows)} dejaron de seguir` : ""],
+    ["Alcance", v(t.reach), "cuentas que te vieron"], ["Visualizaciones", v(t.views), ""],
+    ["Interacciones", v(t.interactions), t.engaged !== null && t.engaged !== undefined ? `${nf(t.engaged)} cuentas` : ""],
+    ...(d.platform === "instagram" ? [["Toques en enlaces", v(t.link_taps), "del perfil"]] : [])];
+  const kw = (W - 2 * P - 2 * 20) / 3, kh = 118;
+  kpis.forEach(([l, val, sub], i) => {
+    const kx = P + (i % 3) * (kw + 20), ky = y + Math.floor(i / 3) * (kh + 20);
+    rrect(kx, ky, kw, kh, 14, C.soft);
+    text(l, kx + 22, ky + 34, 17, 500, C.muted);
+    text(val, kx + 22, ky + 78, 36, 800, C.ink);
+    if (sub) text(sub, kx + 22, ky + 102, 15, 400, C.muted);
+  });
+  y += Math.ceil(kpis.length / 3) * (kh + 20) + 20;
+  // gráficas de barras
+  const gl = I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes";
+  const bars = (title, pts, color, note) => {
+    breaks.push(y);
+    text(title, P, y + 24, 22, 700, C.ink); y += 34;
+    if (note) { text(note, P, y + 14, 15, 400, C.muted); y += 22; }
+    const ch = 220, cw = W - 2 * P, L = 56, top = y + 10, ph = ch - 40;
+    if (!pts.some((p) => p.v !== null)) { text("Sin datos para este periodo.", P, y + 30, 16, 400, C.muted); y += 60; return; }
+    const { step, max } = niceMax(Math.max(0, ...pts.map((p) => p.v || 0)));
+    const yy = (val) => top + ph - (val / max) * ph, band = (cw - L) / pts.length, bw = Math.max(4, Math.min(34, band * 0.62));
+    font(13, 400);
+    for (let val = 0; val <= max + 1e-9; val += step) { x.fillStyle = C.grid; x.fillRect(P + L, yy(val), cw - L, 1); text(nf(Math.round(val)), P + L - 10, yy(val) + 5, 13, 400, C.muted, "right"); }
+    const every = Math.ceil(pts.length / 10);
+    pts.forEach((p, i) => {
+      const bx = P + L + i * band + (band - bw) / 2;
+      if (p.v) { const h = (p.v / max) * ph; x.beginPath(); x.roundRect(bx, yy(p.v), bw, h, [Math.min(4, bw / 2), Math.min(4, bw / 2), 0, 0]); x.fillStyle = color; x.fill(); }
+      const last = i === pts.length - 1;
+      if (last || (i % every === 0 && pts.length - 1 - i >= Math.max(2, every * 0.75))) text(p.label, last && pts.length > 1 ? bx + bw : bx + bw / 2, top + ph + 24, 13, 400, C.muted, last && pts.length > 1 ? "right" : "center");
+    });
+    x.fillStyle = "#c8c7c1"; x.fillRect(P + L, yy(0), cw - L, 1);
+    y += ch + 24;
+  };
+  bars(`Alcance ${gl}`, groupSeries(d.series, "reach", I.group), C.s1, I.group !== "day" ? "Suma del alcance de cada día." : "");
+  bars(`Seguidores nuevos ${gl}`, groupSeries(d.series, "new_followers", I.group), C.s2, d.platform === "instagram" ? "Instagram solo da este dato de los últimos 30 días." : "");
+  // total de seguidores
+  if (snaps.length >= 2) {
+    breaks.push(y);
+    text("Total de seguidores", P, y + 24, 22, 700, C.ink); y += 40;
+    const pts = lastPerGroup(snaps, I.group), ch = 200, cw = W - 2 * P, L = 70, top = y + 10, ph = ch - 40;
+    const vals = pts.map((p) => p.v), lo = Math.min(...vals), hi = Math.max(...vals), pad = Math.max(1, Math.round((hi - lo) * 0.15)), mn = Math.max(0, lo - pad), mx = hi + pad;
+    const yy = (val) => top + ph - ((val - mn) / (mx - mn)) * ph, xx = (i) => P + L + (pts.length === 1 ? (cw - L) / 2 : (i / (pts.length - 1)) * (cw - L - 10));
+    for (let k = 0; k <= 3; k++) { const val = Math.round(mn + ((mx - mn) * k) / 3); x.fillStyle = C.grid; x.fillRect(P + L, yy(val), cw - L, 1); text(nf(val), P + L - 10, yy(val) + 5, 13, 400, C.muted, "right"); }
+    x.beginPath(); pts.forEach((p, i) => (i ? x.lineTo(xx(i), yy(p.v)) : x.moveTo(xx(i), yy(p.v)))); x.strokeStyle = C.s1; x.lineWidth = 2.5; x.lineJoin = "round"; x.stroke();
+    pts.forEach((p, i) => { x.beginPath(); x.arc(xx(i), yy(p.v), 4.5, 0, 7); x.fillStyle = C.s1; x.fill(); });
+    const every = Math.ceil(pts.length / 8);
+    pts.forEach((p, i) => { const last = i === pts.length - 1; if (last || (i % every === 0 && pts.length - 1 - i >= Math.max(2, every * 0.75))) text(p.full.slice(8, 10) + "/" + p.full.slice(5, 7), xx(i), top + ph + 24, 13, 400, C.muted, last ? "right" : i === 0 ? "left" : "center"); });
+    y += ch + 24;
+  }
+  // cómo interactúan
+  const inter = [["Me gusta", t.likes], ["Comentarios", t.comments], ["Guardados", t.saves], ["Compartidos", t.shares]].filter(([, n]) => n !== null && n !== undefined);
+  if (d.platform === "instagram" && inter.length) {
+    breaks.push(y); text("Cómo interactúan", P, y + 24, 22, 700, C.ink); y += 44;
+    const mxv = Math.max(1, ...inter.map(([, n]) => n));
+    for (const [l, n] of inter) {
+      text(l, P, y + 14, 16, 500, C.ink2);
+      rrect(P + 170, y + 3, W - 2 * P - 280, 14, 7, C.grid); rrect(P + 170, y + 3, Math.max(14, (W - 2 * P - 280) * (n / mxv)), 14, 7, C.s1);
+      text(nf(n), W - P, y + 15, 16, 600, C.ink, "right"); y += 34;
+    }
+    y += 16;
+  }
+  // mejores publicaciones
+  const ranked = (d.posts || []).slice().sort((a, b) => (b.interactions ?? 0) - (a.interactions ?? 0) || (b.reach || 0) - (a.reach || 0)).slice(0, 5);
+  breaks.push(y); text("Mejores publicaciones del periodo", P, y + 24, 22, 700, C.ink); y += 34;
+  text("Ordenadas por interacciones · Tasa = interacciones ÷ alcance", P, y + 14, 15, 400, C.muted); y += 30;
+  if (!ranked.length) { text("No hubo publicaciones en este periodo.", P, y + 20, 16, 400, C.muted); y += 50; }
+  const thumbs = await Promise.all(ranked.map((p) => loadImg(p.thumb)));
+  ranked.forEach((p, i) => {
+    const rowH = 104, th = 84;
+    if (i) breaks.push(y - 6);
+    rrect(P, y, W - 2 * P, rowH - 12, 12, C.soft);
+    const im = thumbs[i];
+    if (im) { x.save(); x.beginPath(); x.roundRect(P + 10, y + 4, th, th, 10); x.clip(); const s = Math.max(th / im.width, th / im.height); x.drawImage(im, P + 10 + (th - im.width * s) / 2, y + 4 + (th - im.height * s) / 2, im.width * s, im.height * s); x.restore(); }
+    else rrect(P + 10, y + 4, th, th, 10, "#e3e6ea");
+    text(String(i + 1), P + 10 + th / 2, y + 4 + th / 2 + 10, 28, 800, im ? "rgba(255,255,255,0)" : C.muted, "center");
+    const tx = P + th + 28;
+    text(`${p.type} · ${new Date(p.timestamp).toLocaleDateString("es-VE")}`, tx, y + 26, 14, 600, C.accent);
+    font(16, 500); const cap = wrapLines(x, p.caption || "(sin texto)", 520, 2);
+    cap.forEach((l, k) => text(l, tx, y + 50 + k * 21, 16, 500, C.ink));
+    const rate = p.reach ? (Math.round((p.interactions / p.reach) * 1000) / 10).toLocaleString("es-VE") + "%" : "—";
+    const mx2 = W - P - 20;
+    [["Alcance", v(p.reach)], ["Interacciones", v(p.interactions)], ["Tasa", rate]].forEach(([l, val], k) => {
+      const cx = mx2 - (2 - k) * 120;
+      text(val, cx, y + 44, 22, 800, C.ink, "right"); text(l, cx, y + 66, 13, 500, C.muted, "right");
+    });
+    y += rowH;
+  });
+  // pie
+  y += 10; x.fillStyle = C.line; x.fillRect(P, y, W - 2 * P, 1); y += 30;
+  text(`Datos de Meta · generado el ${new Date().toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`, P, y, 14, 400, C.muted);
+  y += 34;
+  const out = document.createElement("canvas"); out.width = W * SC; out.height = y * SC;
+  out.getContext("2d").drawImage(cv, 0, 0, W * SC, y * SC, 0, 0, W * SC, y * SC);
+  out.breaks = breaks.map((b) => Math.round(b * SC));
+  return out;
+}
+const reportName = (d, ext) => { const acc = d.account || {}; const b = brandById(acc.brand_id); return `estadisticas-${normalize((b && b.name) || acc.name || "cuenta").replace(/[^a-z0-9]+/g, "-")}-${S.ins.days}d-${new Date().toISOString().slice(0, 10)}.${ext}`; };
+async function saveFile(blob, name) {
+  const file = new File([blob], name, { type: blob.type });
+  // En el teléfono se abre el menú de compartir (WhatsApp, Fotos, Archivos…)
+  if (/iphone|ipad|android/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("No se pudo cargar el generador de PDF. Revisa tu conexión.")); document.head.appendChild(s); });
+}
+async function downloadReport(kind, btn) {
+  const d = S.ins && S.ins.data; if (!d) return;
+  const label = btn.innerHTML; btn.disabled = true; btn.textContent = "Preparando…";
+  try {
+    const cv = await buildReportCanvas(d);
+    if (kind === "png") {
+      const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
+      await saveFile(blob, reportName(d, "png"));
+    } else {
+      if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const pw = 210, ph = 297, m = 8, iw = pw - 2 * m, pagePx = Math.floor(((ph - 2 * m) / iw) * cv.width);
+      for (let off = 0, page = 0, next; off < cv.height; off = next, page++) {
+        const fits = (cv.breaks || []).filter((b) => b > off + pagePx * 0.4 && b <= off + pagePx);
+        next = cv.height - off <= pagePx ? cv.height : fits.length ? Math.max(...fits) : off + pagePx;
+        const h = next - off, part = document.createElement("canvas");
+        part.width = cv.width; part.height = h;
+        const pc = part.getContext("2d"); pc.fillStyle = "#fff"; pc.fillRect(0, 0, part.width, h); pc.drawImage(cv, 0, off, cv.width, h, 0, 0, cv.width, h);
+        if (page) pdf.addPage();
+        pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", m, m, iw, (h / cv.width) * iw);
+      }
+      await saveFile(pdf.output("blob"), reportName(d, "pdf"));
+    }
+  } catch (e) { toast(e.message || String(e), 6000); }
+  btn.disabled = false; btn.innerHTML = label;
 }
 
 /* ================= USUARIOS ================= */
