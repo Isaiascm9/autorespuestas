@@ -237,7 +237,14 @@ tr.click:hover td{background:#fafafa}
 @media (max-width:560px){.hour-row{grid-template-columns:1fr 1fr 14px 1fr}}
 .tpl-row{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr) auto;gap:8px;align-items:start;margin-top:10px}
 .tpl-row textarea{min-height:56px}
+.tpl-row > .vars{grid-column:2}
 @media (max-width:600px){.tpl-row{grid-template-columns:1fr auto}.tpl-row textarea{grid-column:1/-1;grid-row:2}}
+.vars{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.var-btn{border:1px solid #b9e3e7;background:var(--accent-soft);color:#0b5961;border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
+.var-btn:hover{background:#d3eef0}
+.var-btn:disabled{opacity:.5;cursor:default}
+.var-prev{flex-basis:100%;font-size:12.5px;color:var(--muted);background:#f8f9fa;border-radius:8px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.var-prev b{color:var(--ink2);font-weight:600}
 .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;margin-top:4px}
 .check{display:flex;gap:8px;align-items:flex-start;font-weight:500;cursor:pointer}
 .check input{width:auto;margin-top:3px}
@@ -471,6 +478,47 @@ function findRule(rules, text, channel) {
     if (kws.some((k) => (r.match === "exact" ? t === k : t.includes(k)))) return r;
   }
   return null;
+}
+
+/* Botones «+ Nombre» y «+ @Usuario» con vista previa, debajo de los mensajes que los aceptan */
+const VAR_SAMPLE = { name: "María", username: "maria.rizos" };
+function previewVars(text, who = VAR_SAMPLE) {
+  let t = String(text || "").split("\n").map((x) => x.trim()).find(Boolean) || "";
+  const sub = (key, val) => { t = val ? t.replace(new RegExp("\\{" + key + "\\}", "gi"), val) : t.replace(new RegExp("[ \\t]*\\{" + key + "\\}", "gi"), ""); };
+  sub("nombre", who.name); sub("usuario", who.username ? "@" + String(who.username).replace(/^@/, "") : "");
+  t = t.replace(/^[\s,]+/, "").replace(/ +([,!.?])/g, "$1").replace(/,\s*([!.?])/g, "$1");
+  return t ? t.charAt(0).toLocaleUpperCase("es") + t.slice(1) : t;
+}
+function enhanceVars(tas, who) {
+  for (const ta of tas) {
+    if (!ta || ta.dataset.varsOn) continue;
+    ta.dataset.varsOn = "1";
+    const bar = document.createElement("div");
+    bar.className = "vars";
+    bar.innerHTML = `<button type="button" class="var-btn" data-v="{nombre}" title="El primer nombre del cliente">+ Nombre</button><button type="button" class="var-btn" data-v="{usuario}" title="El @ del cliente">+ @Usuario</button><div class="var-prev hidden"></div>`;
+    ta.insertAdjacentElement("afterend", bar);
+    const prev = bar.querySelector(".var-prev");
+    const sample = who || VAR_SAMPLE;
+    const draw = () => {
+      const has = /\{(nombre|usuario)\}/i.test(ta.value);
+      prev.classList.toggle("hidden", !has);
+      if (has) prev.innerHTML = `<b>Así lo verá ${esc(sample.name || "el cliente")}:</b> ${esc(previewVars(ta.value, sample))}` +
+        (/\{nombre\}/i.test(ta.value) ? `<br><b>Si no tiene nombre:</b> ${esc(previewVars(ta.value, { name: "", username: sample.username }))}` : "");
+    };
+    bar.querySelectorAll("[data-v]").forEach((b) => {
+      b.disabled = ta.disabled;
+      b.onclick = () => {
+        const v = b.dataset.v, st = ta.selectionStart ?? ta.value.length, en = ta.selectionEnd ?? ta.value.length;
+        const before = ta.value.slice(0, st), after = ta.value.slice(en);
+        const spaceBefore = before && !/[\s(¡¿]$/.test(before), spaceAfter = /^[\p{L}\p{N}]/u.test(after);
+        ta.focus();
+        ta.setRangeText((spaceBefore ? " " : "") + v + (spaceAfter ? " " : ""), st, en, "end");
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+    });
+    ta.addEventListener("input", draw);
+    draw();
+  }
 }
 
 /* ================= estado ================= */
@@ -903,10 +951,12 @@ function openConfigure(id, startTab) {
       const i = +row.dataset.i;
       row.querySelectorAll("[data-k]").forEach((x) => (x.oninput = () => { o.templates[i][x.dataset.k] = x.value; mark(); }));
     });
-    dlg.querySelectorAll("[data-del-tpl]").forEach((x) => (x.onclick = () => { o.templates.splice(+x.dataset.delTpl, 1); $("tplList").innerHTML = o.templates.map(tplRow).join(""); bindTpl(); mark(); }));
+    dlg.querySelectorAll("[data-del-tpl]").forEach((x) => (x.onclick = () => { o.templates.splice(+x.dataset.delTpl, 1); $("tplList").innerHTML = o.templates.map(tplRow).join(""); bindTpl(); enhanceVars(dlg.querySelectorAll(".tpl-row textarea")); mark(); }));
   };
   bindTpl();
-  if ($("tplAdd")) $("tplAdd").onclick = () => { o.templates.push({ id: uid(), title: "", text: "" }); $("tplList").innerHTML = o.templates.map(tplRow).join(""); bindTpl(); mark(); $("tplList").lastElementChild.querySelector("input").focus(); };
+  const varFields = () => enhanceVars(["fMentionTxt", "fReactTxt", "fOffMsg", "fFollowTxt", "cHandoff", "cFallback", "cDefault", ...Object.keys(o.handoff_reasons).map((k) => "r_" + k)].map($).concat([...dlg.querySelectorAll(".tpl-row textarea")]));
+  varFields();
+  if ($("tplAdd")) $("tplAdd").onclick = () => { o.templates.push({ id: uid(), title: "", text: "" }); $("tplList").innerHTML = o.templates.map(tplRow).join(""); bindTpl(); enhanceVars(dlg.querySelectorAll(".tpl-row textarea")); mark(); $("tplList").lastElementChild.querySelector("input").focus(); };
   // clave propia
   if ($("cKey")) $("cKey").oninput = (e) => { d.ai_api_key = e.target.value; clearKey = false; mark(); };
   if ($("cKeyDel")) $("cKeyDel").onclick = () => { clearKey = true; d.ai_api_key = ""; $("cKey").value = ""; $("cKeyOut").textContent = "Se quitará al guardar: la tienda usará la clave general."; mark(); };
@@ -1321,6 +1371,7 @@ function tabRules() {
       q('[data-a="up"]').onclick = () => { [rules[i - 1], rules[i]] = [rules[i], rules[i - 1]]; changed(); draw(); };
       q('[data-a="down"]').onclick = () => { [rules[i + 1], rules[i]] = [rules[i], rules[i + 1]]; changed(); draw(); };
       upd(); wrap.appendChild(el);
+      enhanceVars(el.querySelectorAll('[data-f="dmReply"], [data-f="publicReply"]'));
     });
     if (needsMedia && brandAccounts(b.id).length) getMedia(b.id).then((cache) => {
       if (!$("rulesWrap")) return;
@@ -1744,11 +1795,12 @@ async function loadThread(quiet) {
     ${can("responder") ? `<div class="ib-compose">
       ${!d.window_open ? `<div class="warnbox" style="margin:0 0 8px">${c.last_dm_at ? "Pasaron más de 24 horas desde su último mensaje: Meta no deja escribirle desde aquí. Respóndele desde la app." : "Este cliente solo comentó: todavía no te ha escrito por privado."}</div>` : ""}
       ${d.templates.length ? `<select id="ibTpl" style="margin-bottom:8px"><option value="">Usar una plantilla…</option>${d.templates.map((t, i) => `<option value="${i}">${esc(t.title || t.text.slice(0, 40))}</option>`).join("")}</select>` : ""}
-      <textarea id="ibText" placeholder="Escribe tu respuesta… ({nombre} se cambia por ${esc(c.first_name || "su nombre")})" ${d.window_open ? "" : "disabled"} style="min-height:70px">${esc(draft)}</textarea>
+      <textarea id="ibText" placeholder="Escribe tu respuesta…" ${d.window_open ? "" : "disabled"} style="min-height:70px">${esc(draft)}</textarea>
       <div class="row" style="justify-content:space-between;margin-top:8px">
         <label class="toggle-row small" style="font-weight:500;gap:8px;justify-content:flex-start"><input type="checkbox" id="ibPauseToo" ${c.paused ? "checked disabled" : "checked"}> Pausar el bot con este cliente</label>
         <button class="btn primary" id="ibSend" ${d.window_open ? "" : "disabled"}>Enviar</button></div></div>` : ""}`;
   const box = $("ibMsgs"); box.scrollTop = box.scrollHeight;
+  if ($("ibText")) enhanceVars([$("ibText")], { name: c.first_name || "", username: c.platform === "instagram" ? c.username : "" });
   $("ibBack").onclick = () => { C.sel = null; $("inbox").classList.remove("has-sel"); loadInboxList(); };
   if ($("ibPause")) $("ibPause").onclick = async () => {
     try { await api("/api/contacts", { method: "PATCH", body: { account_id: sel.acc, user_id: sel.user, paused: !c.paused } }); toast(c.paused ? "Bot reanudado" : "Bot en pausa con este cliente"); loadThread(); loadInboxList(true); refreshBell(); }
