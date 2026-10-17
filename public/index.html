@@ -2135,9 +2135,17 @@ async function renderInsights(force) {
   $("inPdf").onclick = () => downloadReport("pdf", $("inPdf"));
   const key = `${I.acc}|${I.from}|${I.to}|${I.cmp}`;
   I.data = null;
-  try { I.data = await api(`/api/insights?account=${I.acc}&from=${I.from}&to=${I.to}&cmp=${I.cmp}${force ? "&force=1" : ""}`); }
-  catch (e) { if ($("ins")) $("ins").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  // Se pide en 3 partes al mismo tiempo: cada una tiene su propio límite de consultas
+  const qs = (part) => `/api/insights?account=${I.acc}&from=${I.from}&to=${I.to}&part=${part}&cmp=${I.cmp === "none" ? "prev" : I.cmp}${force ? "&force=1" : ""}`;
+  const [mainR, postsR, cmpR] = await Promise.allSettled([api(qs("main")), api(qs("posts")), I.cmp !== "none" ? api(qs("compare")) : Promise.resolve(null)]);
   if (key !== `${I.acc}|${I.from}|${I.to}|${I.cmp}` || !$("ins")) return;
+  if (mainR.status === "rejected") { $("ins").innerHTML = `<div class="alert">${esc(mainR.reason.message)}</div>`; return; }
+  const main = mainR.value, posts = postsR.status === "fulfilled" ? postsR.value : null, cmpD = cmpR.status === "fulfilled" ? cmpR.value : null;
+  const errors = [...(main.errors || []), ...(posts ? posts.errors || [] : ["Publicaciones: " + postsR.reason.message])];
+  if (I.cmp !== "none" && !cmpD) errors.push("Comparación: " + (cmpR.reason ? cmpR.reason.message : "sin datos"));
+  I.data = { ...main, errors, top: posts ? posts.top : [], worst: posts ? posts.worst : [],
+    totals: { ...main.totals, posts: posts ? posts.count : null, ...(posts && posts.follows !== undefined && posts.follows !== null ? { follows: posts.follows, unfollows: posts.unfollows } : {}) },
+    compare: cmpD ? { mode: cmpD.mode, from: cmpD.period.from, to: cmpD.period.to, totals: cmpD.totals, series: cmpD.series } : null };
   drawInsights(I.data);
   if ($("inPng")) { $("inPng").disabled = false; $("inPdf").disabled = false; }
 }
@@ -2158,10 +2166,7 @@ function drawInsights(d) {
   const first = snaps[0], lastS = snaps[snaps.length - 1];
   const delta = first && lastS && snaps.length > 1 ? lastS.followers - first.followers : null;
   const net = t.follows !== null && t.unfollows !== null && t.follows !== undefined ? t.follows - t.unfollows : null;
-  const posts = (d.posts || []).slice();
-  const score = (p) => p.interactions ?? 0;
-  const ranked = posts.slice().sort((a, b) => score(b) - score(a) || (b.reach || 0) - (a.reach || 0));
-  const top = ranked.slice(0, 5), worst = ranked.length > 5 ? ranked.slice(Math.max(5, ranked.length - 5)).reverse() : [];
+  const top = d.top || [], worst = d.worst || [];
   const rate = (p) => (p.reach ? Math.round((p.interactions / p.reach) * 1000) / 10 + "%" : "—");
   const postTable = (list) => `<div class="table-wrap"><table class="posts"><thead><tr><th></th><th>Publicación</th><th>Alcance</th><th>Interacciones</th><th>Tasa</th><th>Me gusta</th><th>Coment.</th>${d.platform === "instagram" ? "<th>Guardados</th>" : ""}<th>Compart.</th></tr></thead><tbody>
     ${list.map((p) => `<tr><td><a href="${esc(p.permalink || "#")}" target="_blank" rel="noopener"><div class="thumb sm" ${p.thumb ? `style="background-image:url('${esc(p.thumb)}')"` : ""}></div></a></td>
@@ -2334,7 +2339,7 @@ async function buildReportCanvas(d) {
     y += 16;
   }
   // mejores publicaciones
-  const ranked = (d.posts || []).slice().sort((a, b) => (b.interactions ?? 0) - (a.interactions ?? 0) || (b.reach || 0) - (a.reach || 0)).slice(0, 5);
+  const ranked = (d.top || []).slice(0, 5);
   breaks.push(y); text("Mejores publicaciones del periodo", P, y + 24, 22, 700, C.ink); y += 34;
   text("Ordenadas por interacciones · Tasa = interacciones ÷ alcance", P, y + 14, 15, 400, C.muted); y += 30;
   if (!ranked.length) { text("No hubo publicaciones en este periodo.", P, y + 20, 16, 400, C.muted); y += 50; }
