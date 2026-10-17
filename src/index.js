@@ -38,7 +38,7 @@ const SCHEMA = [
     ai_prompt TEXT NOT NULL DEFAULT '', ai_prompt_comments TEXT NOT NULL DEFAULT '', ai_prompt_general TEXT NOT NULL DEFAULT '',
     knowledge TEXT NOT NULL DEFAULT '', ai_handoff TEXT NOT NULL DEFAULT '', ai_model TEXT NOT NULL DEFAULT 'deepseek-flash',
     ai_api_key TEXT NOT NULL DEFAULT '', moderation TEXT NOT NULL DEFAULT 'off',
-    test_mode INTEGER NOT NULL DEFAULT 0, test_users TEXT NOT NULL DEFAULT '', created_at TEXT)`,
+    test_mode INTEGER NOT NULL DEFAULT 0, test_users TEXT NOT NULL DEFAULT '', ai_fallback TEXT NOT NULL DEFAULT '', created_at TEXT)`,
   `CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY, platform TEXT NOT NULL, name TEXT, brand_id TEXT, token TEXT NOT NULL,
     token_expires_at TEXT, token_refreshed_at TEXT, token_error TEXT, created_at TEXT)`,
@@ -51,7 +51,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, brand_id TEXT, account_id TEXT, platform TEXT, channel TEXT NOT NULL,
     media_id TEXT, comment_id TEXT, from_id TEXT, username TEXT, text TEXT, reply TEXT, public_reply TEXT,
-    kind TEXT, rule_id TEXT, moderation TEXT, error TEXT, at TEXT NOT NULL)`,
+    kind TEXT, rule_id TEXT, moderation TEXT, error TEXT, level TEXT, at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS logs_brand_id ON logs (brand_id, id DESC)`,
   `CREATE INDEX IF NOT EXISTS logs_at ON logs (at)`,
   `CREATE TABLE IF NOT EXISTS messages (
@@ -74,9 +74,9 @@ const COLUMNS = {
     ai_prompt: "TEXT NOT NULL DEFAULT ''", ai_prompt_comments: "TEXT NOT NULL DEFAULT ''", ai_prompt_general: "TEXT NOT NULL DEFAULT ''",
     knowledge: "TEXT NOT NULL DEFAULT ''", ai_handoff: "TEXT NOT NULL DEFAULT ''", ai_model: "TEXT NOT NULL DEFAULT 'deepseek-flash'",
     ai_api_key: "TEXT NOT NULL DEFAULT ''", moderation: "TEXT NOT NULL DEFAULT 'off'",
-    test_mode: "INTEGER NOT NULL DEFAULT 0", test_users: "TEXT NOT NULL DEFAULT ''",
+    test_mode: "INTEGER NOT NULL DEFAULT 0", test_users: "TEXT NOT NULL DEFAULT ''", ai_fallback: "TEXT NOT NULL DEFAULT ''",
   },
-  logs: { account_id: "TEXT", platform: "TEXT", media_id: "TEXT", comment_id: "TEXT", moderation: "TEXT" },
+  logs: { account_id: "TEXT", platform: "TEXT", media_id: "TEXT", comment_id: "TEXT", moderation: "TEXT", level: "TEXT" },
   contacts: { brand_id: "TEXT", platform: "TEXT" },
 };
 
@@ -270,6 +270,17 @@ function legalPage(url) {
 /* ================= IA (DeepSeek) ================= */
 
 const HANDOFF_DEFAULT = "¡Gracias por escribirnos! 🙌 Te voy a pasar con una persona del equipo, en breve te responde.";
+const FALLBACK_DEFAULT = "¡Hola! Recibimos tu mensaje 🙌 En un momento te respondemos.";
+
+/** Avisa al teléfono que la IA falló, como mucho una vez cada 10 minutos (para no llenarte de avisos si DeepSeek se cae). */
+async function notifyAiFailure(env, brand, who, text, what) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ai_fail_notified'").first();
+    if (row && Date.now() - Number(row.value) < 10 * 60 * 1000) return;
+    await setSetting(env, "ai_fail_notified", String(Date.now()));
+    await notifyAll(env, { title: `${brand.name} · La IA no respondió`, body: `${who}: ${String(text).slice(0, 100)} — ${what}`, url: "/#redes/actividad", tag: "ia-fallo" });
+  } catch (e) { console.log("Aviso IA", errText(e)); }
+}
 
 const SYSTEM_DM = (name, platform) => `Eres el asistente de mensajes privados de ${platform === "facebook" ? "Facebook Messenger" : "Instagram"} de la tienda "${name}".
 Reglas fijas:
@@ -301,27 +312,56 @@ async function deepseekKey(env, brand, cfg) {
   return (cfg || (await getConfig(env))).deepseekKey || null;
 }
 
-async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode) {
-  const res = await fetch(deepseekBase(env) + "/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: AI_MODELS.includes(model) ? model : "deepseek-flash",
-      messages, max_tokens: maxTokens, temperature: jsonMode ? 0 : 0.6,
-      thinking: { type: "disabled" }, // respuestas rápidas y baratas
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-    }),
-    signal: AbortSignal.timeout(25000),
-  });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((d.error && d.error.message) || `DeepSeek HTTP ${res.status}`);
-  return ((d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || "").trim();
+/**
+ * Llama a DeepSeek. Si está saturado o tarda, lo reintenta sin pasarse del tiempo
+ * que tiene Cloudflare para terminar (budgetMs). Los errores de clave o saldo no se reintentan.
+ */
+async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, budgetMs = 22000) {
+  const deadline = Date.now() + budgetMs;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const left = deadline - Date.now();
+    if (left < 3000) break;
+    try {
+      const res = await fetch(deepseekBase(env) + "/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: AI_MODELS.includes(model) ? model : "deepseek-flash",
+          messages, max_tokens: maxTokens, temperature: jsonMode ? 0 : 0.6,
+          thinking: { type: "disabled" }, // respuestas rápidas y baratas
+          ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        }),
+        signal: AbortSignal.timeout(Math.min(left, 15000)),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const e = new Error((d.error && d.error.message) || `DeepSeek HTTP ${res.status}`);
+        e.status = res.status;
+        throw e;
+      }
+      const text = ((d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || "").trim();
+      if (!text && !jsonMode) { const e = new Error("DeepSeek respondió vacío"); e.status = 503; throw e; }
+      return text;
+    } catch (e) {
+      lastErr = e;
+      // 401 clave, 402 sin saldo, 400 petición: no sirve reintentar
+      const retry = e.status ? e.status === 429 || e.status >= 500 || /busy|overload/i.test(e.message) : true;
+      if (!retry) throw e;
+      const wait = attempt === 1 ? 1000 : 2500;
+      if (Date.now() + wait + 3000 > deadline) break;
+      await sleep(wait);
+    }
+  }
+  const e = new Error(errText(lastErr || "DeepSeek no respondió") + " (se intentó varias veces)");
+  e.status = lastErr && lastErr.status;
+  throw e;
 }
 
-async function askAI(env, brand, convo, mode, platform, extra, cfg) {
+async function askAI(env, brand, convo, mode, platform, extra, cfg, budgetMs) {
   const apiKey = await deepseekKey(env, brand, cfg);
   if (!apiKey) throw new Error("Falta la clave de DeepSeek: pégala en Configuración");
-  let t = await deepseekChat(env, apiKey, brand.ai_model, [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500);
+  let t = await deepseekChat(env, apiKey, brand.ai_model, [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs);
   if (/\[HUMANO\]/i.test(t)) {
     // La IA puede escribir el mensaje para el cliente después de [HUMANO]
     const msg = t.replace(/\[HUMANO\]/gi, "").replace(/\*\*(.+?)\*\*/g, "$1").trim();
@@ -340,7 +380,7 @@ async function moderate(env, brand, text, cfg) {
   const out = await deepseekChat(env, apiKey, "deepseek-flash", [
     { role: "system", content: 'Clasificas comentarios públicos en redes sociales de una tienda. Es OFENSIVO si contiene insultos, groserías, acoso, odio o estafas/spam fraudulento. Las quejas de clientes, aunque vengan bravas, NO son ofensivas. Responde solo JSON: {"ofensivo": true|false, "motivo": "máximo 6 palabras"}' },
     { role: "user", content: String(text).slice(0, 1000) },
-  ], 60, true);
+  ], 60, true, 7000);
   let d = {};
   try { d = JSON.parse(out); } catch { d = { ofensivo: /true/i.test(out) }; }
   return { offensive: d.ofensivo === true, reason: String(d.motivo || "").slice(0, 80) };
@@ -381,7 +421,7 @@ function brandOut(b, accounts = []) {
     ai_prompt: b.ai_prompt || "", ai_prompt_comments: b.ai_prompt_comments || "", ai_prompt_general: b.ai_prompt_general || "",
     knowledge: b.knowledge || "", ai_handoff: b.ai_handoff || "", ai_model: b.ai_model || "deepseek-flash",
     ai_key_tail: b.ai_api_key ? b.ai_api_key.slice(-4) : "", moderation: b.moderation || "off",
-    test_mode: !!b.test_mode, test_users: b.test_users || "",
+    test_mode: !!b.test_mode, test_users: b.test_users || "", ai_fallback: b.ai_fallback || "",
     accounts: accounts.filter((a) => a.brand_id === b.id).map(accountOut),
   };
 }
@@ -418,11 +458,11 @@ async function upsertContact(env, { acc, userId, username, text, channel, defaul
 
 async function addLog(env, acc, l) {
   await env.DB.prepare(
-    `INSERT INTO logs (brand_id, account_id, platform, channel, media_id, comment_id, from_id, username, text, reply, public_reply, kind, rule_id, moderation, error, at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO logs (brand_id, account_id, platform, channel, media_id, comment_id, from_id, username, text, reply, public_reply, kind, rule_id, moderation, error, level, at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     acc.brand_id, String(acc.id), acc.platform, l.channel, l.mediaId || null, l.commentId || null, l.fromId || null, l.username || null,
-    l.text || null, l.reply || null, l.publicReply || null, l.kind, l.ruleId || null, l.moderation || null, l.error || null, nowIso()
+    l.text || null, l.reply || null, l.publicReply || null, l.kind, l.ruleId || null, l.moderation || null, l.error || null, l.level || null, nowIso()
   ).run();
 }
 
@@ -473,7 +513,7 @@ async function handleDM(env, acc, ev, cfg) {
   const history = useAI ? await getHistory(env, acc.id, from) : [];
   await saveMessage(env, acc.id, from, "user", inText);
 
-  let reply = null, ruleId = null, kind = "none", handoff = false, skipped = false;
+  let reply = null, ruleId = null, kind = "none", handoff = false, skipped = false, aiFailed = false;
   const errors = [];
 
   if (!allowedInTest(brand, from, username)) {
@@ -491,9 +531,12 @@ async function handleDM(env, acc, ev, cfg) {
           if (out.handoff) { reply = out.handoffText || brand.ai_handoff || HANDOFF_DEFAULT; kind = "handoff"; handoff = true; }
           else if (out.skip) { kind = "none"; skipped = true; }
           else if (out.text) { reply = out.text; kind = "ai"; }
-        } catch (e) { errors.push("IA: " + errText(e)); }
+        } catch (e) { errors.push("IA: " + errText(e)); aiFailed = true; }
       }
-      if (!reply && !skipped && brand.default_reply) {
+      if (!reply && aiFailed) {
+        // La IA no respondió: el cliente nunca se queda sin respuesta
+        reply = brand.ai_fallback || brand.default_reply || FALLBACK_DEFAULT; kind = "fallback";
+      } else if (!reply && !skipped && brand.default_reply) {
         const last = contact && contact.last_default_at ? Date.parse(contact.last_default_at) : 0;
         if (Date.now() - last > Number(brand.cooldown_hours) * 3600 * 1000) { reply = brand.default_reply; kind = "default"; }
       }
@@ -518,7 +561,11 @@ async function handleDM(env, acc, ev, cfg) {
       badge: ((await env.DB.prepare("SELECT COUNT(*) AS n FROM contacts WHERE paused = 1").first()) || {}).n || 1,
     });
   }
-  await addLog(env, acc, { channel: "dm", fromId: from, username, text: inText, reply, kind, ruleId, error: errors.join(" | ") || null });
+  if (aiFailed) {
+    const who = username ? (acc.platform === "instagram" ? "@" + username : username) : "Un cliente";
+    await notifyAiFailure(env, brand, who, inText, sent ? "se le envió el mensaje de respaldo, revisa y respóndele" : "no se le pudo responder");
+  }
+  await addLog(env, acc, { channel: "dm", fromId: from, username, text: inText, reply, kind, ruleId, error: errors.join(" | ") || null, level: errors.length && sent ? "warn" : null });
 }
 
 /** c = { commentId, mediaId, fromId, username, text } */
@@ -531,7 +578,7 @@ async function handleComment(env, acc, c, cfg) {
 
   const text = c.text || "";
   const contact = c.fromId ? await getContact(env, acc.id, c.fromId) : null;
-  let reply = null, publicReply = null, ruleId = null, kind = "none", moderation = null;
+  let reply = null, publicReply = null, ruleId = null, kind = "none", moderation = null, sentSomething = false, aiFailed = false;
   const errors = [];
   const P = PLATFORM[acc.platform];
 
@@ -562,13 +609,13 @@ async function handleComment(env, acc, c, cfg) {
       kind = "rule"; ruleId = rule.id;
       publicReply = pickLine(rule.publicReply);
       if (publicReply) {
-        try { await P.publicReply(env, acc, c.commentId, publicReply); }
+        try { await P.publicReply(env, acc, c.commentId, publicReply); sentSomething = true; }
         catch (e) { errors.push("Pública: " + errText(e)); }
       }
       if (rule.dmReply) {
         reply = rule.dmReply;
         try {
-          await P.privateReply(env, acc, c.commentId, reply);
+          await P.privateReply(env, acc, c.commentId, reply); sentSomething = true;
           if (c.fromId) {
             await saveMessage(env, acc.id, c.fromId, "user", `[Comentó en una publicación${product ? " de: " + product : ""}] ${text}`);
             await saveMessage(env, acc.id, c.fromId, "assistant", reply);
@@ -579,13 +626,13 @@ async function handleComment(env, acc, c, cfg) {
       try {
         const who = c.username ? (acc.platform === "instagram" ? `@${c.username}` : c.username) : "un usuario";
         const extra = product ? `=== PUBLICACIÓN COMENTADA ===\nEsta publicación es de: ${product}` : null;
-        const out = await askAI(env, brand, [{ role: "user", content: `Comentario de ${who}: "${text}"` }], "comment", acc.platform, extra, cfg);
+        const out = await askAI(env, brand, [{ role: "user", content: `Comentario de ${who}: "${text}"` }], "comment", acc.platform, extra, cfg, moderation !== null || brand.moderation !== "off" ? 16000 : 22000);
         if (out.text) {
           kind = "ai"; publicReply = out.text;
-          try { await P.publicReply(env, acc, c.commentId, publicReply); }
+          try { await P.publicReply(env, acc, c.commentId, publicReply); sentSomething = true; }
           catch (e) { errors.push("Pública: " + errText(e)); }
         }
-      } catch (e) { errors.push("IA: " + errText(e)); }
+      } catch (e) { errors.push("IA: " + errText(e)); aiFailed = true; }
     }
   }
 
@@ -593,7 +640,12 @@ async function handleComment(env, acc, c, cfg) {
   await addLog(env, acc, {
     channel: "comment", mediaId: c.mediaId, commentId: c.commentId, fromId: c.fromId, username: c.username,
     text, reply, publicReply, kind, ruleId, moderation, error: errors.join(" | ") || null,
+    level: errors.length && (sentSomething || kind === "hidden") ? "warn" : null,
   });
+  if (aiFailed) {
+    const who = c.username ? (acc.platform === "instagram" ? "@" + c.username : c.username) : "Alguien";
+    await notifyAiFailure(env, brand, who, text, "comentario sin responder");
+  }
 }
 
 async function processWebhook(env, body) {
@@ -1128,7 +1180,7 @@ async function api(req, env, url) {
     const bool = (k) => { if (typeof b[k] === "boolean") set[k] = b[k] ? 1 : 0; };
     if (typeof b.name === "string" && b.name.trim()) set.name = b.name.trim().slice(0, 120);
     ["active", "ai_enabled", "ai_comments", "test_mode"].forEach(bool);
-    txt("default_reply", 1000); txt("ai_handoff", 1000); txt("test_users", 3000);
+    txt("default_reply", 1000); txt("ai_handoff", 1000); txt("ai_fallback", 1000); txt("test_users", 3000);
     txt("ai_prompt", 30000); txt("ai_prompt_comments", 30000); txt("ai_prompt_general", 30000); txt("knowledge", 60000);
     if (b.cooldown_hours !== undefined) set.cooldown_hours = Math.max(0, Math.min(720, parseInt(b.cooldown_hours, 10) || 0));
     if (b.ai_model !== undefined) { if (!AI_MODELS.includes(b.ai_model)) return json({ error: "Modelo no válido" }, 400); set.ai_model = b.ai_model; }
@@ -1226,25 +1278,25 @@ async function stats(env, url) {
   const q = (sql, ...a) => env.DB.prepare(sql).bind(...a);
 
   const [byKind, daily, newContacts, topRules, pending, perBrand, mod] = await env.DB.batch([
-    q(`SELECT channel, kind, error IS NOT NULL AS err, COUNT(*) AS n FROM logs WHERE at >= ?${bf} GROUP BY channel, kind, err`, ...bind(since)),
+    q(`SELECT channel, kind, (error IS NOT NULL AND COALESCE(level, '') <> 'warn') AS err, COUNT(*) AS n FROM logs WHERE at >= ?${bf} GROUP BY channel, kind, err`, ...bind(since)),
     q(`SELECT substr(datetime(at, ?), 1, 10) AS d, channel, COUNT(*) AS n FROM logs WHERE at >= ?${bf} GROUP BY d, channel`, ...bind(tzMod, since)),
     q(`SELECT COUNT(*) AS n FROM contacts WHERE first_at >= ?${bf}`, ...bind(since)),
     q(`SELECT brand_id, rule_id, COUNT(*) AS n FROM logs WHERE kind = 'rule' AND at >= ?${bf} GROUP BY brand_id, rule_id ORDER BY n DESC LIMIT 6`, ...bind(since)),
     q(`SELECT brand_id, account_id, platform, user_id, username, last_message, last_channel, last_at FROM contacts WHERE paused = 1${bf} ORDER BY last_at DESC LIMIT 30`, ...(brand ? [brand] : [])),
     q(`SELECT brand_id, channel, COUNT(*) AS n,
-         SUM(CASE WHEN error IS NULL AND kind IN ('rule','ai','default','handoff') THEN 1 ELSE 0 END) AS replied,
-         SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) AS errors
+         SUM(CASE WHEN (error IS NULL OR level = 'warn') AND kind IN ('rule','ai','default','handoff','fallback') THEN 1 ELSE 0 END) AS replied,
+         SUM(CASE WHEN error IS NOT NULL AND COALESCE(level, '') <> 'warn' THEN 1 ELSE 0 END) AS errors
        FROM logs WHERE at >= ?${bf} GROUP BY brand_id, channel`, ...bind(since)),
     q(`SELECT COUNT(*) AS n FROM logs WHERE moderation IS NOT NULL AND at >= ?${bf}`, ...bind(since)),
   ]);
 
   const totals = { dm: 0, comment: 0, replied: 0, errors: 0, offensive: mod.results[0] ? mod.results[0].n : 0,
-    kinds: { rule: 0, ai: 0, default: 0, handoff: 0, none: 0, paused: 0, hidden: 0, test: 0 } };
+    kinds: { rule: 0, ai: 0, default: 0, handoff: 0, fallback: 0, none: 0, paused: 0, hidden: 0, test: 0 } };
   for (const r of byKind.results) {
     totals[r.channel] = (totals[r.channel] || 0) + r.n;
     if (r.err) { totals.errors += r.n; continue; }
     totals.kinds[r.kind] = (totals.kinds[r.kind] || 0) + r.n;
-    if (["rule", "ai", "default", "handoff"].includes(r.kind)) totals.replied += r.n;
+    if (["rule", "ai", "default", "handoff", "fallback"].includes(r.kind)) totals.replied += r.n;
   }
 
   const series = [];
