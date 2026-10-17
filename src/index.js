@@ -1693,8 +1693,9 @@ async function api(req, env, url) {
     const oldest = addDays(today, -730);
     if (from < oldest) return json({ error: "Meta solo guarda las estadísticas de los últimos 2 años." }, 400);
     if (daysBetween(from, to) > 366) return json({ error: "Elige un periodo de máximo 1 año." }, 400);
-    const cmp = ["prev", "month"].includes(url.searchParams.get("cmp")) ? url.searchParams.get("cmp") : "none";
-    return json(await insightsFor(env, acc, from, to, cmp, url.searchParams.get("force") === "1"));
+    const cmp = ["prev", "month"].includes(url.searchParams.get("cmp")) ? url.searchParams.get("cmp") : "prev";
+    const part = ["main", "posts", "compare"].includes(url.searchParams.get("part")) ? url.searchParams.get("part") : "main";
+    return json(await insightsFor(env, acc, from, to, part, cmp, url.searchParams.get("force") === "1"));
   }
 
   /* ----- cuentas ----- */
@@ -2072,7 +2073,28 @@ function comparePeriod(from, to, mode) {
   return { from: addDays(pt, -(n - 1)), to: pt };
 }
 
-async function igInsights(env, acc, from, to, withPosts) {
+async function followsOf(q, ranges) {
+  let follows = 0, unfollows = 0, got = false;
+  for (const [s, e] of ranges) {
+    const tv = (((await q("follows_and_unfollows", s, e, "&metric_type=total_value&breakdown=follow_type")).data || [])[0] || {}).total_value;
+    if (!tv) continue; got = true;
+    for (const r of ((tv.breakdowns || [])[0] || {}).results || []) {
+      if ((r.dimension_values || [])[0] === "FOLLOWER") follows += Number(r.value) || 0;
+      if ((r.dimension_values || [])[0] === "NON_FOLLOWER") unfollows += Number(r.value) || 0;
+    }
+  }
+  return got ? { follows, unfollows } : null;
+}
+
+const IG_TOTALS = ["views", "reach", "total_interactions", "accounts_engaged", "likes", "comments", "shares", "saves", "profile_links_taps"];
+
+/**
+ * Estadísticas de Instagram por partes, para no pasar el límite de 50 consultas por vez del plan gratis de Cloudflare:
+ *  - "main": números y gráficas del periodo
+ *  - "posts": publicaciones (detalle solo de las 5 mejores y las 5 peores)
+ *  - "compare": números del periodo con el que se compara
+ */
+async function igInsights(env, acc, from, to, part) {
   const errors = [];
   const tryIt = async (label, fn) => { try { return await fn(); } catch (e) { errors.push(`${label}: ${errText(e)}`); return null; } };
   const now = Math.floor(Date.now() / 1000);
@@ -2081,6 +2103,67 @@ async function igInsights(env, acc, from, to, withPosts) {
   for (let e = end; e > start; e -= 30 * 86400) ranges.push([Math.max(start, e - 30 * 86400), e]);
   const q = (metric, s, e, extra = "") => ig(env, acc.token, `/me/insights?metric=${metric}&period=day&since=${s}&until=${e}${extra}`);
 
+  if (part === "posts") {
+    // 1) Publicaciones del periodo con me gusta y comentarios (vienen sin consultas extra)
+    const media = await tryIt("Publicaciones", async () => {
+      const out = [];
+      let path = "/me/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url,like_count,comments_count&limit=100";
+      for (let page = 0; page < 8 && path; page++) {
+        const d = await ig(env, acc.token, path);
+        for (const x of d.data || []) { const t = Date.parse(x.timestamp) / 1000; if (t >= start && t <= end) out.push(x); }
+        const list = d.data || [], oldest = list.length ? Date.parse(list[list.length - 1].timestamp) / 1000 : 0;
+        const next = d.paging && d.paging.next;
+        path = next && oldest > start ? next.replace(/^https?:\/\/[^/]+\/v[\d.]+/, "") : null;
+      }
+      return out;
+    });
+    const posts = (media || []).map((x) => ({
+      id: x.id, caption: (x.caption || "").slice(0, 140), timestamp: x.timestamp, permalink: x.permalink,
+      type: x.media_product_type === "REELS" ? "Reel" : x.media_type === "CAROUSEL_ALBUM" ? "Carrusel" : x.media_type === "VIDEO" ? "Video" : "Foto",
+      thumb: x.thumbnail_url || (x.media_type !== "VIDEO" ? x.media_url : null) || null,
+      likes: x.like_count ?? 0, comments: x.comments_count ?? 0, reach: null, views: null, saves: null, shares: null, interactions: (x.like_count ?? 0) + (x.comments_count ?? 0),
+    }));
+    // 2) Se ordenan y solo se pide el detalle de las que se muestran
+    posts.sort((a, b) => b.interactions - a.interactions || String(b.timestamp).localeCompare(String(a.timestamp)));
+    const top = posts.slice(0, 5), worst = posts.length > 5 ? posts.slice(Math.max(5, posts.length - 5)) : [];
+    let postErr = null;
+    await inBatches([...top, ...worst], 5, async (p) => {
+      for (const metrics of ["reach,saved,shares,total_interactions,views", "reach,saved,shares,total_interactions"]) {
+        try {
+          const d = await ig(env, acc.token, `/${p.id}/insights?metric=${metrics}`);
+          const v = Object.fromEntries((d.data || []).map((it) => [it.name, Number(((it.values || [])[0] || {}).value ?? (it.total_value || {}).value) || 0]));
+          Object.assign(p, { reach: v.reach ?? null, views: v.views ?? null, saves: v.saved ?? null, shares: v.shares ?? null, interactions: v.total_interactions ?? p.interactions });
+          return;
+        } catch (e) { postErr = errText(e); }
+      }
+    });
+    if (postErr && [...top, ...worst].every((x) => x.reach === null)) errors.push("Números de cada publicación: " + postErr);
+    top.sort((a, b) => b.interactions - a.interactions || (b.reach || 0) - (a.reach || 0));
+    worst.sort((a, b) => a.interactions - b.interactions || (a.reach || 0) - (b.reach || 0));
+    // Seguidores ganados y perdidos van en esta parte para repartir las consultas
+    const fu = await tryIt("Seguidores ganados y perdidos", () => followsOf(q, ranges));
+    return { top, worst, count: media ? media.length : null, follows: fu ? fu.follows : null, unfollows: fu ? fu.unfollows : null, errors };
+  }
+
+  // Números del periodo: todos juntos en una sola consulta por cada tramo de 30 días
+  const totals = async () => {
+    const sums = {}, got = {};
+    let metrics = IG_TOTALS;
+    for (const [s, e] of ranges) {
+      let data;
+      try { data = (await q(metrics.join(","), s, e, "&metric_type=total_value")).data || []; }
+      catch (err) {
+        // Si alguno no está disponible, Meta rechaza todo el grupo: se averigua cuáles sirven (una sola vez) y se sigue con esos
+        if (metrics !== IG_TOTALS) throw err;
+        data = []; const ok = [];
+        for (const m of IG_TOTALS) { try { const r = ((await q(m, s, e, "&metric_type=total_value")).data) || []; data.push(...r); ok.push(m); } catch {} }
+        if (!ok.length) throw err;
+        metrics = ok;
+      }
+      for (const it of data) { if (!it.total_value) continue; got[it.name] = true; sums[it.name] = (sums[it.name] || 0) + (Number(it.total_value.value) || 0); }
+    }
+    return Object.fromEntries(IG_TOTALS.map((m) => [m, got[m] ? sums[m] : null]));
+  };
   const daily = async (metric, rs) => {
     const vals = {};
     for (const [s, e] of rs) {
@@ -2092,157 +2175,120 @@ async function igInsights(env, acc, from, to, withPosts) {
   // Seguidores nuevos por día: Meta solo lo da de los últimos 30 días
   const f30 = Math.max(start, now - 30 * 86400 + 3600);
   const followerRanges = f30 < end ? [[f30, end]] : [];
-  const total = async (metric, extra = "") => {
-    let sum = 0, got = false, follows = 0, unfollows = 0;
-    for (const [s, e] of ranges) {
-      const tv = (((await q(metric, s, e, "&metric_type=total_value" + extra)).data || [])[0] || {}).total_value;
-      if (!tv) continue;
-      got = true; sum += Number(tv.value) || 0;
-      for (const r of ((tv.breakdowns || [])[0] || {}).results || []) {
-        if ((r.dimension_values || [])[0] === "FOLLOWER") follows += Number(r.value) || 0;
-        if ((r.dimension_values || [])[0] === "NON_FOLLOWER") unfollows += Number(r.value) || 0;
-      }
-    }
-    return got ? (extra ? { follows, unfollows } : sum) : null;
-  };
 
-  const [me, reachD, newFollowersD, views, reach, interactions, engaged, likes, comments, shares, saves, taps, fu] = await Promise.all([
-    withPosts ? tryIt("Perfil", () => snapshotAccount(env, acc)) : null,
+  const [me, tot, fu, reachD, newFollowersD, postCount] = await Promise.all([
+    part === "main" ? tryIt("Perfil", () => snapshotAccount(env, acc)) : null,
+    tryIt("Números del periodo", totals),
+    part === "compare" && ranges.length <= 6 ? tryIt("Seguidores ganados y perdidos", () => followsOf(q, ranges)) : null,
     tryIt("Alcance por día", () => daily("reach", ranges)),
     followerRanges.length ? tryIt("Seguidores nuevos por día", () => daily("follower_count", followerRanges)) : null,
-    tryIt("Visualizaciones", () => total("views")),
-    tryIt("Alcance", () => total("reach")),
-    tryIt("Interacciones", () => total("total_interactions")),
-    tryIt("Cuentas que interactuaron", () => total("accounts_engaged")),
-    tryIt("Me gusta", () => total("likes")),
-    tryIt("Comentarios", () => total("comments")),
-    tryIt("Compartidos", () => total("shares")),
-    tryIt("Guardados", () => total("saves")),
-    tryIt("Toques en enlaces", () => total("profile_links_taps")),
-    tryIt("Seguidores ganados y perdidos", () => total("follows_and_unfollows", "&breakdown=follow_type")),
+    part === "compare" ? tryIt("Publicaciones", async () => {
+      let n = 0, path = "/me/media?fields=id,timestamp&limit=100";
+      for (let page = 0; page < 8 && path; page++) {
+        const d = await ig(env, acc.token, path), list = d.data || [];
+        n += list.filter((x) => { const t = Date.parse(x.timestamp) / 1000; return t >= start && t <= end; }).length;
+        const oldest = list.length ? Date.parse(list[list.length - 1].timestamp) / 1000 : 0;
+        path = d.paging && d.paging.next && oldest > start ? d.paging.next.replace(/^https?:\/\/[^/]+\/v[\d.]+/, "") : null;
+      }
+      return n;
+    }) : null,
   ]);
-
-  let posts = [], postCount = null;
-  if (withPosts) {
-    // Publicaciones del periodo (se pagina hacia atrás hasta llegar a la fecha de inicio)
-    const media = await tryIt("Publicaciones", async () => {
-      const out = [];
-      let path = "/me/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url,like_count,comments_count&limit=100";
-      for (let page = 0; page < 6 && path; page++) {
-        const d = await ig(env, acc.token, path);
-        for (const x of d.data || []) { const t = Date.parse(x.timestamp) / 1000; if (t >= start && t <= end) out.push(x); }
-        const oldest = (d.data || []).length ? Date.parse(d.data[d.data.length - 1].timestamp) / 1000 : 0;
-        const next = d.paging && d.paging.next;
-        path = next && oldest > start ? next.replace(/^https?:\/\/[^/]+\/v[\d.]+/, "") : null;
-      }
-      return out;
-    });
-    let postErr = null;
-    postCount = media ? media.length : null;
-    posts = media ? await inBatches(media.slice(0, 60), 8, async (x) => {
-      const base = {
-        id: x.id, caption: (x.caption || "").slice(0, 140), timestamp: x.timestamp, permalink: x.permalink,
-        type: x.media_product_type === "REELS" ? "Reel" : x.media_type === "CAROUSEL_ALBUM" ? "Carrusel" : x.media_type === "VIDEO" ? "Video" : "Foto",
-        thumb: x.thumbnail_url || (x.media_type !== "VIDEO" ? x.media_url : null) || null,
-        likes: x.like_count ?? null, comments: x.comments_count ?? null, reach: null, views: null, saves: null, shares: null, interactions: null,
-      };
-      for (const metrics of ["reach,saved,shares,total_interactions,views", "reach,saved,shares,total_interactions"]) {
-        try {
-          const d = await ig(env, acc.token, `/${x.id}/insights?metric=${metrics}`);
-          const v = Object.fromEntries((d.data || []).map((it) => [it.name, Number(((it.values || [])[0] || {}).value ?? (it.total_value || {}).value) || 0]));
-          Object.assign(base, { reach: v.reach ?? null, views: v.views ?? null, saves: v.saved ?? null, shares: v.shares ?? null, interactions: v.total_interactions ?? null });
-          break;
-        } catch (e) { postErr = errText(e); }
-      }
-      if (base.interactions === null) base.interactions = (base.likes || 0) + (base.comments || 0) + (base.saves || 0) + (base.shares || 0);
-      return base;
-    }) : [];
-    if (postErr && posts.length && posts.every((x) => x.reach === null)) errors.push("Números de cada publicación: " + postErr);
-  } else {
-    const media = await tryIt("Publicaciones", async () => {
-      const d = await ig(env, acc.token, "/me/media?fields=id,timestamp&limit=100");
-      return (d.data || []).filter((x) => { const t = Date.parse(x.timestamp) / 1000; return t >= start && t <= end; });
-    });
-    postCount = media ? media.length : null;
-  }
-
+  const t = tot || {};
   return {
     platform: "instagram",
     profile: me ? { followers: me.followers_count ?? null, follows: me.follows_count ?? null, media_count: me.media_count ?? null } : null,
-    totals: { views, reach, interactions, engaged, likes, comments, shares, saves, link_taps: taps,
-      follows: fu ? fu.follows : null, unfollows: fu ? fu.unfollows : null, posts: postCount,
+    totals: { views: t.views ?? null, reach: t.reach ?? null, interactions: t.total_interactions ?? null, engaged: t.accounts_engaged ?? null,
+      likes: t.likes ?? null, comments: t.comments ?? null, shares: t.shares ?? null, saves: t.saves ?? null, link_taps: t.profile_links_taps ?? null,
+      follows: fu ? fu.follows : null, unfollows: fu ? fu.unfollows : null, posts: postCount ?? null,
       new_followers: newFollowersD ? Object.values(newFollowersD).reduce((a, b) => a + b, 0) : null },
     series: datesOf(from, to).map((d) => ({ date: d, reach: reachD ? reachD[d] ?? null : null, new_followers: newFollowersD ? newFollowersD[d] ?? null : null })),
-    posts, errors, approx: daysBetween(from, to) > 30,
+    errors, approx: daysBetween(from, to) > 30,
   };
 }
 
-async function fbInsights(env, acc, from, to, withPosts) {
+async function fbInsights(env, acc, from, to, part) {
   const errors = [];
   const tryIt = async (label, fn) => { try { return await fn(); } catch (e) { errors.push(`${label}: ${errText(e)}`); return null; } };
   const now = Math.floor(Date.now() / 1000), start = dayStart(from), end = Math.min(dayEnd(to), now);
-  const daily = async (metric) => {
-    const vals = {};
+  const postsOf = () => fb(env, acc.token, `/${acc.id}/posts?fields=id,message,created_time,permalink_url,full_picture,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)&since=${start}&until=${end}&limit=100`)
+    .then((d) => (d.data || []).filter((x) => { const t = Date.parse(x.created_time) / 1000; return t >= start && t <= end; }));
+  if (part === "posts") {
+    const media = await tryIt("Publicaciones", postsOf);
+    const posts = (media || []).map((x) => {
+      const likes = (x.reactions && x.reactions.summary && x.reactions.summary.total_count) || 0;
+      const comments = (x.comments && x.comments.summary && x.comments.summary.total_count) || 0;
+      const shares = (x.shares && x.shares.count) || 0;
+      return { id: x.id, caption: (x.message || "").slice(0, 140), timestamp: x.created_time, permalink: x.permalink_url, type: "Post", thumb: x.full_picture || null,
+        likes, comments, shares, saves: null, views: null, reach: null, interactions: likes + comments + shares };
+    }).sort((a, b) => b.interactions - a.interactions);
+    const top = posts.slice(0, 5), worst = posts.length > 5 ? posts.slice(Math.max(5, posts.length - 5)).reverse() : [];
+    await inBatches([...top, ...worst], 5, async (p) => {
+      try { const d = await fb(env, acc.token, `/${p.id}/insights?metric=post_impressions_unique`); p.reach = Number((((d.data || [])[0] || {}).values || [])[0]?.value) || 0; } catch {}
+    });
+    return { top, worst, count: media ? media.length : null, errors };
+  }
+  // Las métricas de la página se piden juntas (una consulta por cada tramo de 90 días)
+  const METRICS = ["page_impressions_unique", "page_post_engagements", "page_daily_follows_unique", "page_views_total"];
+  const dailyAll = async () => {
+    const vals = Object.fromEntries(METRICS.map((m) => [m, null]));
     for (let e = end; e > start; e -= 90 * 86400) {
       const s = Math.max(start, e - 90 * 86400);
-      const d = await fb(env, acc.token, `/${acc.id}/insights?metric=${metric}&period=day&since=${s}&until=${e}`);
-      for (const it of ((d.data || [])[0] || {}).values || []) { const k = dayOf(it.end_time); if (k >= from && k <= to) vals[k] = Number(it.value) || 0; }
+      let data;
+      try { data = (await fb(env, acc.token, `/${acc.id}/insights?metric=${METRICS.join(",")}&period=day&since=${s}&until=${e}`)).data || []; }
+      catch (err) {
+        data = [];
+        for (const m of METRICS) { try { data.push(...((await fb(env, acc.token, `/${acc.id}/insights?metric=${m}&period=day&since=${s}&until=${e}`)).data || [])); } catch {} }
+        if (!data.length) throw err;
+      }
+      for (const it of data) {
+        const o = (vals[it.name] ||= {});
+        for (const x of it.values || []) { const k = dayOf(x.end_time); if (k >= from && k <= to) o[k] = Number(x.value) || 0; }
+      }
     }
     return vals;
   };
   const sum = (o) => (o ? Object.values(o).reduce((a, b) => a + b, 0) : null);
-  const [pg, reachD, engD, followsD, viewsD] = await Promise.all([
-    withPosts ? tryIt("Página", () => snapshotAccount(env, acc)) : null,
-    tryIt("Alcance por día", () => daily("page_impressions_unique")),
-    tryIt("Interacciones", () => daily("page_post_engagements")),
-    tryIt("Seguidores nuevos por día", () => daily("page_daily_follows_unique")),
-    tryIt("Visitas a la página", () => daily("page_views_total")),
+  const [pg, all, media] = await Promise.all([
+    part === "main" ? tryIt("Página", () => snapshotAccount(env, acc)) : null,
+    tryIt("Estadísticas de la página", dailyAll),
+    part === "compare" ? tryIt("Publicaciones", postsOf) : null,
   ]);
-  const media = await tryIt("Publicaciones", async () => {
-    const d = await fb(env, acc.token, `/${acc.id}/posts?fields=id,message,created_time,permalink_url,full_picture,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)&since=${start}&until=${end}&limit=100`);
-    return (d.data || []).filter((x) => { const t = Date.parse(x.created_time) / 1000; return t >= start && t <= end; });
-  });
-  const posts = media && withPosts ? await inBatches(media.slice(0, 60), 8, async (x) => {
-    const likes = (x.reactions && x.reactions.summary && x.reactions.summary.total_count) || 0;
-    const comments = (x.comments && x.comments.summary && x.comments.summary.total_count) || 0;
-    const shares = (x.shares && x.shares.count) || 0;
-    let reach = null;
-    try { const d = await fb(env, acc.token, `/${x.id}/insights?metric=post_impressions_unique`); reach = Number((((d.data || [])[0] || {}).values || [])[0]?.value) || 0; } catch {}
-    return { id: x.id, caption: (x.message || "").slice(0, 140), timestamp: x.created_time, permalink: x.permalink_url, type: "Post", thumb: x.full_picture || null,
-      likes, comments, shares, saves: null, views: null, reach, interactions: likes + comments + shares };
-  }) : [];
+  const a = all || {};
   return {
     platform: "facebook",
     profile: pg ? { followers: pg.followers_count ?? pg.fan_count ?? null, follows: null, media_count: null } : null,
-    totals: { views: sum(viewsD), reach: sum(reachD), interactions: sum(engD), new_followers: sum(followsD), engaged: null, likes: null, comments: null, shares: null, saves: null,
-      link_taps: null, follows: null, unfollows: null, posts: media ? media.length : null },
-    series: datesOf(from, to).map((d) => ({ date: d, reach: reachD ? reachD[d] ?? null : null, new_followers: followsD ? followsD[d] ?? null : null })),
-    posts, errors, approx: true,
+    totals: { views: sum(a.page_views_total), reach: sum(a.page_impressions_unique), interactions: sum(a.page_post_engagements), new_followers: sum(a.page_daily_follows_unique),
+      engaged: null, likes: null, comments: null, shares: null, saves: null, link_taps: null, follows: null, unfollows: null, posts: media ? media.length : null },
+    series: datesOf(from, to).map((d) => ({ date: d, reach: a.page_impressions_unique ? a.page_impressions_unique[d] ?? null : null, new_followers: a.page_daily_follows_unique ? a.page_daily_follows_unique[d] ?? null : null })),
+    errors, approx: true,
   };
 }
 
-/** Estadísticas de un periodo (y del periodo con que se compara). Se guardan un rato para no gastar el límite de consultas de Meta. */
-async function insightsFor(env, acc, from, to, cmp, force) {
+/** Una parte de las estadísticas. Se guarda un rato para no gastar el límite de consultas de Meta. */
+async function insightsFor(env, acc, from, to, part, cmp, force) {
   const today = localDate();
-  const key = `ins:${acc.id}:${from}:${to}:${cmp}`;
+  let f = from, t = to;
+  if (part === "compare") { const cp = comparePeriod(from, to, cmp); f = cp.from; t = cp.to; }
+  const key = `ins:${acc.id}:${part}:${f}:${t}`;
   let data = null;
   if (!force) {
     const c = await env.DB.prepare("SELECT value, at FROM cache WHERE key = ?").bind(key).first();
-    const maxAge = to < today ? 24 * 3600 * 1000 : 3 * 3600 * 1000; // lo que ya pasó no cambia
+    const maxAge = t < today ? 24 * 3600 * 1000 : 3 * 3600 * 1000; // lo que ya pasó no cambia
     if (c && Date.now() - Date.parse(c.at) < maxAge) data = { ...JSON.parse(c.value), cached_at: c.at };
   }
   if (!data) {
-    const run = (f, t, posts) => (acc.platform === "instagram" ? igInsights(env, acc, f, t, posts) : fbInsights(env, acc, f, t, posts));
-    const cp = cmp !== "none" ? comparePeriod(from, to, cmp) : null;
-    const [main, other] = await Promise.all([run(from, to, true), cp ? run(cp.from, cp.to, false) : null]);
-    data = { ...main, period: { from, to, days: daysBetween(from, to) },
-      compare: other ? { mode: cmp, from: cp.from, to: cp.to, totals: other.totals, series: other.series, errors: other.errors.length } : null };
+    data = await (acc.platform === "instagram" ? igInsights(env, acc, f, t, part) : fbInsights(env, acc, f, t, part));
+    data.period = { from: f, to: t, days: daysBetween(f, t) };
+    if (part === "compare") data.mode = cmp;
     const at = nowIso();
     await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(key, JSON.stringify(data), at).run();
     data.cached_at = at;
   }
-  const { results } = await env.DB.prepare("SELECT date, followers FROM account_daily WHERE account_id = ? AND date >= ? AND date <= ? ORDER BY date").bind(String(acc.id), from, to).all();
-  return { ...data, account: accountOut(acc), snapshots: results };
+  if (part === "main") {
+    const { results } = await env.DB.prepare("SELECT date, followers FROM account_daily WHERE account_id = ? AND date >= ? AND date <= ? ORDER BY date").bind(String(acc.id), from, to).all();
+    return { ...data, account: accountOut(acc), snapshots: results };
+  }
+  return data;
 }
 
 /* ================= seguimientos automáticos ================= */
