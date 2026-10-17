@@ -79,6 +79,7 @@ main{padding:28px 32px 110px;max-width:1280px;width:100%;min-width:0}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 label.f{display:block;font-weight:600;margin:16px 0 6px}
 input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--line2);border-radius:8px;background:#fff}
+input[type=checkbox]:not(.switch),input[type=radio]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 textarea{min-height:90px;resize:vertical}
 textarea.big{min-height:240px}
@@ -225,6 +226,59 @@ dialog::backdrop{background:rgba(17,24,39,.45)}
 tr.click{cursor:pointer}
 tr.click:hover td{background:#fafafa}
 
+/* configurar: pestañas y funciones */
+.tabs-h{display:flex}
+.feature .feature-b{display:none;margin-top:6px}
+.feature.on .feature-b{display:block}
+.feature.on{border-color:#b9e3e7;background:#fbfefe}
+.hours{display:grid;gap:6px;margin-top:10px}
+.hour-row{display:grid;grid-template-columns:130px 110px 18px 110px;gap:8px;align-items:center}
+.hour-row input[type=time]{padding:6px 8px}
+@media (max-width:560px){.hour-row{grid-template-columns:1fr 1fr 14px 1fr}}
+.tpl-row{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr) auto;gap:8px;align-items:start;margin-top:10px}
+.tpl-row textarea{min-height:56px}
+@media (max-width:600px){.tpl-row{grid-template-columns:1fr auto}.tpl-row textarea{grid-column:1/-1;grid-row:2}}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;margin-top:4px}
+.check{display:flex;gap:8px;align-items:flex-start;font-weight:500;cursor:pointer}
+.check input{width:auto;margin-top:3px}
+
+/* conversaciones */
+.inbox{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:0;margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);height:calc(100vh - 250px);min-height:460px;overflow:hidden}
+.ib-list{border-right:1px solid var(--line);overflow-y:auto}
+.ib-item{display:flex;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:12px 14px;cursor:pointer;min-width:0}
+.ib-item:hover{background:#fafafa}
+.ib-item.on{background:var(--accent-soft)}
+.ib-main{display:flex;flex-direction:column;min-width:0;flex:1}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+.avatar.fb{background:#4b5563}
+.ib-thread{display:flex;flex-direction:column;min-width:0;min-height:0}
+.ib-head{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ib-back{display:none}
+.ib-who{min-width:180px;flex:1}
+.ib-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.ib-msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:#f8f9fa}
+.msg{display:flex;flex-direction:column;max-width:78%}
+.msg.in{align-self:flex-start}
+.msg.out{align-self:flex-end;align-items:flex-end}
+.msg .bubble{max-width:100%}
+.msg.out.human .bubble{background:#4b5563}
+.msg-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
+.ib-compose{border-top:1px solid var(--line);padding:12px 16px}
+@media (max-width:800px){
+  .inbox{grid-template-columns:minmax(0,1fr);height:calc(100vh - 230px)}
+  .inbox .ib-thread{display:none}
+  .inbox.has-sel .ib-list{display:none}
+  .inbox.has-sel .ib-thread{display:flex}
+  .ib-back{display:inline-grid}
+}
+
+/* estadísticas */
+.thumb.sm{width:44px;height:44px}
+.thumb.story{height:86px;border-radius:10px}
+table.posts td{vertical-align:middle}
+.userchip{color:var(--muted);font-size:13px;white-space:nowrap}
+
 /* acceso */
 .auth{max-width:380px;margin:12vh auto;padding:0 16px}
 .auth .card{padding:26px}
@@ -238,10 +292,22 @@ tr.click:hover td{background:#fafafa}
     <form id="loginForm">
       <h2 style="margin:0 0 4px;font-size:18px">Entrar</h2>
       <p class="muted" style="margin:0">Instagram y Facebook · mensajes y comentarios</p>
+      <label class="f" for="login">Usuario o correo</label>
+      <input id="login" autocomplete="username" placeholder="Vacío = cuenta maestra">
       <label class="f" for="password">Contraseña</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <button class="btn primary block" type="submit" style="margin-top:16px">Entrar</button>
       <p id="loginError" class="small" style="color:var(--bad);margin-bottom:0"></p>
+    </form>
+    <form id="inviteForm" class="hidden">
+      <h2 style="margin:0 0 4px;font-size:18px" id="invTitle">Bienvenida</h2>
+      <p class="muted" style="margin:0" id="invSub">Crea tu contraseña para entrar al panel.</p>
+      <label class="f" for="invPw">Contraseña nueva</label>
+      <input id="invPw" type="password" autocomplete="new-password" minlength="8" required>
+      <label class="f" for="invPw2">Repite la contraseña</label>
+      <input id="invPw2" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="btn primary block" type="submit" style="margin-top:16px">Crear contraseña y entrar</button>
+      <p id="invError" class="small" style="color:var(--bad);margin-bottom:0"></p>
     </form>
     <form id="setupForm" class="hidden">
       <h2 style="margin:0 0 4px;font-size:18px">Crea tu contraseña</h2>
@@ -269,6 +335,7 @@ tr.click:hover td{background:#fafafa}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
         <span id="bellCount" class="bell-count hidden">0</span>
       </button>
+      <span class="userchip hide-sm" id="userChip"></span>
       <button id="logoutBtn" class="btn small">Salir</button>
       <div id="bellPanel" class="bellpanel hidden" role="dialog" aria-label="Clientes por atender"></div>
     </div>
@@ -322,6 +389,7 @@ tr.click:hover td{background:#fafafa}
 </dialog>
 
 <dialog id="cfgDlg" class="wide"></dialog>
+<dialog id="userDlg" class="wide"></dialog>
 
 <script>
 (() => {
@@ -350,7 +418,7 @@ async function api(path, { method = "GET", body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const d = await r.json().catch(() => ({}));
-  if (r.status === 401 && !["/api/login", "/api/setup"].includes(path)) { showAuth(d); throw new Error("Tu sesión expiró"); }
+  if (r.status === 401 && !["/api/login", "/api/setup"].includes(path) && !path.startsWith("/api/invite")) { showAuth(d); throw new Error("Tu sesión expiró"); }
   if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
   return d;
 }
@@ -372,6 +440,9 @@ const ICON = {
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
   warn: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg>',
 };
 
 const PLAT = { instagram: "Instagram", facebook: "Facebook" };
@@ -411,6 +482,9 @@ const S = {
 const mediaCache = {};
 const testChats = {};
 const brandById = (id) => S.brands.find((b) => b.id === id);
+const me = () => S.session.user || { role: "maestro", perms: [] };
+const isMaestro = () => me().role === "maestro";
+const can = (perm) => isMaestro() || (me().perms || []).includes(perm);
 const brandAccounts = (id) => S.accounts.filter((a) => a.brand_id === id);
 const storeOn = (b) => b.active && brandAccounts(b.id).length > 0;
 const brandOpts = (sel, empty) => (empty ? `<option value="">${empty}</option>` : "") + S.brands.map((b) => `<option value="${esc(b.id)}" ${b.id === sel ? "selected" : ""}>${esc(b.name)}</option>`).join("");
@@ -435,8 +509,17 @@ async function loadData() {
 }
 
 /* ================= acceso ================= */
+let inviteToken = null;
+try { inviteToken = new URLSearchParams(location.search).get("invitacion"); } catch {}
 function showAuth(d = {}) {
   $("app").classList.add("hidden"); $("auth").classList.remove("hidden");
+  if (inviteToken) {
+    ["loginForm", "setupForm"].forEach((f) => $(f).classList.add("hidden")); $("inviteForm").classList.remove("hidden");
+    api(`/api/invite?token=${encodeURIComponent(inviteToken)}`).then((r) => { $("invTitle").textContent = `Hola, ${r.name}`; $("invSub").textContent = `Crea tu contraseña. Para entrar usarás: ${r.login}`; })
+      .catch((e) => { $("invError").textContent = e.message; });
+    $("invPw").focus(); return;
+  }
+  $("inviteForm").classList.add("hidden");
   const setup = !!d.setup_required;
   $("loginForm").classList.toggle("hidden", setup);
   $("setupForm").classList.toggle("hidden", !setup);
@@ -450,9 +533,11 @@ async function boot() {
     s = window.demoApi ? await api("/api/session")
       : await fetch("/api/session", { credentials: "same-origin" }).then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw d; return d; });
   } catch (d) { showAuth(d || {}); return; }
+  if (inviteToken) { inviteToken = null; try { history.replaceState(null, "", location.pathname); } catch {} }
   S.session = s;
+  $("userChip").textContent = s.user && s.user.role !== "maestro" ? `${s.user.name} · ${s.user.role === "cliente" ? "Cliente" : "Equipo"}` : "";
   $("auth").classList.add("hidden"); $("app").classList.remove("hidden");
-  S.route = readHash() || "tiendas";
+  S.route = readHash() || defaultRoute();
   let q; try { q = new URLSearchParams(location.search); } catch { q = new URLSearchParams(); }
   if (q.has("conectado") || q.has("error")) {
     if (q.get("error")) toast(q.get("error"), 9000);
@@ -466,8 +551,14 @@ async function boot() {
 }
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("loginError").textContent = "";
-  try { await api("/api/login", { method: "POST", body: { password: $("password").value } }); $("password").value = ""; boot(); }
+  try { await api("/api/login", { method: "POST", body: { login: $("login").value, password: $("password").value } }); $("password").value = ""; boot(); }
   catch (err) { $("loginError").textContent = err.message; }
+});
+$("inviteForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("invError").textContent = "";
+  if ($("invPw").value !== $("invPw2").value) return ($("invError").textContent = "Las contraseñas no coinciden");
+  try { await api("/api/invite", { method: "POST", body: { token: inviteToken, password: $("invPw").value } }); boot(); }
+  catch (err) { $("invError").textContent = err.message; }
 });
 $("setupForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("setupError").textContent = "";
@@ -478,13 +569,19 @@ $("setupForm").addEventListener("submit", async (e) => {
 $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
 
 /* ================= navegación ================= */
-const VIEWS = { tiendas: "Tiendas", redes: "Redes sociales", resumen: "Resumen", configuracion: "Configuración" };
-const TABS = { cuentas: "Cuentas conectadas", catalogo: "Posts de catálogo", prompts: "Prompts", reglas: "Reglas", actividad: "Actividad" };
+const VIEWS = { conversaciones: "Conversaciones", tiendas: "Tiendas", redes: "Redes sociales", resumen: "Resumen", estadisticas: "Estadísticas", usuarios: "Usuarios", configuracion: "Configuración" };
+const TABS = { cuentas: "Cuentas conectadas", catalogo: "Posts de catálogo", historias: "Historias", prompts: "Prompts", reglas: "Reglas", actividad: "Actividad" };
+const TAB_PERM = { cuentas: "maestro", catalogo: "catalogo", historias: "catalogo", prompts: "prompts", reglas: "reglas", actividad: "actividad" };
+const VIEW_PERM = { conversaciones: "conversaciones", resumen: "resumen", estadisticas: "estadisticas", usuarios: "maestro" };
+const tabOk = (t) => (TAB_PERM[t] === "maestro" ? isMaestro() : can(TAB_PERM[t]));
+const viewOk = (v) => (v === "redes" ? Object.keys(TABS).some(tabOk) : !VIEW_PERM[v] || (VIEW_PERM[v] === "maestro" ? isMaestro() : can(VIEW_PERM[v])));
+const defaultRoute = () => (isMaestro() || !viewOk("conversaciones") ? "tiendas" : "conversaciones");
 function parseRoute(route) {
   const h = String(route || "").replace(/^#/, "");
   if (h === "cuentas") return ["redes", "cuentas"];
   const [v, t] = h.split("/");
-  return [VIEWS[v] ? v : "tiendas", TABS[t] ? t : "cuentas"];
+  const view = VIEWS[v] && viewOk(v) ? v : "tiendas";
+  return [view, TABS[t] && tabOk(t) ? t : Object.keys(TABS).find(tabOk) || "actividad"];
 }
 function readHash() { try { return location.hash.replace(/^#/, ""); } catch { return ""; } }
 // Navegación por clic: funciona aunque el panel se abra dentro de un visor que bloquea los enlaces
@@ -512,8 +609,9 @@ window.addEventListener("hashchange", () => {
 function renderNav() {
   const accIssues = S.accounts.filter((a) => tokenStatus(a).cls === "bad" || !a.brand_id).length;
   const cfgIssue = !S.session.ai_ready || (!S.session.ig_login && !S.session.fb_login);
-  const item = (v, icon, label, flag) => `<a class="nav ${v === S.view ? "on" : ""}" href="#${v}">${ICON[icon]}<span>${label}</span>${flag ? '<span class="dot" title="Hay algo por revisar"></span>' : ""}</a>`;
-  $("side").innerHTML = item("tiendas", "store", "Tiendas") + item("redes", "ig", "Redes sociales", accIssues) + item("resumen", "chart", "Resumen") + item("configuracion", "gear", "Configuración", cfgIssue)
+  const item = (v, icon, label, flag) => (viewOk(v) ? `<a class="nav ${v === S.view ? "on" : ""}" href="#${v}">${ICON[icon]}<span>${label}</span>${flag ? '<span class="dot" title="Hay algo por revisar"></span>' : ""}</a>` : "");
+  $("side").innerHTML = item("conversaciones", "chat", "Conversaciones") + item("tiendas", "store", "Tiendas") + item("redes", "ig", "Redes sociales", isMaestro() && accIssues) + item("resumen", "chart", "Resumen")
+    + item("estadisticas", "trend", "Estadísticas") + item("usuarios", "users", "Usuarios") + item("configuracion", "gear", "Configuración", isMaestro() && cfgIssue)
     + `<div class="side-foot">${S.brands.length} tienda${S.brands.length === 1 ? "" : "s"} · ${S.accounts.length} cuenta${S.accounts.length === 1 ? "" : "s"}</div>`;
 }
 
@@ -523,8 +621,11 @@ function render() {
   renderNav();
   $("crumb").textContent = view === "redes" ? `Redes sociales › ${TABS[tab]}` : VIEWS[view];
   if (view === "tiendas") renderStores();
+  else if (view === "conversaciones") renderInbox();
   else if (view === "redes") renderSocial(tab);
   else if (view === "resumen") renderResumen();
+  else if (view === "estadisticas") renderInsights();
+  else if (view === "usuarios") renderUsers();
   else renderConfig();
 }
 
@@ -537,11 +638,11 @@ function renderStores() {
     if (!q) return true;
     return normalize([b.name, b.id, ...brandAccounts(b.id).map((a) => a.name + " " + a.id)].join(" ")).includes(q);
   });
-  const sw = (id, field, on, label) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" role="switch" class="switch" data-store="${esc(id)}" data-f="${field}" ${on ? "checked" : ""}></label>`;
+  const sw = (id, field, on, label) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" role="switch" class="switch" data-store="${esc(id)}" data-f="${field}" ${on ? "checked" : ""} ${can(field === "active" ? "pausar" : "tienda") ? "" : "disabled"}></label>`;
   $("main").innerHTML = `
     <div class="card-h"><div><h1 class="page-title">Tiendas</h1>
       <p class="page-sub">Cada tienda con su bot, sus cuentas de Instagram y Facebook y su configuración de IA.</p></div>
-      <button class="btn primary" id="newStore">${ICON.plus} Nueva tienda</button></div>
+      ${isMaestro() ? `<button class="btn primary" id="newStore">${ICON.plus} Nueva tienda</button>` : ""}</div>
     <hr class="divider">
     <div class="filters">
       <div class="search">${ICON.search}<input id="storeSearch" type="search" placeholder="Buscar por nombre, cuenta o ID" value="${esc(S.storeQuery)}"></div>
@@ -551,7 +652,7 @@ function renderStores() {
         <option value="off" ${S.storeFilter === "off" ? "selected" : ""}>Solo bot inactivo</option>
       </select>
     </div>
-    ${!S.session.ai_ready ? `<div class="info">Para que el bot responda con IA, pega tu clave de DeepSeek en <a href="#configuracion">Configuración</a>.</div>` : ""}
+    ${!S.session.ai_ready && isMaestro() ? `<div class="info">Para que el bot responda con IA, pega tu clave de DeepSeek en <a href="#configuracion">Configuración</a>.</div>` : ""}
     ${!S.brands.length ? `<div class="empty">Todavía no hay tiendas. Crea la primera con <strong>Nueva tienda</strong>.</div>`
       : !list.length ? `<div class="empty">Ninguna tienda coincide con la búsqueda.</div>`
       : `<div class="store-grid">${list.map((b) => {
@@ -562,16 +663,18 @@ function renderStores() {
               <div style="min-width:0"><div class="store-name">${esc(b.name)}</div><div class="store-id">propia:${esc(b.id)}</div></div>
               <span class="pill ${storeOn(b) ? "ok" : "gray"}">${storeOn(b) ? "Bot activo" : "Bot inactivo"}</span>
             </div>
-            <div class="store-accs">${accs.length ? accs.map((a) => `<span class="acc-chip">${platPill(a.platform)}<span>${esc(a.name)}</span></span>`).join("") : `<span>Sin cuentas · <a href="#redes/cuentas">asignar</a></span>`}</div>
+            <div class="store-accs">${accs.length ? accs.map((a) => `<span class="acc-chip">${platPill(a.platform)}<span>${esc(a.name)}</span></span>`).join("") : `<span>Sin cuentas${isMaestro() ? ` · <a href="#redes/cuentas">asignar</a>` : ""}</span>`}</div>
+            ${(() => { const o = b.opts || {}, on = [o.stories?.enabled && "Historias", o.hours?.enabled && "Horario", o.follow_up?.enabled && "Seguimiento", o.auto_resume_hours && "Reanudar solo", o.pause_on_human && "Pausa si respondes"].filter(Boolean);
+              return on.length ? `<div class="store-accs">${on.map((x) => `<span class="pill gray">${x}</span>`).join("")}</div>` : ""; })()}
             ${bad ? `<div class="alert" style="margin:0;padding:6px 10px;font-size:13px">Token con problema: ${esc(bad.name)}</div>` : ""}
             ${sw(b.id, "active", b.active, "Bot AI Redes (IG/FB)")}
             ${sw(b.id, "test_mode", b.test_mode, "Modo Prueba (Solo Usuarios Permitidos)")}
             <div class="meta-block"><span>Proveedor de IA (texto)</span><strong>DeepSeek</strong></div>
             <div class="meta-block"><span>Modelo</span><strong>${esc(b.ai_model)}</strong></div>
-            <button class="btn block" data-config="${esc(b.id)}">${ICON.gear} Configurar</button>
+            ${can("tienda") || can("prompts") ? `<button class="btn block" data-config="${esc(b.id)}">${ICON.gear} Configurar</button>` : ""}
           </article>`; }).join("")}</div>`}`;
 
-  $("newStore").onclick = () => { $("newStoreForm").reset(); $("newStoreDlg").showModal(); };
+  if ($("newStore")) $("newStore").onclick = () => { $("newStoreForm").reset(); $("newStoreDlg").showModal(); };
   $("storeSearch").oninput = (e) => {
     S.storeQuery = e.target.value; const pos = e.target.selectionStart; renderStores();
     const s = $("storeSearch"); s.focus(); s.setSelectionRange(pos, pos);
@@ -646,105 +749,198 @@ NUNCA
 - Inventar precios, promociones ni tiempos de entrega.
 - Prometer descuentos que no estén en la base de conocimiento.`;
 
-function openConfigure(id) {
+const DAY_LABELS = { lun: "Lunes", mar: "Martes", mie: "Miércoles", jue: "Jueves", vie: "Viernes", sab: "Sábado", dom: "Domingo" };
+const REASON_HINT = { pago: "Envió el pago, la referencia o la captura", reclamo: "Producto dañado, pedido que no llegó…", persona: "Pide hablar con alguien o está molesto", mayor: "Quiere comprar al mayor o revender", otro: "Cualquier otro motivo" };
+const NOTIFY_LABELS = { handoff: ["Cliente pasado a una persona", "Pago enviado, reclamo, pide una persona…"], ai_fail: ["La IA no respondió", "DeepSeek caído o saturado (máximo un aviso cada 10 min)"],
+  mention: ["Te mencionaron en una historia", ""], offensive: ["Comentario ofensivo", "Solo si «Comentarios ofensivos» está activo en Prompts"] };
+const CFG_TABS = [["general", "General"], ["ia", "IA"], ["funciones", "Funciones"], ["mensajes", "Mensajes"], ["avisos", "Avisos"]];
+const swHtml = (id, on, disabled) => `<input type="checkbox" role="switch" class="switch" id="${id}" ${on ? "checked" : ""} ${disabled ? "disabled" : ""}>`;
+const feature = (id, on, title, desc, inner, disabled) => `<div class="box feature ${on ? "on" : ""}" data-feature="${id}"><div class="box-h"><div><strong>${title}</strong><p>${desc}</p></div>${swHtml(id, on, disabled)}</div><div class="feature-b">${inner}</div></div>`;
+
+function openConfigure(id, startTab) {
   const b = brandById(id); if (!b) return;
-  const d = { name: b.name, ai_prompt_general: b.ai_prompt_general, knowledge: b.knowledge, ai_model: b.ai_model, ai_handoff: b.ai_handoff,
-    default_reply: b.default_reply, cooldown_hours: b.cooldown_hours, test_mode: b.test_mode, test_users: b.test_users, ai_api_key: "", ai_fallback: b.ai_fallback || "" };
+  const canT = can("tienda"), canP = can("prompts"), canPause = can("pausar"), M = isMaestro();
+  if (!canT && !canP) return toast("Tu usuario no puede configurar esta tienda");
+  const d = { name: b.name, active: b.active, ai_prompt_general: b.ai_prompt_general, knowledge: b.knowledge, ai_model: b.ai_model, ai_handoff: b.ai_handoff,
+    default_reply: b.default_reply, cooldown_hours: b.cooldown_hours, test_mode: b.test_mode, test_users: b.test_users, ai_api_key: "", ai_fallback: b.ai_fallback || "",
+    opts: JSON.parse(JSON.stringify(b.opts)) };
+  const o = d.opts;
   let changed = false, clearKey = false;
+  let tab = startTab || (canT ? "general" : "ia");
   const dlg = $("cfgDlg");
   const keyReady = !!b.ai_key_tail || S.session.ai_ready;
-  dlg.innerHTML = `
-    <div class="modal-h"><div><h2>Configurar Bot - ${esc(b.name.toUpperCase())}</h2><p>Personaliza el comportamiento del bot y la configuración de IA</p></div>
-      <button class="icon-btn" id="cfgClose" aria-label="Cerrar">${ICON.x}</button></div>
-    <div class="modal-b">
+  const roT = canT ? "" : "disabled", roP = canP ? "" : "disabled";
+  const ta = (elId, val, ph, extra = "", ro = roT) => `<textarea id="${elId}" ${ro} placeholder="${esc(ph)}" ${extra}>${esc(val)}</textarea>`;
+  const tplRow = (t, i) => `<div class="tpl-row" data-i="${i}"><input data-k="title" value="${esc(t.title)}" placeholder="Nombre (ej: Datos de envío)" ${roT}><textarea data-k="text" ${roT} placeholder="Texto. Puedes usar {nombre}">${esc(t.text)}</textarea>${canT ? `<button class="icon-btn danger" type="button" data-del-tpl="${i}" aria-label="Quitar">${ICON.trash}</button>` : ""}</div>`;
+
+  const panes = {
+    general: `
       <label class="f" for="cName">Nombre de la tienda</label>
-      <input id="cName" value="${esc(d.name)}">
-
+      <input id="cName" value="${esc(d.name)}" ${roT}>
+      <div class="box"><div class="box-h"><div><strong>Bot AI Redes (IG/FB)</strong><p>Si se apaga, el bot deja de responder comentarios y DMs de esta tienda.</p></div>${swHtml("cActive", d.active, !canPause)}</div></div>
+      <div class="box"><div class="box-h"><div><strong>Modo Prueba (Solo Usuarios Permitidos)</strong><p>El bot solo responde a estas personas. Úsalo para probar sin que respondan a tus clientes.</p></div>${swHtml("cTest", d.test_mode, !canT)}</div>
+        <label class="f" for="cTestUsers">Usuarios permitidos</label>
+        ${ta("cTestUsers", d.test_users, "@tu_usuario\nNombre en Facebook", 'style="min-height:60px"')}
+        <div class="help">Uno por línea: @usuario de Instagram, nombre de Facebook o ID.</div></div>`,
+    ia: `
       <label class="f" for="cGeneral">Prompt Personalizado</label>
-      <textarea id="cGeneral" placeholder="Escribe el prompt que el bot usará para responder...">${esc(d.ai_prompt_general)}</textarea>
-      <div class="row" style="justify-content:space-between;margin-top:6px;align-items:flex-start"><div class="help" style="margin:0;flex:1;min-width:220px">Este prompt define CÓMO responde el bot: su tono, su forma de escribir y qué pasos sigue. Los DATOS —horarios, precios, políticas de envío y garantía— van en la base de conocimiento, que el bot consulta antes de responder: así se cambian en un solo sitio y valen igual para los comentarios y los DM de Instagram y Facebook.</div>
-      <button class="btn small" type="button" id="cGeneralTpl">Usar plantilla</button></div>
-
+      ${ta("cGeneral", d.ai_prompt_general, "Escribe el prompt que el bot usará para responder...", "", roP)}
+      <div class="row" style="justify-content:space-between;margin-top:6px;align-items:flex-start"><div class="help" style="margin:0;flex:1;min-width:220px">Define CÓMO responde el bot: su tono y qué pasos sigue. Los DATOS (horarios, precios, envíos) van en la base de conocimiento.</div>
+      ${canP ? `<button class="btn small" type="button" id="cGeneralTpl">Usar plantilla</button>` : ""}</div>
       <label class="f" for="cKb">Base de conocimiento</label>
-      <textarea id="cKb" class="mono big" placeholder="Horarios, precios, direcciones, envíos, pagos, garantía…">${esc(d.knowledge)}</textarea>
-      <div class="row" style="justify-content:space-between;margin-top:6px"><div class="help" style="margin:0">Los datos de la tienda. El bot los usa en comentarios y mensajes privados, y no inventa lo que no esté aquí.</div>
-      <button class="btn small" type="button" id="cKbTpl">Usar plantilla</button></div>
-
-      <label class="f" for="cProvider">Proveedor del agente de texto</label>
-      <select id="cProvider"><option>DeepSeek</option></select>
-      <div class="help">El que <strong>conversa y responde</strong>. No puedes elegir un proveedor sin API key.</div>
-
+      ${ta("cKb", d.knowledge, "Horarios, precios, direcciones, envíos, pagos, garantía…", 'class="mono big"', roP)}
+      <div class="row" style="justify-content:space-between;margin-top:6px"><div class="help" style="margin:0">El bot la usa en comentarios y DMs, y no inventa lo que no esté aquí.</div>
+      ${canP ? `<button class="btn small" type="button" id="cKbTpl">Usar plantilla</button>` : ""}</div>
+      <div class="box"><div class="box-h"><div><strong>La IA puede llamar al cliente por su nombre</strong><p>Usa el primer nombre de su perfil al saludar (si parece un nombre de persona).</p></div>${swHtml("cUseName", o.ai_use_name, !canT)}</div></div>
       <hr>
       <div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}">${keyReady ? "activo (texto)" : "sin clave"}</span></div>
       <label class="f" for="cModel">Modelo</label>
-      <select id="cModel">
+      <select id="cModel" ${roP}>
         <option value="deepseek-flash" ${d.ai_model !== "deepseek-v4-pro" ? "selected" : ""}>deepseek-flash · rápido y económico</option>
         <option value="deepseek-v4-pro" ${d.ai_model === "deepseek-v4-pro" ? "selected" : ""}>deepseek-v4-pro · más preciso, unas 4 veces más caro</option>
       </select>
-      <label class="f" for="cKey">API Key</label>
+      ${M ? `<label class="f" for="cKey">API Key</label>
       <div class="row">
         <input id="cKey" class="grow" type="password" autocomplete="off" placeholder="${b.ai_key_tail ? `Propia de esta tienda · termina en …${esc(b.ai_key_tail)}` : "Vacío = usa la clave general de Configuración"}">
         ${b.ai_key_tail ? `<button class="btn small danger" type="button" id="cKeyDel">Quitar</button>` : ""}
         <button class="btn small" type="button" id="cKeyTest">Probar</button>
       </div>
-      <div class="help" id="cKeyOut">Opcional: úsala si el gasto de esta tienda debe salir de otra cuenta de DeepSeek.</div>
-
-      <hr>
-      <div class="section-t">Respuestas</div>
+      <div class="help" id="cKeyOut">Opcional: úsala si el gasto de esta tienda debe salir de otra cuenta de DeepSeek.</div>` : ""}`,
+    funciones: `
+      <p class="muted small" style="margin:6px 0 0">Todo viene apagado. Enciende solo lo que esta tienda necesita.</p>
+      ${feature("fStories", o.stories.enabled, "Historias", "Responde bien cuando contestan o reaccionan a tus historias, y agradece menciones.", `
+        <label class="f" for="fStCtx">Contexto general de tus historias</label>
+        ${ta("fStCtx", o.stories.context, "Ej: En las historias mostramos el gorro reversible de satén ($8) y sus colores.", 'style="min-height:60px"')}
+        <div class="help">Se usa cuando la historia no tiene un contexto propio. El de cada historia se escribe en Redes sociales → Historias.</div>
+        <div class="box-h" style="margin-top:14px"><div><strong>Agradecer cuando te mencionan</strong><p>Le escribe un DM a quien te menciona en su historia.</p></div>${swHtml("fMention", o.stories.mention_reply, !canT)}</div>
+        ${ta("fMentionTxt", o.stories.mention_text, "¡Gracias por mencionarnos, {nombre}! 🤎\n¡Nos encantó tu historia! 🤎", 'style="min-height:60px"')}
+        <div class="help">Varias opciones, una por línea: se elige una al azar.</div>
+        <label class="f" for="fReact">Reacciones con emoji a tus historias (😍, 🔥…)</label>
+        <select id="fReact" ${roT}><option value="ignore" ${o.stories.reactions === "ignore" ? "selected" : ""}>No responder</option><option value="reply" ${o.stories.reactions === "reply" ? "selected" : ""}>Responder con este mensaje</option><option value="ai" ${o.stories.reactions === "ai" ? "selected" : ""}>Que responda la IA</option></select>
+        <div id="fReactBox" class="${o.stories.reactions === "reply" ? "" : "hidden"}">${ta("fReactTxt", o.stories.reaction_text, "¡Gracias {nombre}! 🤎 ¿Quieres que te cuente del gorro?", 'style="min-height:60px;margin-top:8px"')}</div>`, !canT)}
+      ${feature("fHours", o.hours.enabled, "Horario de atención", "Fuera de horario el bot avisa cuándo responde una persona.", `
+        <div class="hours">${Object.entries(DAY_LABELS).map(([k, l]) => { const x = o.hours.days[k]; return `<div class="hour-row"><label class="toggle-row small" style="font-weight:500;justify-content:flex-start;gap:8px"><input type="checkbox" data-day="${k}" ${x.on ? "checked" : ""} ${roT}> ${l}</label><input type="time" data-from="${k}" value="${esc(x.from)}" ${roT}><span class="muted">a</span><input type="time" data-to="${k}" value="${esc(x.to)}" ${roT}></div>`; }).join("")}</div>
+        <label class="f" for="fOffMsg">Mensaje fuera de horario</label>
+        ${ta("fOffMsg", o.hours.off_message, "¡Hola {nombre}! 🤎 Nuestro horario es de lunes a viernes de 9 a. m. a 6 p. m. Te respondemos apenas abramos.", 'style="min-height:60px"')}
+        <label class="f" for="fOffMode">Fuera de horario, el bot…</label>
+        <select id="fOffMode" ${roT}><option value="handoff" ${o.hours.mode === "handoff" ? "selected" : ""}>Sigue respondiendo; si pasa a una persona, envía este mensaje</option><option value="only" ${o.hours.mode === "only" ? "selected" : ""}>Solo envía este mensaje (una vez cada 12 horas por cliente)</option></select>
+        <div class="help">Hora de Venezuela.</div>`, !canT)}
+      ${feature("fResume", o.auto_resume_hours > 0, "Reanudar el bot solo", "Si un cliente quedó en pausa y nadie lo reanudó, el bot vuelve a atenderlo pasado este tiempo.", `
+        <div class="row" style="margin-top:10px"><span class="help" style="margin:0">Reanudar después de</span><input id="fResumeH" type="number" min="1" max="720" value="${o.auto_resume_hours || 12}" style="width:90px" ${roT}><span class="help" style="margin:0">horas</span></div>`, !canT)}
+      ${feature("fHuman", o.pause_on_human, "Pausar el bot cuando respondes tú", "Si le escribes a un cliente desde la app de Instagram o Facebook, el bot deja de responderle para no interrumpirte.", "", !canT)}
+      ${feature("fFollow", o.follow_up.enabled, "Seguimiento automático", "Si el cliente deja de responder, le escribe una vez para retomar (dentro de las 24 h que permite Meta).", `
+        <div class="row" style="margin-top:10px"><span class="help" style="margin:0">Escribirle si no responde en</span><input id="fFollowH" type="number" min="1" max="22" value="${o.follow_up.hours}" style="width:80px" ${roT}><span class="help" style="margin:0">horas</span></div>
+        <label class="f" for="fFollowTxt">Mensaje de seguimiento</label>
+        ${ta("fFollowTxt", o.follow_up.text, "¡Hola {nombre}! 🤎 ¿Pudiste ver la información? Si quieres, te ayudo a hacer tu pedido.", 'style="min-height:60px"')}
+        <div class="box-h" style="margin-top:12px"><div><strong>Que la IA lo escriba según la conversación</strong><p>Retoma donde quedó y no escribe si la conversación ya terminó. Gasta un poco de saldo.</p></div>${swHtml("fFollowAi", o.follow_up.ai, !canT)}</div>`, !canT)}
+      <div class="box"><strong>Cuentas que el bot ignora</strong><p class="muted small" style="margin:2px 0 8px">El bot no les responde nunca (proveedores, tu equipo, bots de otras marcas).</p>
+        ${ta("fIgnore", o.ignore_users, "@proveedor\n@otra_cuenta", 'style="min-height:60px"')}<div class="help">Uno por línea: @usuario o ID. También puedes agregarlas desde Conversaciones.</div></div>`,
+    mensajes: `
       <label class="f" for="cHandoff">Mensaje al pasar a una persona</label>
-      <textarea id="cHandoff" style="min-height:60px" placeholder="¡Gracias por escribirnos! 🙌 Te voy a pasar con una persona del equipo, en breve te responde.">${esc(d.ai_handoff)}</textarea>
-      <div class="help">Se envía cuando el cliente pide una persona o la IA no puede resolver. El contacto queda en pausa hasta que lo reanudes.</div>
+      ${ta("cHandoff", d.ai_handoff, "¡Gracias por escribirnos! 🙌 Te voy a pasar con una persona del equipo, en breve te responde.", 'style="min-height:60px"')}
+      <div class="help">Se usa si la IA no escribe su propio mensaje. El contacto queda en pausa hasta que lo reanudes.</div>
+      <div class="box"><strong>Mensaje según el motivo</strong><p class="muted small" style="margin:2px 0 0">Opcional. Vacío = la IA escribe el mensaje. La notificación te dice el motivo.</p>
+        ${Object.entries(S.session.reasons || {}).map(([k, l]) => `<label class="f" for="r_${k}">${esc(l)} <span class="muted small" style="font-weight:400">· ${esc(REASON_HINT[k] || "")}</span></label>${ta("r_" + k, o.handoff_reasons[k], "Vacío = lo escribe la IA", 'style="min-height:52px" data-reason="' + k + '"')}`).join("")}</div>
       <label class="f" for="cFallback">Mensaje si la IA falla</label>
-      <textarea id="cFallback" style="min-height:60px" placeholder="¡Hola! Recibimos tu mensaje 🙌 En un momento te respondemos.">${esc(d.ai_fallback)}</textarea>
-      <div class="help">Si DeepSeek está caído o saturado, el bot lo reintenta y, si sigue fallando, envía este mensaje para que el cliente no se quede sin respuesta. Te llega una notificación para que le respondas tú.</div>
+      ${ta("cFallback", d.ai_fallback, "¡Hola! Recibimos tu mensaje 🙌 En un momento te respondemos.", 'style="min-height:60px"')}
+      <div class="help">Si DeepSeek está caído, el bot reintenta y, si sigue fallando, envía este mensaje y te avisa.</div>
       <label class="f" for="cDefault">Respuesta por defecto (si no hay IA)</label>
-      <textarea id="cDefault" style="min-height:60px" placeholder="¡Hola! En breve te respondemos 🙌">${esc(d.default_reply)}</textarea>
-      <div class="row" style="margin-top:8px"><span class="help" style="margin:0">No repetirla al mismo contacto antes de</span><input id="cCool" type="number" min="0" max="720" value="${esc(d.cooldown_hours)}" style="width:80px"><span class="help" style="margin:0">horas</span></div>
-
+      ${ta("cDefault", d.default_reply, "¡Hola! En breve te respondemos 🙌", 'style="min-height:60px"')}
+      <div class="row" style="margin-top:8px"><span class="help" style="margin:0">No repetirla al mismo contacto antes de</span><input id="cCool" type="number" min="0" max="720" value="${esc(d.cooldown_hours)}" style="width:80px" ${roT}><span class="help" style="margin:0">horas</span></div>
       <hr>
-      <div class="box-h" style="margin-top:14px"><div><strong>Modo Prueba (Solo Usuarios Permitidos)</strong><p>El bot solo responde a estas personas. Úsalo para probar sin que respondan a tus clientes.</p></div>
-        <input type="checkbox" role="switch" class="switch" id="cTest" ${d.test_mode ? "checked" : ""}></div>
-      <label class="f" for="cTestUsers">Usuarios permitidos</label>
-      <textarea id="cTestUsers" style="min-height:60px" placeholder="@tu_usuario&#10;Nombre en Facebook">${esc(d.test_users)}</textarea>
-      <div class="help">Uno por línea: @usuario de Instagram, nombre de Facebook o ID.</div>
-    </div>
+      <div class="section-t">Plantillas para responder desde el panel</div>
+      <p class="muted small" style="margin:2px 0 0">Respuestas guardadas que usas en Conversaciones con un clic. {nombre} se cambia por el nombre del cliente.</p>
+      <div id="tplList">${o.templates.map(tplRow).join("")}</div>
+      ${canT ? `<button class="btn small" type="button" id="tplAdd" style="margin-top:10px">${ICON.plus} Agregar plantilla</button>` : ""}
+      <p class="help">En todos los mensajes puedes usar <span class="chip">{nombre}</span> (primer nombre del cliente) y <span class="chip">{usuario}</span> (su @). Si no hay nombre, la frase queda bien sin él.</p>`,
+    avisos: `
+      <p class="muted small" style="margin:6px 0 0">Qué avisos manda esta tienda a los teléfonos. Cada persona elige además los suyos en Configuración → Notificaciones.</p>
+      ${Object.entries(NOTIFY_LABELS).map(([k, [l, h]]) => `<div class="box"><div class="box-h"><div><strong>${l}</strong>${h ? `<p>${h}</p>` : ""}</div>${swHtml("n_" + k, o.notify[k], !canT)}</div></div>`).join("")}`,
+  };
+
+  const visibleTabs = CFG_TABS.filter(([k]) => (k === "ia" ? canP || canT : canT));
+  dlg.innerHTML = `
+    <div class="modal-h"><div><h2>Configurar - ${esc(b.name.toUpperCase())}</h2><p>Cada tienda con sus propias funciones, mensajes y avisos</p></div>
+      <button class="icon-btn" id="cfgClose" aria-label="Cerrar">${ICON.x}</button></div>
+    <nav class="seg tabs-h" style="margin:4px 26px 0">${visibleTabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</nav>
+    <div class="modal-b">${visibleTabs.map(([k]) => `<div class="pane ${k === tab ? "" : "hidden"}" data-pane="${k}">${panes[k]}</div>`).join("")}</div>
     <div class="modal-f">
-      <button class="btn danger" type="button" id="cDelete">${ICON.trash} Eliminar tienda</button>
+      ${M ? `<button class="btn danger" type="button" id="cDelete">${ICON.trash} Eliminar tienda</button>` : "<span></span>"}
       <div class="row"><button class="btn" type="button" id="cCancel">Cancelar</button><button class="btn primary" type="button" id="cSave">Guardar</button></div>
     </div>`;
+  const q = (s) => dlg.querySelector(s);
+  dlg.querySelectorAll("[data-tab]").forEach((t) => (t.onclick = () => {
+    tab = t.dataset.tab;
+    dlg.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("on", x === t));
+    dlg.querySelectorAll("[data-pane]").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== tab));
+  }));
   const mark = () => { changed = true; };
-  const bindField = (elId, key) => ($(elId).oninput = (e) => { d[key] = e.target.value; mark(); });
-  bindField("cName", "name"); bindField("cGeneral", "ai_prompt_general"); bindField("cKb", "knowledge"); bindField("cHandoff", "ai_handoff");
-  bindField("cDefault", "default_reply"); bindField("cCool", "cooldown_hours"); bindField("cTestUsers", "test_users"); bindField("cFallback", "ai_fallback");
-  $("cModel").onchange = (e) => { d.ai_model = e.target.value; mark(); };
-  $("cTest").onchange = (e) => { d.test_mode = e.target.checked; mark(); };
-  $("cKey").oninput = (e) => { d.ai_api_key = e.target.value; clearKey = false; mark(); };
+  const on = (elId, ev, fn) => { const el = $(elId); if (el) el[ev] = (e) => { fn(e.target); mark(); }; };
+  const val = (elId, fn) => on(elId, "oninput", (t) => fn(t.value));
+  const chk = (elId, fn) => on(elId, "onchange", (t) => fn(t.checked));
+  val("cName", (v) => (d.name = v)); val("cGeneral", (v) => (d.ai_prompt_general = v)); val("cKb", (v) => (d.knowledge = v)); val("cHandoff", (v) => (d.ai_handoff = v));
+  val("cDefault", (v) => (d.default_reply = v)); val("cCool", (v) => (d.cooldown_hours = v)); val("cTestUsers", (v) => (d.test_users = v)); val("cFallback", (v) => (d.ai_fallback = v));
+  chk("cActive", (v) => (d.active = v)); chk("cTest", (v) => (d.test_mode = v)); chk("cUseName", (v) => (o.ai_use_name = v));
+  on("cModel", "onchange", (t) => (d.ai_model = t.value));
+  // funciones
+  const featureSw = (elId, fn) => chk(elId, (v) => { fn(v); $(elId).closest(".feature").classList.toggle("on", v); });
+  featureSw("fStories", (v) => (o.stories.enabled = v)); featureSw("fHours", (v) => (o.hours.enabled = v)); featureSw("fHuman", (v) => (o.pause_on_human = v)); featureSw("fFollow", (v) => (o.follow_up.enabled = v));
+  featureSw("fResume", (v) => (o.auto_resume_hours = v ? Math.max(1, parseInt($("fResumeH").value, 10) || 12) : 0));
+  val("fResumeH", (v) => { if (o.auto_resume_hours) o.auto_resume_hours = Math.max(1, parseInt(v, 10) || 1); });
+  val("fStCtx", (v) => (o.stories.context = v)); chk("fMention", (v) => (o.stories.mention_reply = v)); val("fMentionTxt", (v) => (o.stories.mention_text = v));
+  on("fReact", "onchange", (t) => { o.stories.reactions = t.value; $("fReactBox").classList.toggle("hidden", t.value !== "reply"); }); val("fReactTxt", (v) => (o.stories.reaction_text = v));
+  val("fOffMsg", (v) => (o.hours.off_message = v)); on("fOffMode", "onchange", (t) => (o.hours.mode = t.value));
+  dlg.querySelectorAll("[data-day]").forEach((x) => (x.onchange = () => { o.hours.days[x.dataset.day].on = x.checked; mark(); }));
+  dlg.querySelectorAll("[data-from]").forEach((x) => (x.oninput = () => { o.hours.days[x.dataset.from].from = x.value; mark(); }));
+  dlg.querySelectorAll("[data-to]").forEach((x) => (x.oninput = () => { o.hours.days[x.dataset.to].to = x.value; mark(); }));
+  val("fFollowH", (v) => (o.follow_up.hours = parseInt(v, 10) || 4)); val("fFollowTxt", (v) => (o.follow_up.text = v)); chk("fFollowAi", (v) => (o.follow_up.ai = v));
+  val("fIgnore", (v) => (o.ignore_users = v));
+  dlg.querySelectorAll("[data-reason]").forEach((x) => (x.oninput = () => { o.handoff_reasons[x.dataset.reason] = x.value; mark(); }));
+  Object.keys(NOTIFY_LABELS).forEach((k) => chk("n_" + k, (v) => (o.notify[k] = v)));
+  // plantillas
+  const bindTpl = () => {
+    dlg.querySelectorAll(".tpl-row").forEach((row) => {
+      const i = +row.dataset.i;
+      row.querySelectorAll("[data-k]").forEach((x) => (x.oninput = () => { o.templates[i][x.dataset.k] = x.value; mark(); }));
+    });
+    dlg.querySelectorAll("[data-del-tpl]").forEach((x) => (x.onclick = () => { o.templates.splice(+x.dataset.delTpl, 1); $("tplList").innerHTML = o.templates.map(tplRow).join(""); bindTpl(); mark(); }));
+  };
+  bindTpl();
+  if ($("tplAdd")) $("tplAdd").onclick = () => { o.templates.push({ id: uid(), title: "", text: "" }); $("tplList").innerHTML = o.templates.map(tplRow).join(""); bindTpl(); mark(); $("tplList").lastElementChild.querySelector("input").focus(); };
+  // clave propia
+  if ($("cKey")) $("cKey").oninput = (e) => { d.ai_api_key = e.target.value; clearKey = false; mark(); };
   if ($("cKeyDel")) $("cKeyDel").onclick = () => { clearKey = true; d.ai_api_key = ""; $("cKey").value = ""; $("cKeyOut").textContent = "Se quitará al guardar: la tienda usará la clave general."; mark(); };
-  $("cKeyTest").onclick = async () => {
+  if ($("cKeyTest")) $("cKeyTest").onclick = async () => {
     try { const r = await api("/api/config/deepseek/test", { method: "POST", body: { key: d.ai_api_key.trim(), brand_id: b.id } });
       $("cKeyOut").innerHTML = `<span style="color:var(--ok)">La clave funciona.${r.balance ? " Saldo: " + esc(r.balance) + "." : ""}${r.available === false ? " Sin saldo suficiente." : ""}</span>`; }
     catch (e) { $("cKeyOut").innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
   };
-  const tpl = (btnId, taId, key, text) => ($(btnId).onclick = () => {
-    const ta = $(taId);
-    if (ta.value.trim() && !confirm("¿Reemplazar el texto actual por la plantilla?")) return;
-    ta.value = text; d[key] = text; mark();
-  });
-  tpl("cGeneralTpl", "cGeneral", "ai_prompt_general", GENERAL_TEMPLATE); tpl("cKbTpl", "cKb", "knowledge", KB_TEMPLATE);
+  const tpl = (btnId, taId, apply, text) => { if (!$(btnId)) return; $(btnId).onclick = () => {
+    const t = $(taId);
+    if (t.value.trim() && !confirm("¿Reemplazar el texto actual por la plantilla?")) return;
+    t.value = text; apply(text); mark();
+  }; };
+  tpl("cGeneralTpl", "cGeneral", (v) => (d.ai_prompt_general = v), GENERAL_TEMPLATE); tpl("cKbTpl", "cKb", (v) => (d.knowledge = v), KB_TEMPLATE);
   const close = () => { if (changed && !confirm("Tienes cambios sin guardar. ¿Descartarlos?")) return; dlg.close(); };
   $("cfgClose").onclick = close; $("cCancel").onclick = close;
   dlg.oncancel = (e) => { e.preventDefault(); close(); };
   $("cSave").onclick = async () => {
-    const body = { name: d.name, ai_prompt_general: d.ai_prompt_general, knowledge: d.knowledge, ai_model: d.ai_model, ai_handoff: d.ai_handoff,
-      default_reply: d.default_reply, cooldown_hours: d.cooldown_hours, test_mode: d.test_mode, test_users: d.test_users, ai_fallback: d.ai_fallback };
-    if (clearKey) body.ai_api_key = "";
-    else if (d.ai_api_key.trim()) body.ai_api_key = d.ai_api_key.trim();
-    if (bytes(d.default_reply) > 1000 || bytes(d.ai_handoff) > 1000 || bytes(d.ai_fallback) > 1000) return toast("Los mensajes no pueden pasar de 1000 bytes", 5000);
+    const body = {};
+    if (canT) Object.assign(body, { name: d.name, ai_handoff: d.ai_handoff, default_reply: d.default_reply, cooldown_hours: d.cooldown_hours, test_mode: d.test_mode, test_users: d.test_users, ai_fallback: d.ai_fallback,
+      opts: { ...o, templates: o.templates.filter((t) => t.title.trim() || t.text.trim()) } });
+    if (canP) Object.assign(body, { ai_prompt_general: d.ai_prompt_general, knowledge: d.knowledge, ai_model: d.ai_model });
+    if (canPause) body.active = d.active;
+    if (M) { if (clearKey) body.ai_api_key = ""; else if (d.ai_api_key.trim()) body.ai_api_key = d.ai_api_key.trim(); }
+    const long = [["respuesta por defecto", d.default_reply], ["mensaje al pasar a una persona", d.ai_handoff], ["mensaje si la IA falla", d.ai_fallback], ["mensaje fuera de horario", o.hours.off_message],
+      ["seguimiento", o.follow_up.text], ...Object.entries(o.handoff_reasons).map(([k, v]) => ["mensaje de " + k, v])].find(([, v]) => bytes(v) > 1000);
+    if (long) return toast(`El ${long[0]} pasa de 1000 bytes`, 5000);
+    if (o.follow_up.enabled && !o.follow_up.text.trim() && !o.follow_up.ai) return toast("Seguimiento: escribe el mensaje o deja que lo escriba la IA", 5000);
+    if (o.hours.enabled && !o.hours.off_message.trim()) return toast("Horario: escribe el mensaje fuera de horario", 5000);
     const btn = $("cSave"); btn.disabled = true; btn.textContent = "Guardando…";
     try { await api(`/api/brands/${b.id}`, { method: "PUT", body }); changed = false; dlg.close(); await loadData(); render(); toast("Configuración guardada"); }
     catch (e) { toast(e.message, 6000); btn.disabled = false; btn.textContent = "Guardar"; }
   };
-  $("cDelete").onclick = async () => {
+  if ($("cDelete")) $("cDelete").onclick = async () => {
     if (!confirm(`¿Eliminar "${b.name}"? Se borran sus prompts, reglas, catálogo y actividad. Sus cuentas quedan sin asignar.`)) return;
     try { await api(`/api/brands/${b.id}`, { method: "DELETE" }); changed = false; dlg.close(); await loadData(); render(); toast("Tienda eliminada"); }
     catch (e) { toast(e.message); }
@@ -762,9 +958,9 @@ function renderSocial(tab) {
     <h1 class="page-title">${ICON.ig} Redes sociales</h1>
     <p class="page-sub">Conecta las cuentas de IG/FB de cada tienda a la tienda de la que el bot saca productos y precios para responder comentarios y DMs.</p>
     <hr class="divider">
-    <nav class="seg">${Object.entries(TABS).map(([k, l]) => `<a href="#redes/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav>
+    <nav class="seg">${Object.entries(TABS).filter(([k]) => tabOk(k)).map(([k, l]) => `<a href="#redes/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav>
     <div id="tabBody"></div>`;
-  ({ cuentas: tabAccounts, catalogo: tabCatalog, prompts: tabPrompts, reglas: tabRules, actividad: tabActivity })[tab]();
+  ({ cuentas: tabAccounts, catalogo: tabCatalog, historias: tabStories, prompts: tabPrompts, reglas: tabRules, actividad: tabActivity })[tab]();
 }
 
 /* ---------- Cuentas conectadas ---------- */
@@ -1010,7 +1206,7 @@ function tabPrompts() {
   $("prAiC").onchange = (e) => { d.ai_comments = e.target.checked; changed(); };
   $("prAiD").onchange = (e) => { d.ai_enabled = e.target.checked; changed(); };
   $("prMod").onchange = (e) => { d.moderation = e.target.value; $("prModHint").textContent = MOD_HINT[d.moderation]; changed(); };
-  const openKb = (root) => root.querySelectorAll("[data-open-kb]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openConfigure(b.id); setTimeout(() => $("cKb")?.focus(), 60); }));
+  const openKb = (root) => root.querySelectorAll("[data-open-kb]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openConfigure(b.id, "ia"); setTimeout(() => $("cKb")?.focus(), 60); }));
   const warn = (ta, box, key) => ($(ta).oninput = (e) => { d[key] = e.target.value; $(box).innerHTML = kbWarning(d[key]); openKb($(box)); changed(); });
   warn("prComments", "prWarnC", "ai_prompt_comments"); warn("prDm", "prWarnD", "ai_prompt");
   openKb($("tabBody"));
@@ -1158,13 +1354,18 @@ function tabRules() {
 
 /* ---------- Actividad ---------- */
 const KIND = { rule: ["Regla", "rule"], ai: ["IA", "ai"], default: ["Por defecto", "warn"], handoff: ["Pasó a una persona", "warn"], fallback: ["Respaldo · la IA falló", "warn"], none: ["Sin respuesta", "gray"],
-  paused: ["Contacto en pausa", "gray"], hidden: ["Oculto", "bad"], test: ["Modo prueba", "gray"] };
+  paused: ["Contacto en pausa", "gray"], hidden: ["Oculto", "bad"], test: ["Modo prueba", "gray"], mention: ["Mención en historia", "ai"], reaction: ["Reacción a historia", "gray"],
+  offhours: ["Fuera de horario", "gray"], ignored: ["Cuenta ignorada", "gray"], human: ["Respondiste tú (app)", "ok"], panel: ["Respuesta desde el panel", "ok"], followup: ["Seguimiento", "ai"] };
 async function tabActivity() {
   $("tabBody").innerHTML = `
     <div class="card">
       <div class="card-h"><div><h2>Actividad</h2><p>Lo que llegó y lo que respondió el bot. Los últimos 150 registros.</p></div>
         <div class="row"><nav class="seg"><button data-m="logs" class="${S.actMode === "logs" ? "on" : ""}">Mensajes</button><button data-m="contacts" class="${S.actMode === "contacts" ? "on" : ""}">Contactos</button></nav>
-        <button class="btn small" id="actReload">${ICON.refresh} Actualizar</button></div></div>
+        <button class="btn small" id="actReload">${ICON.refresh} Actualizar</button>
+        ${can("exportar") ? `<div class="menu-wrap"><button class="btn small" id="expBtn">Exportar</button><div class="menu hidden" id="expMenu">
+          <button data-exp="actividad"><span>Actividad</span><small>Últimos 90 días, en Excel (CSV)</small></button>
+          <button data-exp="contactos"><span>Contactos</span><small>Todos los clientes</small></button>
+          <button data-exp="mensajes"><span>Conversaciones</span><small>Todos los mensajes de los últimos 90 días</small></button></div></div>` : ""}</div></div>
       <div class="row" style="margin-top:12px">
         <select id="actStore" style="width:auto">${brandOpts(S.actBrand, "Todas las tiendas")}</select>
         ${S.actMode === "logs" ? `<select id="actCh" style="width:auto"><option value="all">Mensajes y comentarios</option><option value="dm" ${S.actChannel === "dm" ? "selected" : ""}>Solo mensajes privados</option><option value="comment" ${S.actChannel === "comment" ? "selected" : ""}>Solo comentarios</option><option value="mod" ${S.actChannel === "mod" ? "selected" : ""}>Solo ofensivos</option></select>` : ""}
@@ -1173,6 +1374,11 @@ async function tabActivity() {
     </div>`;
   $("tabBody").querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { S.actMode = b.dataset.m; tabActivity(); }));
   $("actReload").onclick = tabActivity;
+  if ($("expBtn")) {
+    const menu = $("expMenu");
+    $("expBtn").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); if (!menu.classList.contains("hidden")) document.addEventListener("click", () => menu.classList.add("hidden"), { once: true }); };
+    menu.querySelectorAll("[data-exp]").forEach((b) => (b.onclick = () => { location.href = `/api/export?type=${b.dataset.exp}&days=90${S.actBrand ? "&brand=" + encodeURIComponent(S.actBrand) : ""}`; }));
+  }
   $("actStore").onchange = (e) => { S.actBrand = e.target.value; tabActivity(); };
   if ($("actCh")) $("actCh").onchange = (e) => { S.actChannel = e.target.value; tabActivity(); };
   const qs = S.actBrand ? `?brand=${encodeURIComponent(S.actBrand)}` : "";
@@ -1186,11 +1392,13 @@ async function tabActivity() {
         ${list.map((c) => `<tr><td>${platPill(c.platform)} ${userLabel(c.platform, c.username, c.user_id)}</td><td>${esc(brandById(c.brand_id)?.name || "—")}</td>
           <td><span class="pill ${esc(c.last_channel)}">${c.last_channel === "comment" ? "Comentario" : "DM"}</span> ${esc(c.last_message)}</td>
           <td class="small">${fmt(c.last_at)}</td><td>${c.messages}</td>
-          <td><button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}" data-p="${c.paused ? 1 : 0}">${c.paused ? "Reanudar" : "Pausar"}</button></td></tr>`).join("")}
+          <td style="white-space:nowrap">${can("pausar") ? `<button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}" data-p="${c.paused ? 1 : 0}">${c.paused ? "Reanudar" : "Pausar"}</button>` : c.paused ? "En pausa" : "Activo"}
+            ${can("conversaciones") ? `<button class="btn small" data-open-c="${esc(c.account_id)}" data-ou="${esc(c.user_id)}">Ver</button>` : ""}</td></tr>`).join("")}
         </tbody></table>`;
       $("actWrap").querySelectorAll("[data-u]").forEach((el) => (el.onclick = async () => {
         try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: el.dataset.p !== "1" } }); tabActivity(); refreshBell(); } catch (e) { toast(e.message); }
       }));
+      $("actWrap").querySelectorAll("[data-open-c]").forEach((el) => (el.onclick = () => openConversation(el.dataset.openC, el.dataset.ou)));
       return;
     }
     let list = await api(`/api/logs${qs}`);
@@ -1215,7 +1423,7 @@ async function tabActivity() {
 }
 
 /* ================= RESUMEN ================= */
-const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["fallback", "Respaldo (IA falló)"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
+const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["fallback", "Respaldo (IA falló)"], ["mention", "Menciones en historias"], ["reaction", "Reacciones a historias"], ["offhours", "Fuera de horario"], ["ignored", "Ignorados"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
 function ruleLabel(brandId, ruleId) {
   const r = (brandById(brandId)?.rules || []).find((x) => x.id === ruleId);
   if (!r) return "Regla eliminada";
@@ -1266,8 +1474,8 @@ async function renderResumen() {
     </div>
     <div class="card"><h2 style="font-size:16px;margin:0">Por atender</h2>
       <p class="muted small" style="margin:2px 0 6px">Contactos en pausa (pasaron a una persona o los pausaste). Respóndelos en Instagram o Facebook y reanuda el bot.</p>
-      ${s.pending.length ? s.pending.map((c) => `<div class="list-row"><span>${platPill(c.platform)} ${userLabel(c.platform, c.username, c.user_id)}${brandId ? "" : ` · <span class="muted">${esc(brandById(c.brand_id)?.name || "")}</span>`}<br><span class="small muted">${esc((c.last_message || "").slice(0, 90))} · ${fmt(c.last_at)}</span></span>
-        <button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}">Reanudar bot</button></div>`).join("") : `<p class="muted" style="margin-bottom:0">Nadie esperando.</p>`}</div>
+      ${s.pending.length ? s.pending.map((c) => `<div class="list-row"><span>${platPill(c.platform)} ${userLabel(c.platform, c.username, c.user_id)} ${REASON_PILL(c.pause_reason)}${brandId ? "" : ` · <span class="muted">${esc(brandById(c.brand_id)?.name || "")}</span>`}<br><span class="small muted">${esc((c.last_message || "").slice(0, 90))} · ${fmt(c.last_at)}</span></span>
+        <span class="row" style="gap:6px;flex-wrap:nowrap">${can("conversaciones") ? `<button class="btn small" data-open-c="${esc(c.account_id)}" data-ou="${esc(c.user_id)}">Ver</button>` : ""}${can("pausar") ? `<button class="btn small" data-a="${esc(c.account_id)}" data-u="${esc(c.user_id)}">Reanudar bot</button>` : ""}</span></div>`).join("") : `<p class="muted" style="margin-bottom:0">Nadie esperando.</p>`}</div>
     <div class="card table-wrap"><h2 style="font-size:16px;margin:0">Por tienda</h2>
       <table style="margin-top:8px"><thead><tr><th>Tienda</th><th>DMs</th><th>Comentarios</th><th>Respondidos</th><th>Errores</th><th>Estado</th></tr></thead><tbody>
       ${list.map((b) => { const a = s.per_brand.find((x) => x.brand_id === b.id) || { dm: 0, comment: 0, replied: 0, errors: 0 }; const tt = a.dm + a.comment; const accs = brandAccounts(b.id);
@@ -1279,7 +1487,8 @@ async function renderResumen() {
   $("dash").querySelectorAll("[data-u]").forEach((el) => (el.onclick = async () => {
     try { await api("/api/contacts", { method: "PATCH", body: { account_id: el.dataset.a, user_id: el.dataset.u, paused: false } }); toast("Bot reanudado"); renderResumen(); refreshBell(); } catch (e) { toast(e.message); }
   }));
-  $("dash").querySelectorAll("[data-open]").forEach((el) => (el.onclick = () => openConfigure(el.dataset.open)));
+  $("dash").querySelectorAll("[data-open]").forEach((el) => (el.onclick = () => { if (can("tienda") || can("prompts")) openConfigure(el.dataset.open); }));
+  $("dash").querySelectorAll("[data-open-c]").forEach((el) => (el.onclick = () => openConversation(el.dataset.openC, el.dataset.ou)));
 }
 
 function drawDaily(el, series) {
@@ -1333,15 +1542,16 @@ function drawBell() {
   if (panel.classList.contains("hidden")) return;
   panel.innerHTML = `<div class="bp-h"><span>Por atender${n ? ` (${n})` : ""}</span><button class="icon-btn" id="bellClose" aria-label="Cerrar">${ICON.x}</button></div>` + (n
     ? BELL.items.map((it) => {
-        const who = it.username ? (it.platform === "instagram" ? "@" + it.username : it.username) : "Cliente";
+        const who = it.name || (it.username ? (it.platform === "instagram" ? "@" + it.username : it.username) : "Cliente");
         const chat = it.platform === "instagram" && it.username ? `<a class="btn small" href="https://ig.me/m/${encodeURIComponent(it.username)}" target="_blank" rel="noopener">Abrir chat</a>` : "";
         return `<div class="bp-item"><div class="row" style="justify-content:space-between;gap:8px"><strong>${esc(who)}</strong><span class="small muted">${esc(agoText(it.last_at))}</span></div>
-          <div class="small muted">${esc(it.brand || "Sin tienda")} · ${PLAT[it.platform] || ""}</div>
+          <div class="small muted">${esc(it.brand || "Sin tienda")} · ${PLAT[it.platform] || ""} ${REASON_PILL(it.pause_reason)}</div>
           <div class="bp-msg small">${esc((it.last_message || "").slice(0, 160))}</div>
-          <div class="row" style="gap:6px">${chat}<button class="btn small" data-resume data-a="${esc(it.account_id)}" data-u="${esc(it.user_id)}">Ya lo atendí · reanudar bot</button></div></div>`;
+          <div class="row" style="gap:6px"><button class="btn small primary" data-openc data-a="${esc(it.account_id)}" data-u="${esc(it.user_id)}">Ver conversación</button>${chat}${can("pausar") ? `<button class="btn small" data-resume data-a="${esc(it.account_id)}" data-u="${esc(it.user_id)}">Ya lo atendí · reanudar bot</button>` : ""}</div></div>`;
       }).join("")
     : `<div class="bp-empty">Nada pendiente 🎉<br><span class="small">Aquí aparecen los clientes que el bot pasa a una persona.</span></div>`);
   $("bellClose").onclick = () => toggleBell(false);
+  panel.querySelectorAll("[data-openc]").forEach((b) => (b.onclick = () => { toggleBell(false); openConversation(b.dataset.a, b.dataset.u); }));
   panel.querySelectorAll("[data-resume]").forEach((b) => (b.onclick = async () => {
     b.disabled = true;
     try { await api("/api/contacts", { method: "PATCH", body: { account_id: b.dataset.a, user_id: b.dataset.u, paused: false } }); toast("Bot reanudado"); await refreshBell(); }
@@ -1447,15 +1657,410 @@ async function setupPush() {
   };
 }
 
+/* ================= CONVERSACIONES ================= */
+const SRC = { cliente: "Cliente", comentario: "Comentario", ia: "IA", rule: "Regla", regla: "Regla", handoff: "Pase a una persona", fallback: "Respaldo (la IA falló)",
+  default: "Por defecto", mention: "Agradecimiento por mención", reaction: "Reacción a historia", offhours: "Fuera de horario", seguimiento: "Seguimiento automático", humano: "Tú, desde la app" };
+const REASON_PILL = (r) => (r ? `<span class="pill ${r === "pago" ? "ok" : r === "reclamo" ? "bad" : "warn"}">${esc((S.session.reasons || {})[r] || (r === "respondiste" ? "Respondiste tú" : r === "pausado" ? "En pausa" : r))}</span>` : `<span class="pill warn">En pausa</span>`);
+const contactName = (c) => c.name || (c.username ? (c.platform === "facebook" ? c.username : "@" + c.username) : "Cliente " + String(c.user_id).slice(-4));
+const initial = (c) => (String(c.name || c.username || "?").replace(/^@/, "").trim()[0] || "?").toUpperCase();
+
+function renderInbox() {
+  const C = (S.inbox ||= { filter: "all", q: "", brand: "", sel: null, timer: null });
+  $("main").innerHTML = `
+    <h1 class="page-title">Conversaciones</h1>
+    <p class="page-sub">Los DMs de tus clientes. Responde desde aquí, pausa el bot o retómalo.</p>
+    <hr class="divider">
+    <div class="row">
+      <select id="ibStore" style="width:auto">${brandOpts(C.brand, "Todas las tiendas")}</select>
+      <nav class="seg">${[["all", "Todas"], ["pending", "Por atender"], ["dm", "Solo DMs"]].map(([k, l]) => `<button data-f="${k}" class="${C.filter === k ? "on" : ""}">${l}</button>`).join("")}</nav>
+      <div class="search grow" style="max-width:320px">${ICON.search}<input id="ibQ" type="search" placeholder="Buscar nombre, @usuario o mensaje" value="${esc(C.q)}"></div>
+      <button class="btn small" id="ibReload">${ICON.refresh} Actualizar</button>
+    </div>
+    <div class="inbox ${C.sel ? "has-sel" : ""}" id="inbox">
+      <div class="ib-list" id="ibList"><div class="empty">Cargando…</div></div>
+      <div class="ib-thread" id="ibThread">${C.sel ? `<div class="empty">Cargando…</div>` : `<div class="empty">Elige una conversación</div>`}</div>
+    </div>`;
+  $("ibStore").onchange = (e) => { C.brand = e.target.value; loadInboxList(); };
+  $("main").querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { C.filter = b.dataset.f; $("main").querySelectorAll("[data-f]").forEach((x) => x.classList.toggle("on", x === b)); loadInboxList(); }));
+  let t; $("ibQ").oninput = (e) => { C.q = e.target.value; clearTimeout(t); t = setTimeout(loadInboxList, 300); };
+  $("ibReload").onclick = () => { loadInboxList(); if (C.sel) loadThread(); };
+  loadInboxList();
+  if (C.sel) loadThread();
+  clearInterval(C.timer);
+  C.timer = setInterval(() => { if (S.view !== "conversaciones") return clearInterval(C.timer); if (!document.hidden) { loadInboxList(true); if (C.sel) loadThread(true); } }, 20000);
+}
+
+async function loadInboxList(quiet) {
+  const C = S.inbox;
+  const qs = new URLSearchParams({ filter: C.filter, q: C.q, ...(C.brand ? { brand: C.brand } : {}) });
+  let list;
+  try { list = await api(`/api/conversations?${qs}`); } catch (e) { if (!quiet && $("ibList")) $("ibList").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  const el = $("ibList"); if (!el) return;
+  if (!list.length) { el.innerHTML = `<div class="empty">${C.filter === "pending" ? "Nadie esperando 🎉" : "No hay conversaciones."}</div>`; return; }
+  el.innerHTML = list.map((c) => {
+    const sel = C.sel && C.sel.acc === c.account_id && C.sel.user === c.user_id;
+    return `<button class="ib-item ${sel ? "on" : ""}" data-acc="${esc(c.account_id)}" data-user="${esc(c.user_id)}">
+      <span class="avatar ${c.platform === "facebook" ? "fb" : ""}">${esc(initial(c))}</span>
+      <span class="ib-main"><span class="row" style="justify-content:space-between;gap:6px;flex-wrap:nowrap"><strong class="ell">${esc(contactName(c))}</strong><span class="small muted" style="flex:none">${esc(agoText(c.last_at))}</span></span>
+        <span class="small muted ell">${c.name && c.username ? esc(c.platform === "facebook" ? "" : "@" + c.username) + " · " : ""}${esc(c.brand || "")}</span>
+        <span class="small ell">${c.last_channel === "comment" ? '<span class="muted">Comentario: </span>' : ""}${esc(c.last_message || "")}</span>
+        ${c.paused ? `<span style="margin-top:4px">${REASON_PILL(c.pause_reason)}</span>` : ""}</span></button>`;
+  }).join("");
+  el.querySelectorAll(".ib-item").forEach((b) => (b.onclick = () => {
+    C.sel = { acc: b.dataset.acc, user: b.dataset.user };
+    el.querySelectorAll(".ib-item").forEach((x) => x.classList.toggle("on", x === b));
+    $("inbox").classList.add("has-sel");
+    $("ibThread").innerHTML = `<div class="empty">Cargando…</div>`;
+    loadThread();
+  }));
+}
+
+async function loadThread(quiet) {
+  const C = S.inbox, sel = C.sel;
+  let d;
+  try { d = await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}`); }
+  catch (e) { if (!quiet && $("ibThread")) $("ibThread").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  const el = $("ibThread"); if (!el || C.sel !== sel) return;
+  const draft = $("ibText") ? $("ibText").value : "";
+  const c = d.contact, ig = c.platform === "instagram";
+  const label = (m) => (m.role === "user" ? (m.source === "comentario" ? "Comentario" : "") : m.source === "panel" ? `Panel${m.user_name ? " · " + m.user_name : ""}` : SRC[m.source] || "Bot");
+  el.innerHTML = `
+    <div class="ib-head">
+      <button class="icon-btn ib-back" id="ibBack" aria-label="Volver">←</button>
+      <span class="avatar ${ig ? "" : "fb"}">${esc(initial(c))}</span>
+      <div class="ib-who"><strong class="ell" style="display:block">${esc(contactName(c))}</strong>
+        <span class="small muted">${PLAT[c.platform] || ""} · ${c.username && c.name ? esc(ig ? "@" + c.username : c.username) + " · " : ""}${esc(c.brand || "")}</span></div>
+      <div class="ib-actions">
+        ${c.paused ? REASON_PILL(c.pause_reason) : `<span class="pill ok">Bot activo</span>`}
+        ${can("pausar") ? `<button class="btn small" id="ibPause">${c.paused ? "Reanudar bot" : "Pausar bot"}</button>` : ""}
+        ${ig && c.username ? `<a class="btn small" href="https://ig.me/m/${encodeURIComponent(c.username)}" target="_blank" rel="noopener">Abrir en Instagram</a>` : ""}
+        ${can("tienda") ? `<button class="btn small" id="ibIgnore" title="${d.ignored ? "El bot volverá a responderle" : "El bot no le responderá nunca"}">${d.ignored ? "Dejar de ignorar" : "Ignorar"}</button>` : ""}
+      </div>
+    </div>
+    <div class="ib-msgs" id="ibMsgs">${d.messages.length ? d.messages.map((m) => `<div class="msg ${m.role === "user" ? "in" : "out"} ${m.source === "humano" || m.source === "panel" ? "human" : ""}">
+        <div class="bubble ${m.role === "user" ? "assistant" : "user"}">${esc(m.content)}</div>
+        <div class="msg-meta">${esc(label(m))}${label(m) ? " · " : ""}${esc(fmt(m.at))}</div></div>`).join("")
+      : `<div class="empty">Sin mensajes guardados.</div>`}</div>
+    ${can("responder") ? `<div class="ib-compose">
+      ${!d.window_open ? `<div class="warnbox" style="margin:0 0 8px">${c.last_dm_at ? "Pasaron más de 24 horas desde su último mensaje: Meta no deja escribirle desde aquí. Respóndele desde la app." : "Este cliente solo comentó: todavía no te ha escrito por privado."}</div>` : ""}
+      ${d.templates.length ? `<select id="ibTpl" style="margin-bottom:8px"><option value="">Usar una plantilla…</option>${d.templates.map((t, i) => `<option value="${i}">${esc(t.title || t.text.slice(0, 40))}</option>`).join("")}</select>` : ""}
+      <textarea id="ibText" placeholder="Escribe tu respuesta… ({nombre} se cambia por ${esc(c.first_name || "su nombre")})" ${d.window_open ? "" : "disabled"} style="min-height:70px">${esc(draft)}</textarea>
+      <div class="row" style="justify-content:space-between;margin-top:8px">
+        <label class="toggle-row small" style="font-weight:500;gap:8px;justify-content:flex-start"><input type="checkbox" id="ibPauseToo" ${c.paused ? "checked disabled" : "checked"}> Pausar el bot con este cliente</label>
+        <button class="btn primary" id="ibSend" ${d.window_open ? "" : "disabled"}>Enviar</button></div></div>` : ""}`;
+  const box = $("ibMsgs"); box.scrollTop = box.scrollHeight;
+  $("ibBack").onclick = () => { C.sel = null; $("inbox").classList.remove("has-sel"); loadInboxList(); };
+  if ($("ibPause")) $("ibPause").onclick = async () => {
+    try { await api("/api/contacts", { method: "PATCH", body: { account_id: sel.acc, user_id: sel.user, paused: !c.paused } }); toast(c.paused ? "Bot reanudado" : "Bot en pausa con este cliente"); loadThread(); loadInboxList(true); refreshBell(); }
+    catch (e) { toast(e.message); }
+  };
+  if ($("ibIgnore")) $("ibIgnore").onclick = async () => {
+    if (!d.ignored && !confirm("¿Ignorar esta cuenta? El bot no volverá a responderle (puedes deshacerlo).")) return;
+    try { await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/ignore`, { method: "POST", body: { ignore: !d.ignored } }); await loadData(); toast(d.ignored ? "El bot volverá a responderle" : "Cuenta ignorada"); loadThread(); }
+    catch (e) { toast(e.message); }
+  };
+  if ($("ibTpl")) $("ibTpl").onchange = (e) => {
+    const t = d.templates[e.target.value]; if (!t) return;
+    const ta = $("ibText"); ta.value = (ta.value.trim() ? ta.value.trimEnd() + "\n" : "") + t.text.replace(/\{nombre\}/gi, c.first_name || "{nombre}"); e.target.value = ""; ta.focus();
+  };
+  if ($("ibSend")) $("ibSend").onclick = async () => {
+    const text = $("ibText").value.trim(); if (!text) return;
+    if (bytes(text) > 1000) return toast("El mensaje pasa de 1000 bytes", 5000);
+    const btn = $("ibSend"); btn.disabled = true; btn.textContent = "Enviando…";
+    try { await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/send`, { method: "POST", body: { text, pause: $("ibPauseToo").checked } }); $("ibText").value = ""; toast("Enviado"); await loadThread(); loadInboxList(true); refreshBell(); }
+    catch (e) { toast(e.message, 7000); btn.disabled = false; btn.textContent = "Enviar"; }
+  };
+}
+function openConversation(acc, user) { (S.inbox ||= { filter: "all", q: "", brand: "", sel: null }).sel = { acc, user }; if (S.route === "conversaciones") renderInbox(); else go("conversaciones"); }
+
+/* ---------- Historias ---------- */
+async function tabStories() {
+  if (!S.brands.length) return ($("tabBody").innerHTML = `<div class="card empty">Primero crea una tienda en Tiendas.</div>`);
+  const b = brandById(S.selBrand), st = b.opts.stories;
+  $("tabBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div><h2>Historias</h2><p>Cuando alguien responde una historia, el bot sabe de qué trata y responde con ese contexto. Las historias duran 24 horas.</p></div>
+        <button class="btn small" id="stReload">${ICON.refresh} Actualizar</button></div>
+      ${storeSelect("stStore", S.selBrand)}
+      ${st.enabled ? `<div class="info">Historias <strong>activadas</strong> en esta tienda · Menciones: ${st.mention_reply ? "se agradecen" : "no se responden"} · Reacciones con emoji: ${{ ignore: "no se responden", reply: "mensaje fijo", ai: "responde la IA" }[st.reactions]}.
+        ${can("tienda") ? `<a href="#" id="stCfg">Cambiar</a>` : ""}</div>`
+        : `<div class="warnbox"><strong>${ICON.warn} Las historias están apagadas en esta tienda</strong><div class="why">El bot responde igual, pero sin saber qué mostraba la historia.</div>${can("tienda") ? `<div class="note"><a href="#" id="stCfg">Activarlas en Configurar → Funciones</a></div>` : ""}</div>`}
+      <div id="stList"><div class="empty">Cargando historias…</div></div>
+    </div>`;
+  $("stStore").onchange = (e) => { S.selBrand = e.target.value; tabStories(); };
+  $("stReload").onclick = tabStories;
+  if ($("stCfg")) $("stCfg").onclick = (e) => { e.preventDefault(); openConfigure(b.id, "funciones"); };
+  const id = b.id;
+  if (!brandAccounts(id).some((a) => a.platform === "instagram")) return ($("stList").innerHTML = `<div class="empty">Esta tienda no tiene una cuenta de Instagram asignada.</div>`);
+  let r;
+  try { r = await api(`/api/brands/${id}/stories`); } catch (e) { if ($("stList")) $("stList").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (S.selBrand !== id || !$("stList")) return;
+  const list = r.items;
+  if (!list.length) return ($("stList").innerHTML = (r.error ? `<div class="alert">${esc(r.error)}</div>` : "") + `<div class="empty">No hay historias activas ahora. Cuando publiques una, aparece aquí para que le pongas su contexto.</div>`);
+  $("stList").innerHTML = (r.error ? `<div class="alert">${esc(r.error)}</div>` : "") + `<div style="margin-top:8px">${list.map((m, i) => `
+    <div class="post-row">
+      <div class="thumb story" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ""}>${m.thumb ? "" : "Sin imagen"}</div>
+      <div style="min-width:0"><div class="row" style="gap:6px"><span class="pill ig">Historia</span><span class="muted small">${esc(fmt(m.timestamp))} · ${esc(m.type)}</span></div>
+        <div class="small muted" style="margin-top:4px">Vence ${esc(agoText(new Date(Date.parse(m.timestamp) + 864e5).toISOString()).replace("hace", "en"))}</div>
+        ${m.permalink ? `<a class="small" href="${esc(m.permalink)}" target="_blank" rel="noopener">Ver ↗</a>` : ""}</div>
+      <div class="post-edit"><textarea data-i="${i}" style="min-height:64px" ${can("catalogo") ? "" : "disabled"} placeholder="¿Qué muestra? Ej: Gorro reversible color cobre, $8, con 2 scrunchies de regalo">${esc(m.product)}</textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:6px"><span class="muted small" data-st="${i}">${m.product ? "Con contexto" : ""}</span><button class="btn small" data-save="${i}" disabled>Guardar</button></div></div>
+    </div>`).join("")}</div>`;
+  $("stList").querySelectorAll("textarea[data-i]").forEach((t) => (t.oninput = () => { $("stList").querySelector(`[data-save="${t.dataset.i}"]`).disabled = t.value === (list[t.dataset.i].product || ""); }));
+  $("stList").querySelectorAll("[data-save]").forEach((btn) => (btn.onclick = async () => {
+    const i = btn.dataset.save, m = list[i], v = $("stList").querySelector(`textarea[data-i="${i}"]`).value;
+    btn.disabled = true;
+    try { await api(`/api/brands/${id}/catalog`, { method: "PUT", body: { media_id: m.id, product: v } }); m.product = v.trim(); $("stList").querySelector(`[data-st="${i}"]`).textContent = m.product ? "Guardado ✓" : "Sin contexto"; }
+    catch (e) { btn.disabled = false; toast(e.message, 6000); }
+  }));
+}
+
+/* ================= ESTADÍSTICAS ================= */
+function groupSeries(series, key, mode) {
+  if (mode === "day") return series.map((d) => ({ label: d.date.slice(8, 10) + "/" + d.date.slice(5, 7), full: d.date, v: d[key] }));
+  const out = [], idx = {};
+  for (const d of series) {
+    let k, label;
+    if (mode === "month") { k = d.date.slice(0, 7); label = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][+d.date.slice(5, 7) - 1] + " " + d.date.slice(2, 4); }
+    else { const t = new Date(d.date + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); k = t.toISOString().slice(0, 10); label = "Sem " + k.slice(8, 10) + "/" + k.slice(5, 7); }
+    if (!(k in idx)) { idx[k] = out.length; out.push({ label, full: k, v: null }); }
+    const g = out[idx[k]];
+    if (d[key] !== null && d[key] !== undefined) g.v = (g.v || 0) + d[key];
+  }
+  return out;
+}
+function lastPerGroup(points, mode) {
+  if (mode === "day") return points.map((p) => ({ label: p.date.slice(8, 10) + "/" + p.date.slice(5, 7), full: p.date, v: p.followers }));
+  const map = new Map();
+  for (const p of points) { const k = mode === "month" ? p.date.slice(0, 7) : (() => { const t = new Date(p.date + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); })(); map.set(k, { label: k, full: k, v: p.followers }); }
+  return [...map.values()];
+}
+function niceMax(raw) { const rough = Math.max(1, raw / 4), mag = Math.pow(10, Math.floor(Math.log10(rough))); const step = [1, 2, 5, 10].find((m) => rough <= m * mag) * mag; return { step, max: Math.max(step * 2, Math.ceil(raw / step) * step) }; }
+function drawBars(el, pts, name, color = "var(--series-1)") {
+  if (!pts.some((p) => p.v !== null)) { el.innerHTML = `<p class="muted small">Sin datos para este periodo.</p>`; return; }
+  const W = el.clientWidth && el.clientWidth < 520 ? 360 : 640, H = 200, L = 40, R = 8, T = 10, B = 26, pw = W - L - R, ph = H - T - B;
+  const { step, max } = niceMax(Math.max(0, ...pts.map((p) => p.v || 0)));
+  const y = (v) => T + ph - (v / max) * ph, band = pw / pts.length, bw = Math.max(3, Math.min(28, band * 0.62)), every = Math.ceil(pts.length / 8);
+  let g = "", bars = "", hits = "";
+  for (let v = 0; v <= max + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${nf(Math.round(v))}</text>`;
+  pts.forEach((p, i) => {
+    const x = L + i * band + (band - bw) / 2, h = ((p.v || 0) / max) * ph;
+    if (p.v) { const r = Math.min(4, h, bw / 2), yy = y(p.v); bars += `<path d="M${x},${yy + h}V${yy + r}Q${x},${yy} ${x + r},${yy}H${x + bw - r}Q${x + bw},${yy} ${x + bw},${yy + r}V${yy + h}Z" fill="${color}"/>`; }
+    const isLast = i === pts.length - 1, n = pts.length;
+    const show = isLast || (i % every === 0 && n - 1 - i >= Math.max(2, every * 0.75));
+    if (show) bars += `<text x="${isLast && n > 1 ? x + bw : x + bw / 2}" y="${H - 8}" text-anchor="${isLast && n > 1 ? "end" : "middle"}" font-size="11" fill="var(--muted)">${esc(p.label)}</text>`;
+    hits += `<rect x="${L + i * band}" y="${T}" width="${band}" height="${ph}" fill="transparent" data-i="${i}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(name)}">${g}<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#c8c7c1"/>${bars}${hits}</svg><div class="tip"></div>`;
+  const tip = el.querySelector(".tip");
+  el.querySelectorAll("[data-i]").forEach((r) => {
+    r.onmouseenter = () => { const p = pts[+r.dataset.i]; tip.innerHTML = `<strong>${esc(p.full.split("-").reverse().join("/"))}</strong><br>${esc(name)}: ${p.v === null ? "sin dato" : nf(p.v)}`;
+      tip.style.left = ((L + (+r.dataset.i + 0.5) * band) / W) * 100 + "%"; tip.style.top = (y(p.v || 0) / H) * el.clientHeight - 6 + "px"; tip.style.opacity = 1; };
+    r.onmouseleave = () => (tip.style.opacity = 0);
+  });
+}
+function drawLine(el, pts, name) {
+  const W = el.clientWidth && el.clientWidth < 520 ? 360 : 640, H = 200, L = 52, R = 12, T = 12, B = 26, pw = W - L - R, ph = H - T - B;
+  const vals = pts.map((p) => p.v), lo = Math.min(...vals), hi = Math.max(...vals), pad = Math.max(1, Math.round((hi - lo) * 0.15));
+  const min = Math.max(0, lo - pad), maxv = hi + pad, y = (v) => T + ph - ((v - min) / (maxv - min)) * ph, x = (i) => L + (pts.length === 1 ? pw / 2 : (i / (pts.length - 1)) * pw);
+  let g = ""; for (let k = 0; k <= 3; k++) { const v = Math.round(min + ((maxv - min) * k) / 3); g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${nf(v)}</text>`; }
+  const every = Math.ceil(pts.length / 7);
+  const labels = pts.map((p, i) => (i % every === 0 || i === pts.length - 1 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === pts.length - 1 && pts.length > 1 ? "end" : i === 0 && pts.length > 1 ? "start" : "middle"}" font-size="11" fill="var(--muted)">${esc(p.full.slice(8, 10) + "/" + p.full.slice(5, 7))}</text>` : "")).join("");
+  const path = pts.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.v)}`).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(name)}">${g}<path d="${path}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round"/>${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.v)}" r="4" fill="var(--series-1)" stroke="var(--card)" stroke-width="2"/>`).join("")}${labels}
+    ${pts.map((p, i) => `<rect x="${x(i) - Math.max(6, pw / pts.length / 2)}" y="${T}" width="${Math.max(12, pw / pts.length)}" height="${ph}" fill="transparent" data-i="${i}"/>`).join("")}</svg><div class="tip"></div>`;
+  const tip = el.querySelector(".tip");
+  el.querySelectorAll("[data-i]").forEach((r) => {
+    r.onmouseenter = () => { const i = +r.dataset.i, p = pts[i]; tip.innerHTML = `<strong>${esc(p.full.split("-").reverse().join("/"))}</strong><br>${esc(name)}: ${nf(p.v)}`; tip.style.left = (x(i) / W) * 100 + "%"; tip.style.top = (y(p.v) / H) * el.clientHeight - 8 + "px"; tip.style.opacity = 1; };
+    r.onmouseleave = () => (tip.style.opacity = 0);
+  });
+}
+
+async function renderInsights(force) {
+  const accs = S.accounts;
+  const I = (S.ins ||= { acc: "", days: 30, group: "day" });
+  if (!accs.find((a) => a.id === I.acc)) I.acc = (accs.find((a) => a.platform === "instagram") || accs[0] || {}).id || "";
+  $("main").innerHTML = `
+    <h1 class="page-title">${ICON.chart} Estadísticas</h1>
+    <p class="page-sub">Cómo crecen tus cuentas de Instagram y Facebook: seguidores, alcance, interacciones y tus mejores publicaciones.</p>
+    <hr class="divider">
+    ${!accs.length ? `<div class="empty">No hay cuentas conectadas a tus tiendas.</div>` : `
+    <div class="row" style="justify-content:space-between">
+      <div class="row"><select id="inAcc" style="width:auto">${accs.map((a) => `<option value="${esc(a.id)}" ${a.id === I.acc ? "selected" : ""}>${a.platform === "facebook" ? "FB" : "IG"} · ${esc(a.name)}${a.brand_id && brandById(a.brand_id) ? " — " + esc(brandById(a.brand_id).name) : ""}</option>`).join("")}</select>
+        <nav class="seg">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${I.days === d ? "on" : ""}">${d} días</button>`).join("")}</nav>
+        <nav class="seg">${[["day", "Por día"], ["week", "Por semana"], ["month", "Por mes"]].map(([k, l]) => `<button data-g="${k}" class="${I.group === k ? "on" : ""}">${l}</button>`).join("")}</nav></div>
+      <button class="btn small" id="inReload">${ICON.refresh} Actualizar</button>
+    </div>
+    <div id="ins"><div class="empty">Cargando estadísticas… (la primera vez tarda unos segundos)</div></div>`}`;
+  if (!accs.length) return;
+  $("inAcc").onchange = (e) => { I.acc = e.target.value; renderInsights(); };
+  $("main").querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => { I.days = +b.dataset.d; renderInsights(); }));
+  $("main").querySelectorAll("[data-g]").forEach((b) => (b.onclick = () => { I.group = b.dataset.g; if (I.data) drawInsights(I.data); $("main").querySelectorAll("[data-g]").forEach((x) => x.classList.toggle("on", x === b)); }));
+  $("inReload").onclick = () => renderInsights(true);
+  const acc = I.acc, days = I.days;
+  try { I.data = await api(`/api/insights?account=${acc}&days=${days}${force ? "&force=1" : ""}`); }
+  catch (e) { if ($("ins")) $("ins").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (I.acc !== acc || I.days !== days || !$("ins")) return;
+  drawInsights(I.data);
+}
+
+function drawInsights(d) {
+  const I = S.ins, t = d.totals, snaps = d.snapshots || [];
+  const v = (n) => (n === null || n === undefined ? "—" : nf(n));
+  const first = snaps[0], lastS = snaps[snaps.length - 1];
+  const delta = first && lastS && snaps.length > 1 ? lastS.followers - first.followers : null;
+  const net = t.follows !== null && t.unfollows !== null && t.follows !== undefined ? t.follows - t.unfollows : null;
+  const posts = (d.posts || []).slice();
+  const score = (p) => p.interactions ?? 0;
+  const ranked = posts.slice().sort((a, b) => score(b) - score(a) || (b.reach || 0) - (a.reach || 0));
+  const top = ranked.slice(0, 5), worst = ranked.length > 5 ? ranked.slice(Math.max(5, ranked.length - 5)).reverse() : [];
+  const rate = (p) => (p.reach ? Math.round((p.interactions / p.reach) * 1000) / 10 + "%" : "—");
+  const postTable = (list) => `<div class="table-wrap"><table class="posts"><thead><tr><th></th><th>Publicación</th><th>Alcance</th><th>Interacciones</th><th>Tasa</th><th>Me gusta</th><th>Coment.</th>${d.platform === "instagram" ? "<th>Guardados</th>" : ""}<th>Compart.</th></tr></thead><tbody>
+    ${list.map((p) => `<tr><td><a href="${esc(p.permalink || "#")}" target="_blank" rel="noopener"><div class="thumb sm" ${p.thumb ? `style="background-image:url('${esc(p.thumb)}')"` : ""}></div></a></td>
+      <td style="min-width:180px"><span class="pill gray">${esc(p.type)}</span> <span class="small muted">${esc(new Date(p.timestamp).toLocaleDateString("es-VE"))}</span><div class="post-cap small">${esc(p.caption || "(sin texto)")}</div></td>
+      <td>${v(p.reach)}</td><td><strong>${v(p.interactions)}</strong></td><td>${rate(p)}</td><td>${v(p.likes)}</td><td>${v(p.comments)}</td>${d.platform === "instagram" ? `<td>${v(p.saves)}</td>` : ""}<td>${v(p.shares)}</td></tr>`).join("")}</tbody></table></div>`;
+  const permIssue = (d.errors || []).some((e) => /permission|permiso|scope|#10|#200|OAuth/i.test(e));
+  $("ins").innerHTML = `
+    ${(d.errors || []).length ? `<div class="warnbox"><strong>${ICON.warn} Algunos datos no llegaron</strong>
+      ${permIssue ? `<div class="why">Falta el permiso de estadísticas. Ve a <a href="#redes/cuentas">Cuentas conectadas</a> → Conectar con Meta y vuelve a conectar esta cuenta aceptando todos los permisos.</div>` : `<div class="why">Meta no entregó estos números (a veces pasa con cuentas nuevas o de menos de 100 seguidores).</div>`}
+      <details style="margin-top:6px"><summary class="small">Ver detalle</summary><div class="small">${d.errors.map(esc).join("<br>")}</div></details></div>` : ""}
+    <div class="kpis">
+      <div class="kpi"><div class="l">Seguidores</div><div class="v">${v(d.profile && d.profile.followers)}</div><div class="s">${delta !== null ? `${delta >= 0 ? "+" : ""}${nf(delta)} desde ${esc(first.date.split("-").reverse().join("/"))}` : net !== null ? `${net >= 0 ? "+" : ""}${nf(net)} en el periodo` : "&nbsp;"}</div></div>
+      <div class="kpi"><div class="l">Seguidores nuevos</div><div class="v">${v(t.follows ?? t.new_followers)}</div><div class="s">${t.unfollows !== null && t.unfollows !== undefined ? nf(t.unfollows) + " dejaron de seguir" : "&nbsp;"}</div></div>
+      <div class="kpi"><div class="l">Alcance${d.approx ? " (aprox.)" : ""}</div><div class="v">${v(t.reach)}</div><div class="s">cuentas que te vieron</div></div>
+      <div class="kpi"><div class="l">Visualizaciones</div><div class="v">${v(t.views)}</div><div class="s">&nbsp;</div></div>
+      <div class="kpi"><div class="l">Interacciones</div><div class="v">${v(t.interactions)}</div><div class="s">${t.engaged !== null && t.engaged !== undefined ? nf(t.engaged) + " cuentas" : "&nbsp;"}</div></div>
+      ${d.platform === "instagram" ? `<div class="kpi"><div class="l">Toques en enlaces</div><div class="v">${v(t.link_taps)}</div><div class="s">del perfil</div></div>` : ""}
+    </div>
+    <div class="grid2">
+      <div class="card"><h2 style="font-size:16px;margin:0">Alcance ${I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes"}</h2>${I.group !== "day" ? `<p class="small muted" style="margin:2px 0 0">Suma del alcance de cada día.</p>` : ""}<div class="chart-wrap" id="chReach" style="margin-top:10px"></div></div>
+      <div class="card"><h2 style="font-size:16px;margin:0">Seguidores nuevos ${I.group === "day" ? "por día" : I.group === "week" ? "por semana" : "por mes"}</h2>${d.platform === "instagram" ? `<p class="small muted" style="margin:2px 0 0">Instagram solo da este dato de los últimos 30 días.</p>` : ""}<div class="chart-wrap" id="chNew" style="margin-top:10px"></div></div>
+    </div>
+    <div class="card"><h2 style="font-size:16px;margin:0">Total de seguidores</h2>
+      ${snaps.length >= 2 ? `<div class="chart-wrap" id="chFol" style="margin-top:10px"></div>` : `<p class="muted small" style="margin-bottom:0">El sistema guarda cada día cuántos seguidores tienes. La gráfica se llena sola a partir de ${snaps.length ? "hoy" : "mañana"}.</p>`}</div>
+    ${d.platform === "instagram" && (t.likes !== null || t.saves !== null) ? `<div class="card"><h2 style="font-size:16px;margin:0">Cómo interactúan</h2>
+      ${(() => { const items = [["Me gusta", t.likes], ["Comentarios", t.comments], ["Guardados", t.saves], ["Compartidos", t.shares]].filter(([, n]) => n !== null && n !== undefined); const mx = Math.max(1, ...items.map(([, n]) => n));
+        return items.map(([l, n]) => `<div class="hbar"><span>${l}</span><div class="track"><div class="fill" style="width:${(n / mx) * 100}%"></div></div><span class="n">${nf(n)}</span></div>`).join(""); })()}</div>` : ""}
+    <div class="card"><h2 style="font-size:16px;margin:0">Mejores publicaciones del periodo</h2><p class="small muted" style="margin:2px 0 8px">Ordenadas por interacciones (me gusta, comentarios, guardados y compartidos). Tasa = interacciones ÷ alcance.</p>
+      ${top.length ? postTable(top) : `<p class="muted">No publicaste en este periodo.</p>`}</div>
+    ${worst.length ? `<div class="card"><h2 style="font-size:16px;margin:0">Publicaciones con menos interacción</h2><p class="small muted" style="margin:2px 0 8px">Sirve para ver qué tipo de contenido no conectó.</p>${postTable(worst)}</div>` : ""}
+    <p class="small muted">Datos de Meta${d.cached_at ? " · actualizados " + esc(agoText(d.cached_at)) : ""} · se guardan 3 horas para no gastar el límite de consultas. Usa «Actualizar» para pedirlos de nuevo.</p>`;
+  drawBars($("chReach"), groupSeries(d.series, "reach", I.group), "Alcance");
+  drawBars($("chNew"), groupSeries(d.series, "new_followers", I.group), "Seguidores nuevos", "var(--series-2)");
+  if ($("chFol")) drawLine($("chFol"), lastPerGroup(snaps, I.group), "Seguidores");
+}
+
+/* ================= USUARIOS ================= */
+async function renderUsers() {
+  const U = (S.users ||= { tab: "lista" });
+  $("main").innerHTML = `
+    <div class="card-h"><div><h1 class="page-title">Usuarios</h1><p class="page-sub">Quién entra al panel, a qué tiendas y qué puede hacer. Tú eres la cuenta maestra: puedes todo.</p></div>
+      <button class="btn primary" id="uNew">${ICON.plus} Nuevo usuario</button></div>
+    <hr class="divider">
+    <nav class="seg"><button data-t="lista" class="${U.tab === "lista" ? "on" : ""}">Usuarios</button><button data-t="registro" class="${U.tab === "registro" ? "on" : ""}">Registro de acciones</button></nav>
+    <div id="uBody"><div class="empty">Cargando…</div></div>`;
+  $("uNew").onclick = () => openUser(null);
+  $("main").querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => { U.tab = b.dataset.t; renderUsers(); }));
+  if (U.tab === "registro") {
+    const list = await api("/api/audit").catch((e) => ({ error: e.message }));
+    if (!$("uBody")) return;
+    if (list.error) return ($("uBody").innerHTML = `<div class="alert">${esc(list.error)}</div>`);
+    $("uBody").innerHTML = `<div class="card table-wrap">${list.length ? `<table><thead><tr><th>Fecha</th><th>Quién</th><th>Tienda</th><th>Qué hizo</th></tr></thead><tbody>
+      ${list.map((a) => `<tr><td class="small">${esc(fmt(a.at))}</td><td><strong>${esc(a.user_name || "—")}</strong></td><td class="small">${esc(brandById(a.brand_id)?.name || "")}</td><td>${esc(a.action)}${a.detail ? `<div class="small muted">${esc(a.detail)}</div>` : ""}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Todavía no hay acciones registradas.</div>`}</div>`;
+    return;
+  }
+  const list = await api("/api/users").catch((e) => ({ error: e.message }));
+  if (!$("uBody")) return;
+  if (list.error) return ($("uBody").innerHTML = `<div class="alert">${esc(list.error)}</div>`);
+  S.userList = list;
+  const status = (x) => (!x.active ? `<span class="pill gray">Desactivado</span>` : !x.has_password ? `<span class="pill warn">Invitación pendiente</span>` : `<span class="pill ok">Activo</span>`);
+  const stores = (x) => (x.brands.includes("*") ? "Todas" : x.brands.map((id) => brandById(id)?.name).filter(Boolean).join(", ") || "Ninguna");
+  $("uBody").innerHTML = `<div class="card table-wrap">
+    <table><thead><tr><th>Nombre</th><th>Rol</th><th>Tiendas</th><th>Estado</th><th>Último acceso</th><th></th></tr></thead><tbody>
+      <tr><td><strong>Tú (maestra)</strong><div class="small muted">Entras solo con tu contraseña</div></td><td><span class="pill ai">Maestro</span></td><td>Todas</td><td><span class="pill ok">Activo</span></td><td class="small">—</td><td></td></tr>
+      ${list.map((x) => `<tr><td><strong>${esc(x.name)}</strong><div class="small muted">${esc(x.login || "")}</div></td>
+        <td><span class="pill ${x.role === "cliente" ? "comment" : "rule"}">${x.role === "cliente" ? "Cliente" : "Equipo"}</span></td><td class="small">${esc(stores(x))}</td><td>${status(x)}</td><td class="small">${esc(x.last_login ? fmt(x.last_login) : "Nunca")}</td>
+        <td style="white-space:nowrap;text-align:right"><button class="btn small" data-edit="${esc(x.id)}">Editar</button> <button class="btn small" data-link="${esc(x.id)}" title="Para que cree o cambie su contraseña">Enlace de acceso</button> <button class="icon-btn danger" data-del="${esc(x.id)}" aria-label="Eliminar">${ICON.trash}</button></td></tr>`).join("")}
+    </tbody></table>
+    ${!list.length ? `<div class="empty" style="padding:20px">Aún no hay más usuarios. Crea uno para tu equipo o para un cliente.</div>` : ""}</div>
+    <div class="card"><h2 style="font-size:16px;margin:0">Qué puede ver cada rol</h2>
+      <p class="small muted">Son puntos de partida: al crear o editar un usuario marcas exactamente qué puede hacer.</p>
+      <div class="kv"><span><span class="pill rule">Equipo</span></span><span class="small">Todo dentro de sus tiendas, menos conectar cuentas, la configuración general y los usuarios.</span>
+      <span><span class="pill comment">Cliente</span></span><span class="small">Conversaciones, responder, pausar, actividad, resumen y estadísticas de su tienda. No toca prompts, reglas ni configuración.</span></div></div>`;
+  $("uBody").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => openUser(list.find((x) => x.id === b.dataset.edit))));
+  $("uBody").querySelectorAll("[data-link]").forEach((b) => (b.onclick = async () => {
+    try { const r = await api(`/api/users/${b.dataset.link}/invite`, { method: "POST" }); showInvite(list.find((x) => x.id === b.dataset.link).name, r.invite_url); } catch (e) { toast(e.message); }
+  }));
+  $("uBody").querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
+    const x = list.find((y) => y.id === b.dataset.del);
+    if (!confirm(`¿Eliminar a ${x.name}? Ya no podrá entrar al panel.`)) return;
+    try { await api(`/api/users/${x.id}`, { method: "DELETE" }); toast("Usuario eliminado"); renderUsers(); } catch (e) { toast(e.message); }
+  }));
+}
+function showInvite(name, link) {
+  const dlg = $("userDlg");
+  dlg.innerHTML = `<div class="modal-h"><div><h2>Enlace para ${esc(name)}</h2><p>Envíaselo por WhatsApp o correo. Con él crea su contraseña. Vence en 7 días.</p></div><button class="icon-btn" id="uiClose" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b"><button class="copy" data-copy="${esc(link)}" style="width:100%;padding:10px">${esc(link)}</button>
+    <p class="help">Si lo pierde o se le olvida la contraseña, genera otro con «Enlace de acceso».</p></div>
+    <div class="modal-f"><span></span><button class="btn primary" id="uiOk">Listo</button></div>`;
+  bindCopy(dlg);
+  $("uiClose").onclick = $("uiOk").onclick = () => { dlg.close(); renderUsers(); };
+  if (!dlg.open) dlg.showModal();
+}
+function openUser(x) {
+  const P = S.session.perm_labels, presets = S.session.role_presets;
+  const d = x ? JSON.parse(JSON.stringify(x)) : { name: "", login: "", role: "equipo", perms: presets.equipo.slice(), brands: [], notify: { handoff: true, ai_fail: true, mention: true, offensive: true }, active: true };
+  const dlg = $("userDlg");
+  const all = d.brands.includes("*");
+  dlg.innerHTML = `
+    <div class="modal-h"><div><h2>${x ? "Editar " + esc(x.name) : "Nuevo usuario"}</h2><p>${x ? "Los cambios aplican de inmediato." : "Al crearlo te doy un enlace para que cree su contraseña."}</p></div><button class="icon-btn" id="uClose" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <div class="grid2" style="gap:0 16px"><div><label class="f" for="uName">Nombre</label><input id="uName" value="${esc(d.name)}" placeholder="Ej: Ana (térea)"></div>
+        <div><label class="f" for="uLogin">Usuario o correo para entrar</label><input id="uLogin" value="${esc(d.login || "")}" placeholder="ana@correo.com" autocomplete="off"></div></div>
+      <label class="f" for="uRole">Rol</label>
+      <select id="uRole"><option value="equipo" ${d.role === "equipo" ? "selected" : ""}>Equipo — trabaja contigo</option><option value="cliente" ${d.role === "cliente" ? "selected" : ""}>Cliente — dueño de una tienda</option></select>
+      <div class="help">Al cambiar el rol se marcan sus permisos típicos; luego puedes ajustarlos.</div>
+      <label class="f">Tiendas que puede ver</label>
+      <label class="check"><input type="checkbox" id="uAll" ${all ? "checked" : ""}> Todas las tiendas (también las nuevas)</label>
+      <div class="checks ${all ? "hidden" : ""}" id="uBrands">${S.brands.map((b) => `<label class="check"><input type="checkbox" value="${esc(b.id)}" ${d.brands.includes(b.id) ? "checked" : ""}> ${esc(b.name)}</label>`).join("")}</div>
+      <label class="f">Qué puede hacer</label>
+      <div class="checks" id="uPerms">${Object.entries(P).map(([k, l]) => `<label class="check"><input type="checkbox" value="${k}" ${d.perms.includes(k) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
+      <label class="f">Notificaciones que recibe en su teléfono</label>
+      <div class="checks" id="uNotify">${Object.entries(NOTIFY_LABELS).map(([k, [l]]) => `<label class="check"><input type="checkbox" value="${k}" ${d.notify[k] !== false ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
+      <div class="help">Solo le llegan si activa las notificaciones en su teléfono y si la tienda tiene ese aviso encendido.</div>
+      ${x ? `<div class="box"><div class="box-h"><div><strong>Acceso activo</strong><p>Si lo apagas, no puede entrar (sin borrar el usuario).</p></div><input type="checkbox" role="switch" class="switch" id="uActive" ${d.active ? "checked" : ""}></div></div>` : ""}
+    </div>
+    <div class="modal-f"><span></span><div class="row"><button class="btn" id="uCancel">Cancelar</button><button class="btn primary" id="uSave">${x ? "Guardar" : "Crear y obtener enlace"}</button></div></div>`;
+  const checked = (id) => [...$(id).querySelectorAll("input:checked")].map((i) => i.value);
+  $("uRole").onchange = (e) => { const pr = presets[e.target.value]; $("uPerms").querySelectorAll("input").forEach((i) => (i.checked = pr.includes(i.value))); };
+  $("uAll").onchange = (e) => $("uBrands").classList.toggle("hidden", e.target.checked);
+  $("uClose").onclick = $("uCancel").onclick = () => dlg.close();
+  $("uSave").onclick = async () => {
+    const body = { name: $("uName").value.trim(), login: $("uLogin").value.trim(), role: $("uRole").value, perms: checked("uPerms"),
+      brands: $("uAll").checked ? ["*"] : checked("uBrands"), notify: Object.fromEntries(Object.keys(NOTIFY_LABELS).map((k) => [k, checked("uNotify").includes(k)])) };
+    if (x) body.active = $("uActive").checked;
+    if (!body.name || !body.login) return toast("Escribe el nombre y el usuario o correo");
+    if (!body.brands.length) return toast("Elige al menos una tienda");
+    const btn = $("uSave"); btn.disabled = true;
+    try {
+      if (x) { await api(`/api/users/${x.id}`, { method: "PUT", body }); dlg.close(); toast("Usuario guardado"); renderUsers(); }
+      else { const r = await api("/api/users", { method: "POST", body }); showInvite(r.user.name, r.invite_url); }
+    } catch (e) { toast(e.message, 6000); btn.disabled = false; }
+  };
+  dlg.showModal();
+}
+
 /* ================= CONFIGURACIÓN ================= */
 async function renderConfig() {
-  $("main").innerHTML = `<h1 class="page-title">Configuración</h1><p class="page-sub">Lo que conecta el panel con Meta y con la IA. Todo se pega aquí; no hace falta tocar código.</p><hr class="divider"><div id="cfgBody"><div class="empty">Cargando…</div></div>`;
-  let c;
-  try { c = await api("/api/config"); } catch (e) { $("cfgBody").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  const M = isMaestro();
+  $("main").innerHTML = `<h1 class="page-title">Configuración</h1><p class="page-sub">${M ? "Lo que conecta el panel con Meta y con la IA. Todo se pega aquí; no hace falta tocar código." : "Tus notificaciones y tu contraseña."}</p><hr class="divider"><div id="cfgBody"><div class="empty">Cargando…</div></div>`;
+  let c = { callbacks: {}, deepseek: {} };
+  if (M) { try { c = await api("/api/config"); } catch (e) { $("cfgBody").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; } }
   if (!$("cfgBody")) return;
+  const myN = me().notify || {};
   const copyRow = (label, value, extra = "") => `<span class="muted">${label}</span><div class="row" style="gap:8px"><button class="copy" data-copy="${esc(value)}">${esc(value)}</button>${extra}</div>`;
   const igReady = c.ig_app_id && c.ig_app_secret, fbReady = c.fb_app_id && c.fb_app_secret;
-  $("cfgBody").innerHTML = `
+  $("cfgBody").innerHTML = `${M ? `
     <div class="card">
       <div class="card-h"><div><h2>1 · Conexión con Meta</h2><p>Los datos de tu app de developers.facebook.com. Con esto funciona el botón «Conectar con Meta».</p></div>
         <div class="row"><span class="pill ${igReady ? "ok" : "gray"}">Instagram ${igReady ? "listo" : "pendiente"}</span><span class="pill ${fbReady ? "ok" : "gray"}">Facebook ${fbReady ? "listo" : "pendiente"}</span></div></div>
@@ -1488,18 +2093,21 @@ async function renderConfig() {
       <input id="dsKey" type="password" autocomplete="off" placeholder="sk-…" style="max-width:480px">
       <div class="row" style="margin-top:12px"><button class="btn primary" id="dsSave">Guardar y probar</button><button class="btn" id="dsTest" ${c.deepseek.source ? "" : "disabled"}>Ver saldo</button>${c.deepseek.source === "panel" ? `<button class="btn danger" id="dsDel">Quitar clave</button>` : ""}</div>
       <div class="small" id="dsOut" style="margin-top:10px">${c.deepseek.source === "secreto" ? '<span class="muted">Se está usando una clave guardada en Cloudflare. Si pegas una aquí, se usa esta.</span>' : ""}</div>
-    </div>
+    </div>` : ""}
 
     <div class="card">
-      <div class="card-h"><div><h2>4 · Notificaciones en este teléfono</h2><p>Te aviso al teléfono cada vez que el bot pase un cliente a una persona (pago enviado, reclamo, etc.).</p></div>
+      <div class="card-h"><div><h2>${M ? "4 · " : ""}Notificaciones en este teléfono</h2><p>Te aviso al teléfono cuando un cliente necesita una persona (pago enviado, reclamo, etc.), aunque no tengas el panel abierto.</p></div>
         <span class="pill gray" id="pushPill">…</span></div>
       <div class="small" id="pushInfo" style="margin-top:10px"></div>
       <div class="row" style="margin-top:12px"><button class="btn primary hidden" id="pushOn">Activar notificaciones</button><button class="btn hidden" id="pushTest">Enviar prueba</button><button class="btn danger hidden" id="pushOff">Desactivar en este teléfono</button></div>
       <div class="small" id="pushOut" style="margin-top:10px"></div>
+      <label class="f">Qué avisos quiero recibir</label>
+      <div class="checks" id="myNotify">${Object.entries(NOTIFY_LABELS).map(([k, [l, h]]) => `<label class="check"><input type="checkbox" value="${k}" ${myN[k] !== false ? "checked" : ""}> <span>${esc(l)}${h ? `<br><span class="small muted" style="font-weight:400">${esc(h)}</span>` : ""}</span></label>`).join("")}</div>
+      <div class="help">Valen para todos tus teléfonos. Cada tienda decide además qué avisos manda (Tiendas → Configurar → Avisos).</div>
     </div>
 
     <div class="card">
-      <div class="card-h"><div><h2>5 · Contraseña del panel</h2><p>Al cambiarla se cierran las demás sesiones abiertas.</p></div></div>
+      <div class="card-h"><div><h2>${M ? "5 · " : ""}Contraseña${M ? " del panel" : ""}</h2><p>Al cambiarla se cierran tus otras sesiones abiertas.</p></div></div>
       <div class="grid2" style="gap:0 16px;max-width:720px">
         <div><label class="f" for="pwCur">Contraseña actual</label><input id="pwCur" type="password" autocomplete="current-password"></div><div></div>
         <div><label class="f" for="pwNew">Nueva contraseña</label><input id="pwNew" type="password" autocomplete="new-password"></div>
@@ -1510,6 +2118,17 @@ async function renderConfig() {
   bindCopy($("cfgBody"));
   const ok = (el, t) => ($(el).innerHTML = `<span style="color:var(--ok)">${t}</span>`);
   const bad = (el, t) => ($(el).innerHTML = `<span style="color:var(--bad)">${esc(t)}</span>`);
+  $("myNotify").querySelectorAll("input").forEach((i) => (i.onchange = async () => {
+    const notify = Object.fromEntries([...$("myNotify").querySelectorAll("input")].map((x) => [x.value, x.checked]));
+    try { const r = await api("/api/me/notify", { method: "PUT", body: { notify } }); S.session.user.notify = r.notify; toast("Avisos guardados"); } catch (e) { toast(e.message); i.checked = !i.checked; }
+  }));
+  setupPush();
+  $("pwSave").onclick = async () => {
+    if ($("pwNew").value !== $("pwNew2").value) return bad("pwOut", "Las contraseñas nuevas no coinciden");
+    try { await api("/api/password", { method: "PUT", body: { current: $("pwCur").value, password: $("pwNew").value } }); ["pwCur", "pwNew", "pwNew2"].forEach((i) => ($(i).value = "")); ok("pwOut", "Contraseña cambiada."); }
+    catch (e) { bad("pwOut", e.message); }
+  };
+  if (!M) return;
   const refreshSession = async () => { S.session = await api("/api/session"); renderNav(); };
   $("metaSave").onclick = async () => {
     try {
@@ -1532,12 +2151,6 @@ async function renderConfig() {
   if ($("dsDel")) $("dsDel").onclick = async () => {
     if (!confirm("¿Quitar la clave? Las tiendas sin clave propia dejarán de responder con IA.")) return;
     try { await api("/api/config/deepseek", { method: "PUT", body: { key: "" } }); await refreshSession(); renderConfig(); toast("Clave quitada"); } catch (e) { toast(e.message); }
-  };
-  setupPush();
-  $("pwSave").onclick = async () => {
-    if ($("pwNew").value !== $("pwNew2").value) return bad("pwOut", "Las contraseñas nuevas no coinciden");
-    try { await api("/api/password", { method: "PUT", body: { current: $("pwCur").value, password: $("pwNew").value } }); ["pwCur", "pwNew", "pwNew2"].forEach((i) => ($(i).value = "")); ok("pwOut", "Contraseña cambiada."); }
-    catch (e) { bad("pwOut", e.message); }
   };
 }
 
