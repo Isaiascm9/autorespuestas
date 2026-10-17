@@ -649,7 +649,7 @@ NUNCA
 function openConfigure(id) {
   const b = brandById(id); if (!b) return;
   const d = { name: b.name, ai_prompt_general: b.ai_prompt_general, knowledge: b.knowledge, ai_model: b.ai_model, ai_handoff: b.ai_handoff,
-    default_reply: b.default_reply, cooldown_hours: b.cooldown_hours, test_mode: b.test_mode, test_users: b.test_users, ai_api_key: "" };
+    default_reply: b.default_reply, cooldown_hours: b.cooldown_hours, test_mode: b.test_mode, test_users: b.test_users, ai_api_key: "", ai_fallback: b.ai_fallback || "" };
   let changed = false, clearKey = false;
   const dlg = $("cfgDlg");
   const keyReady = !!b.ai_key_tail || S.session.ai_ready;
@@ -694,6 +694,9 @@ function openConfigure(id) {
       <label class="f" for="cHandoff">Mensaje al pasar a una persona</label>
       <textarea id="cHandoff" style="min-height:60px" placeholder="¡Gracias por escribirnos! 🙌 Te voy a pasar con una persona del equipo, en breve te responde.">${esc(d.ai_handoff)}</textarea>
       <div class="help">Se envía cuando el cliente pide una persona o la IA no puede resolver. El contacto queda en pausa hasta que lo reanudes.</div>
+      <label class="f" for="cFallback">Mensaje si la IA falla</label>
+      <textarea id="cFallback" style="min-height:60px" placeholder="¡Hola! Recibimos tu mensaje 🙌 En un momento te respondemos.">${esc(d.ai_fallback)}</textarea>
+      <div class="help">Si DeepSeek está caído o saturado, el bot lo reintenta y, si sigue fallando, envía este mensaje para que el cliente no se quede sin respuesta. Te llega una notificación para que le respondas tú.</div>
       <label class="f" for="cDefault">Respuesta por defecto (si no hay IA)</label>
       <textarea id="cDefault" style="min-height:60px" placeholder="¡Hola! En breve te respondemos 🙌">${esc(d.default_reply)}</textarea>
       <div class="row" style="margin-top:8px"><span class="help" style="margin:0">No repetirla al mismo contacto antes de</span><input id="cCool" type="number" min="0" max="720" value="${esc(d.cooldown_hours)}" style="width:80px"><span class="help" style="margin:0">horas</span></div>
@@ -712,7 +715,7 @@ function openConfigure(id) {
   const mark = () => { changed = true; };
   const bindField = (elId, key) => ($(elId).oninput = (e) => { d[key] = e.target.value; mark(); });
   bindField("cName", "name"); bindField("cGeneral", "ai_prompt_general"); bindField("cKb", "knowledge"); bindField("cHandoff", "ai_handoff");
-  bindField("cDefault", "default_reply"); bindField("cCool", "cooldown_hours"); bindField("cTestUsers", "test_users");
+  bindField("cDefault", "default_reply"); bindField("cCool", "cooldown_hours"); bindField("cTestUsers", "test_users"); bindField("cFallback", "ai_fallback");
   $("cModel").onchange = (e) => { d.ai_model = e.target.value; mark(); };
   $("cTest").onchange = (e) => { d.test_mode = e.target.checked; mark(); };
   $("cKey").oninput = (e) => { d.ai_api_key = e.target.value; clearKey = false; mark(); };
@@ -733,10 +736,10 @@ function openConfigure(id) {
   dlg.oncancel = (e) => { e.preventDefault(); close(); };
   $("cSave").onclick = async () => {
     const body = { name: d.name, ai_prompt_general: d.ai_prompt_general, knowledge: d.knowledge, ai_model: d.ai_model, ai_handoff: d.ai_handoff,
-      default_reply: d.default_reply, cooldown_hours: d.cooldown_hours, test_mode: d.test_mode, test_users: d.test_users };
+      default_reply: d.default_reply, cooldown_hours: d.cooldown_hours, test_mode: d.test_mode, test_users: d.test_users, ai_fallback: d.ai_fallback };
     if (clearKey) body.ai_api_key = "";
     else if (d.ai_api_key.trim()) body.ai_api_key = d.ai_api_key.trim();
-    if (bytes(d.default_reply) > 1000 || bytes(d.ai_handoff) > 1000) return toast("Los mensajes no pueden pasar de 1000 bytes", 5000);
+    if (bytes(d.default_reply) > 1000 || bytes(d.ai_handoff) > 1000 || bytes(d.ai_fallback) > 1000) return toast("Los mensajes no pueden pasar de 1000 bytes", 5000);
     const btn = $("cSave"); btn.disabled = true; btn.textContent = "Guardando…";
     try { await api(`/api/brands/${b.id}`, { method: "PUT", body }); changed = false; dlg.close(); await loadData(); render(); toast("Configuración guardada"); }
     catch (e) { toast(e.message, 6000); btn.disabled = false; btn.textContent = "Guardar"; }
@@ -1154,7 +1157,7 @@ function tabRules() {
 }
 
 /* ---------- Actividad ---------- */
-const KIND = { rule: ["Regla", "rule"], ai: ["IA", "ai"], default: ["Por defecto", "warn"], handoff: ["Pasó a una persona", "warn"], none: ["Sin respuesta", "gray"],
+const KIND = { rule: ["Regla", "rule"], ai: ["IA", "ai"], default: ["Por defecto", "warn"], handoff: ["Pasó a una persona", "warn"], fallback: ["Respaldo · la IA falló", "warn"], none: ["Sin respuesta", "gray"],
   paused: ["Contacto en pausa", "gray"], hidden: ["Oculto", "bad"], test: ["Modo prueba", "gray"] };
 async function tabActivity() {
   $("tabBody").innerHTML = `
@@ -1196,7 +1199,7 @@ async function tabActivity() {
     else if (S.actChannel !== "all") list = list.filter((l) => l.channel === S.actChannel);
     if (!list.length) return ($("actWrap").innerHTML = `<div class="empty">Sin actividad todavía.</div>`);
     $("actWrap").innerHTML = `<table><thead><tr><th>Fecha</th><th>Tienda / cuenta</th><th>Canal</th><th>Publicación</th><th>Recibido</th><th>Respondió</th><th>Tipo</th></tr></thead><tbody>
-      ${list.map((l) => { const k = l.error ? ["Error", "bad"] : KIND[l.kind] || [l.kind, "gray"]; return `<tr>
+      ${list.map((l) => { const warnOnly = l.error && l.level === "warn"; const k = l.error && !warnOnly ? ["Error", "bad"] : KIND[l.kind] || [l.kind, "gray"]; return `<tr>
         <td class="small top">${fmt(l.at)}</td>
         <td class="top"><strong>${esc(brandById(l.brand_id)?.name || "—")}</strong><br><span class="small muted">${esc(accName(l.account_id))}</span></td>
         <td class="top" style="white-space:nowrap">${platPill(l.platform)}<br><span class="pill ${esc(l.channel)}" style="margin-top:4px">${l.channel === "comment" ? "Comentario" : "DM"}</span></td>
@@ -1204,15 +1207,15 @@ async function tabActivity() {
         <td class="top">${l.username ? `<strong>${userLabel(l.platform, l.username, l.from_id)}</strong><br>` : ""}${esc(l.text)}
           ${l.moderation ? `<div style="margin-top:4px"><span class="pill bad">${esc(l.moderation.charAt(0).toUpperCase() + l.moderation.slice(1))}</span></div>` : ""}</td>
         <td class="top">${l.public_reply ? `<div><span class="muted">Pública:</span> ${esc(l.public_reply)}</div>` : ""}${l.reply ? `<div><span class="muted">Privado:</span> ${esc(l.reply)}</div>` : ""}${!l.reply && !l.public_reply ? "—" : ""}
-          ${l.error ? `<div class="small" style="color:var(--bad)">${esc(l.error)}</div>` : ""}</td>
-        <td class="top"><span class="pill ${k[1]}">${esc(k[0])}</span></td></tr>`; }).join("")}
+          ${l.error ? `<div class="small" style="color:${warnOnly ? "var(--warn-ink)" : "var(--bad)"}">${warnOnly ? "Aviso: " : ""}${esc(l.error)}</div>` : ""}</td>
+        <td class="top"><span class="pill ${k[1]}">${esc(k[0])}</span>${warnOnly ? `<br><span class="pill warn" style="margin-top:4px" title="La respuesta sí se envió">Aviso</span>` : ""}</td></tr>`; }).join("")}
       </tbody></table>`;
     bindCopy($("actWrap"));
   } catch (e) { if ($("actWrap")) $("actWrap").innerHTML = `<div class="alert">${esc(e.message)}</div>`; }
 }
 
 /* ================= RESUMEN ================= */
-const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
+const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["fallback", "Respaldo (IA falló)"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
 function ruleLabel(brandId, ruleId) {
   const r = (brandById(brandId)?.rules || []).find((x) => x.id === ruleId);
   if (!r) return "Regla eliminada";
