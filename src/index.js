@@ -1350,9 +1350,13 @@ async function api(req, env, url) {
   }
   if (p === "/api/logout") return json({ ok: true }, 200, { "Set-Cookie": sessionCookie("", 0) });
   if (p === "/api/invite" && m === "GET") {
-    const row = await env.DB.prepare("SELECT name, login, invite_exp FROM users WHERE invite_token = ? AND active = 1").bind(String(url.searchParams.get("token") || "-")).first();
+    const row = await env.DB.prepare("SELECT name, login, invite_exp, role, brands FROM users WHERE invite_token = ? AND active = 1").bind(String(url.searchParams.get("token") || "-")).first();
     if (!row || Date.parse(row.invite_exp) < Date.now()) return json({ error: "La invitación no existe o ya venció. Pide una nueva." }, 404);
-    return json({ name: row.name, login: row.login });
+    const ids = parseJson(row.brands, []).map(String);
+    let stores = [];
+    if (ids.includes("*")) stores = ["*"];
+    else if (ids.length) stores = (await env.DB.prepare(`SELECT name FROM brands WHERE id IN (${ids.map(() => "?").join(",")}) ORDER BY name COLLATE NOCASE`).bind(...ids).all()).results.map((b) => b.name);
+    return json({ name: row.name, login: row.login, role: row.role === "cliente" ? "cliente" : "equipo", stores, expires: row.invite_exp });
   }
   if (p === "/api/invite" && m === "POST") {
     const { token, password } = await body();
