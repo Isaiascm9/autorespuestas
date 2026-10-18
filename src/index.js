@@ -1426,6 +1426,26 @@ async function api(req, env, url) {
     const { results } = await env.DB.prepare("SELECT at, brand_id, action, detail FROM audit WHERE user_id = ? ORDER BY id DESC LIMIT 40").bind(u.id).all();
     return json(results);
   }
+  /* ----- plantillas de prompt (las edita la cuenta maestra; las usan quienes editan prompts) ----- */
+  if (p === "/api/templates" && m === "GET") {
+    if (!can(u, "tienda")) need(u, "prompts");
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'prompt_templates'").first();
+    return json(parseJson(row && row.value, []));
+  }
+  if (p === "/api/templates" && m === "PUT") {
+    need(u, "maestro");
+    const list = (await body()).templates;
+    if (!Array.isArray(list)) return json({ error: "Plantillas inválidas" }, 400);
+    const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+    const clean = list.slice(0, 50).map((t) => ({
+      id: str(t && t.id, 60) || randomToken(6), name: str(t && t.name, 80).trim() || "Sin nombre",
+      general: str(t.general, 30000), knowledge: str(t.knowledge, 60000), comments: str(t.comments, 30000), dm: str(t.dm, 30000),
+      updated_at: str(t.updated_at, 40) || nowIso(),
+    }));
+    await setSetting(env, "prompt_templates", JSON.stringify(clean));
+    await audit(env, u, "Editó las plantillas de prompt", clean.map((t) => t.name).join(", "));
+    return json({ templates: clean });
+  }
   if (p === "/api/me/notify" && m === "PUT") {
     const n = userNotify((await body()).notify || {});
     if (u.role === "maestro") await setSetting(env, "maestro_notify", JSON.stringify(n));
