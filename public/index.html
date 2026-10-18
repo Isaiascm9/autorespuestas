@@ -284,6 +284,11 @@ tr.click:hover td{background:#fafafa}
 .var-btn:disabled{opacity:.5;cursor:default}
 .var-prev{flex-basis:100%;font-size:12.5px;color:var(--muted);background:#f8f9fa;border-radius:8px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
 .var-prev b{color:var(--ink2);font-weight:600}
+.xxx-note{display:flex;gap:8px;align-items:flex-start;margin-top:6px;color:var(--warn-ink);background:var(--warn-soft);border:1px solid var(--warn-line);border-radius:8px;padding:7px 10px;font-size:13px}
+.xxx-note svg{flex:none;margin-top:1px}
+.tpl-pick{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.tpl-pick:last-child{border-bottom:0}
+.tpl-prev{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;margin-top:4px}
 .check{display:flex;gap:8px;align-items:flex-start;font-weight:500;cursor:pointer}
 .check input{width:auto;margin-top:3px}
@@ -586,6 +591,7 @@ table.posts td{vertical-align:middle}
 
 <dialog id="cfgDlg" class="wide"></dialog>
 <dialog id="userDlg" class="wide"></dialog>
+<dialog id="tplDlg" class="wide"></dialog>
 
 <script>
 (() => {
@@ -1101,6 +1107,7 @@ function openConfigure(id, startTab) {
       ${ta("cKb", d.knowledge, "Horarios, precios, direcciones, envíos, pagos, garantía…", 'class="mono big"', roP)}
       <div class="row" style="justify-content:space-between;margin-top:6px"><div class="help" style="margin:0">El bot la usa en comentarios y DMs, y no inventa lo que no esté aquí.</div>
       ${canP ? `<button class="btn small" type="button" id="cKbTpl">Usar plantilla</button>` : ""}</div>
+      ${M ? `<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small" type="button" id="cSaveTpl" title="Guarda el prompt general, la base de conocimiento y los prompts de comentarios y DMs de esta tienda">Guardar esta tienda como plantilla</button></div>` : ""}
       <div class="box"><div class="box-h"><div><strong>La IA puede llamar al cliente por su nombre</strong><p>Usa el primer nombre de su perfil al saludar (si parece un nombre de persona).</p></div>${swHtml("cUseName", o.ai_use_name, !canT)}</div></div>
       <hr>
       <div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}">${keyReady ? "activo (texto)" : "sin clave"}</span></div>
@@ -1227,12 +1234,9 @@ function openConfigure(id, startTab) {
       $("cKeyOut").innerHTML = `<span style="color:var(--ok)">La clave funciona.${r.balance ? " Saldo: " + esc(r.balance) + "." : ""}${r.available === false ? " Sin saldo suficiente." : ""}</span>`; }
     catch (e) { $("cKeyOut").innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
   };
-  const tpl = (btnId, taId, apply, text) => { if (!$(btnId)) return; $(btnId).onclick = () => {
-    const t = $(taId);
-    if (t.value.trim() && !confirm("¿Reemplazar el texto actual por la plantilla?")) return;
-    t.value = text; apply(text); mark();
-  }; };
-  tpl("cGeneralTpl", "cGeneral", (v) => (d.ai_prompt_general = v), GENERAL_TEMPLATE); tpl("cKbTpl", "cKb", (v) => (d.knowledge = v), KB_TEMPLATE);
+  bindTplButton("cGeneralTpl", "cGeneral", "general", (v) => { d.ai_prompt_general = v; mark(); });
+  bindTplButton("cKbTpl", "cKb", "knowledge", (v) => { d.knowledge = v; mark(); });
+  if ($("cSaveTpl")) $("cSaveTpl").onclick = () => saveBrandAsTemplate({ general: d.ai_prompt_general, knowledge: d.knowledge, comments: b.ai_prompt_comments || "", dm: b.ai_prompt || "" });
   const close = () => { if (changed && !confirm("Tienes cambios sin guardar. ¿Descartarlos?")) return; dlg.close(); };
   $("cfgClose").onclick = close; $("cCancel").onclick = close;
   dlg.oncancel = (e) => { e.preventDefault(); close(); };
@@ -1470,7 +1474,8 @@ function tabPrompts() {
     ai_prompt_comments: b.ai_prompt_comments, ai_prompt: b.ai_prompt };
   $("tabBody").innerHTML = `
     <div class="card">
-      <div class="card-h"><div><h2>Prompts por tienda</h2><p>Instrucciones del bot para comentarios y DMs de esta tienda. Vacío = usa el prompt default (breve, con precio real si identifica el producto, sin inventar).</p></div></div>
+      <div class="card-h"><div><h2>Prompts por tienda</h2><p>Instrucciones del bot para comentarios y DMs de esta tienda. Vacío = usa el prompt default (breve, con precio real si identifica el producto, sin inventar).</p></div>
+        ${isMaestro() ? `<button class="btn small" id="prSaveTpl" title="Guarda los prompts y la base de conocimiento de esta tienda como plantilla">Guardar como plantilla</button>` : ""}</div>
       ${storeSelect("prStore", S.selBrand)}
 
       <div class="box"><div class="box-h"><div><strong>Bot AI Redes (IG/FB)</strong><p>Si se apaga, el bot deja de responder comentarios y DMs de esta tienda (sin borrar el mapeo ni los prompts). Es el mismo interruptor que aparece en Tiendas.</p></div>
@@ -1522,8 +1527,9 @@ function tabPrompts() {
   const warn = (ta, box, key) => ($(ta).oninput = (e) => { d[key] = e.target.value; $(box).innerHTML = kbWarning(d[key]); openKb($(box)); changed(); });
   warn("prComments", "prWarnC", "ai_prompt_comments"); warn("prDm", "prWarnD", "ai_prompt");
   openKb($("tabBody"));
-  const tpl = (btn, ta, text) => ($(btn).onclick = () => { if ($(ta).value.trim() && !confirm("¿Reemplazar el prompt por la plantilla?")) return; $(ta).value = text; $(ta).dispatchEvent(new Event("input")); });
-  tpl("prTplC", "prComments", PROMPT_COMMENT_TEMPLATE); tpl("prTplD", "prDm", PROMPT_DM_TEMPLATE);
+  bindTplButton("prTplC", "prComments", "comments", () => {});
+  bindTplButton("prTplD", "prDm", "dm", () => {});
+  if ($("prSaveTpl")) $("prSaveTpl").onclick = () => saveBrandAsTemplate({ general: b.ai_prompt_general || "", knowledge: b.knowledge || "", comments: d.ai_prompt_comments, dm: d.ai_prompt });
 
   const chat = (testChats[b.id] ||= []);
   const draw = () => {
@@ -2800,6 +2806,127 @@ async function loadDevices() {
   } catch (e) { el.textContent = e.message; }
 }
 
+/* ================= PLANTILLAS DE PROMPT (editables) ================= */
+const TPL_PARTS = { general: "Prompt general", knowledge: "Base de conocimiento", comments: "Prompt de comentarios", dm: "Prompt de DMs" };
+const DEFAULT_PTPL = () => ({ id: "basica", name: "Básica", general: GENERAL_TEMPLATE, knowledge: KB_TEMPLATE, comments: PROMPT_COMMENT_TEMPLATE, dm: PROMPT_DM_TEMPLATE, updated_at: "" });
+let PTPL = null;
+async function loadPTPL(force) {
+  if (PTPL && !force) return PTPL;
+  const list = await api("/api/templates");
+  PTPL = list.length ? list : [DEFAULT_PTPL()];
+  return PTPL;
+}
+async function savePTPL(list) { const r = await api("/api/templates", { method: "PUT", body: { templates: list } }); PTPL = r.templates.length ? r.templates : [DEFAULT_PTPL()]; return PTPL; }
+const countXXX = (t) => (String(t || "").match(/XXX/g) || []).length;
+
+/** Aviso debajo de un campo cuando tiene XXX por completar */
+function watchXXX(ta) {
+  if (!ta || ta.dataset.xxxOn) return;
+  ta.dataset.xxxOn = "1";
+  const note = document.createElement("div");
+  note.className = "xxx-note hidden";
+  ta.insertAdjacentElement("afterend", note);
+  const draw = () => { const n = countXXX(ta.value); note.classList.toggle("hidden", !n); note.innerHTML = n ? `${ICON.warn}<span>Falta${n === 1 ? "" : "n"} <strong>${n}</strong> dato${n === 1 ? "" : "s"} por completar: busca <span class="chip">XXX</span> y cámbialo por el dato real.</span>` : ""; };
+  ta.addEventListener("input", draw); draw();
+}
+
+/** Elegir una plantilla para un campo. onPick(texto) */
+async function openTplPicker(part, onPick) {
+  const dlg = $("tplDlg");
+  dlg.innerHTML = `<div class="modal-h"><div><h2>Usar plantilla</h2><p>${esc(TPL_PARTS[part])}: elige con cuál empezar.</p></div><button class="icon-btn" id="tpClose" aria-label="Cerrar">${ICON.x}</button></div><div class="modal-b" id="tpBody"><div class="empty">Cargando…</div></div>
+    <div class="modal-f">${isMaestro() ? `<button class="btn" id="tpEdit">Editar plantillas</button>` : "<span></span>"}<button class="btn" id="tpCancel">Cancelar</button></div>`;
+  $("tpClose").onclick = $("tpCancel").onclick = () => dlg.close();
+  if ($("tpEdit")) $("tpEdit").onclick = () => { dlg.close(); document.querySelectorAll("dialog[open]").forEach((x) => x.close()); go("configuracion"); setTimeout(() => $("ptplCard")?.scrollIntoView({ behavior: "smooth" }), 400); };
+  dlg.showModal();
+  let list;
+  try { list = await loadPTPL(); } catch (e) { $("tpBody").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  const usable = list.filter((t) => String(t[part] || "").trim());
+  $("tpBody").innerHTML = usable.length ? usable.map((t) => `<div class="tpl-pick">
+      <div style="min-width:0;flex:1"><strong>${esc(t.name)}</strong>${countXXX(t[part]) ? ` <span class="pill warn">${countXXX(t[part])} XXX</span>` : ""}
+        <div class="small muted tpl-prev">${esc(String(t[part]).trim().split("\n").slice(0, 3).join(" · ").slice(0, 220))}</div></div>
+      <button class="btn small primary" data-use="${esc(t.id)}">Usar</button></div>`).join("")
+    : `<div class="empty">Ninguna plantilla tiene ${esc(TPL_PARTS[part].toLowerCase())}.${isMaestro() ? " Créala en Configuración → Plantillas de prompt." : ""}</div>`;
+  $("tpBody").querySelectorAll("[data-use]").forEach((b) => (b.onclick = () => {
+    const t = usable.find((x) => x.id === b.dataset.use);
+    dlg.close(); onPick(t[part], t);
+  }));
+}
+/** Conecta un botón «Usar plantilla» con su campo */
+function bindTplButton(btnId, taId, part, apply) {
+  const btn = $(btnId); if (!btn) return;
+  btn.onclick = () => openTplPicker(part, (text, t) => {
+    const ta = $(taId);
+    if (ta.value.trim() && !confirm(`¿Reemplazar el texto actual por la plantilla «${t.name}»?`)) return;
+    ta.value = text; apply(text); ta.dispatchEvent(new Event("input"));
+    const n = countXXX(text);
+    toast(n ? `Plantilla aplicada. Completa ${n === 1 ? "el XXX" : `los ${n} XXX`} con los datos de la tienda.` : "Plantilla aplicada", 5000);
+  });
+  watchXXX($(taId));
+}
+
+/** Guarda los prompts de una tienda como plantilla nueva */
+async function saveBrandAsTemplate(parts) {
+  const name = prompt("Nombre de la plantilla (ej: Tienda de ropa, Belleza, Restaurante):", "");
+  if (!name || !name.trim()) return;
+  try {
+    const list = (await loadPTPL(true)).slice();
+    list.push({ id: uid().slice(0, 12), name: name.trim(), ...parts, updated_at: new Date().toISOString() });
+    await savePTPL(list);
+    toast(`Plantilla «${name.trim()}» guardada. Puedes cambiar los datos propios por XXX en Configuración → Plantillas de prompt.`, 7000);
+  } catch (e) { toast(e.message, 6000); }
+}
+
+/** Tarjeta en Configuración para administrar las plantillas */
+async function drawPTPLCard() {
+  const box = $("ptplList"); if (!box) return;
+  let list;
+  try { list = await loadPTPL(true); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  box.innerHTML = list.map((t) => {
+    const parts = Object.entries(TPL_PARTS).filter(([k]) => String(t[k] || "").trim()).map(([, l]) => l);
+    const x = Object.keys(TPL_PARTS).reduce((n, k) => n + countXXX(t[k]), 0);
+    return `<div class="list-row"><span style="min-width:0"><strong>${esc(t.name)}</strong>${x ? ` <span class="pill warn">${x} XXX</span>` : ""}<br><span class="small muted">${parts.length ? esc(parts.join(" · ")) : "Vacía"}${t.updated_at ? " · editada " + esc(agoText(t.updated_at)) : ""}</span></span>
+      <span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn small" data-ed="${esc(t.id)}">Editar</button><button class="btn small" data-dup="${esc(t.id)}">Duplicar</button><button class="icon-btn danger" data-del="${esc(t.id)}" aria-label="Eliminar">${ICON.trash}</button></span></div>`;
+  }).join("");
+  box.querySelectorAll("[data-ed]").forEach((b) => (b.onclick = () => openTplEditor(list.find((t) => t.id === b.dataset.ed))));
+  box.querySelectorAll("[data-dup]").forEach((b) => (b.onclick = async () => {
+    const t = list.find((x) => x.id === b.dataset.dup);
+    try { await savePTPL([...list, { ...t, id: uid().slice(0, 12), name: t.name + " (copia)", updated_at: new Date().toISOString() }]); drawPTPLCard(); toast("Plantilla duplicada"); } catch (e) { toast(e.message); }
+  }));
+  box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
+    const t = list.find((x) => x.id === b.dataset.del);
+    if (!confirm(`¿Eliminar la plantilla «${t.name}»? Las tiendas que ya la usaron no cambian.`)) return;
+    try { await savePTPL(list.filter((x) => x.id !== t.id)); drawPTPLCard(); toast("Plantilla eliminada"); } catch (e) { toast(e.message); }
+  }));
+}
+function openTplEditor(t) {
+  const isNew = !t;
+  const d = t ? { ...t } : { id: uid().slice(0, 12), name: "", general: "", knowledge: "", comments: "", dm: "" };
+  const dlg = $("tplDlg");
+  dlg.innerHTML = `<div class="modal-h"><div><h2>${isNew ? "Nueva plantilla" : "Editar plantilla"}</h2><p>Escribe <span class="chip">XXX</span> donde va un dato que cambia en cada negocio (nombre, precios, link de pago…).</p></div><button class="icon-btn" id="teClose" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <label class="f" for="teName">Nombre de la plantilla</label><input id="teName" value="${esc(d.name)}" placeholder="Ej: Tienda de ropa">
+      ${Object.entries(TPL_PARTS).map(([k, l]) => `<label class="f" for="te_${k}">${l}</label><textarea id="te_${k}" class="${k === "knowledge" ? "mono " : ""}big" placeholder="Vacío = esta plantilla no trae ${esc(l.toLowerCase())}">${esc(d[k] || "")}</textarea>`).join("")}
+    </div>
+    <div class="modal-f"><span></span><div class="row"><button class="btn" id="teCancel">Cancelar</button><button class="btn primary" id="teSave">Guardar plantilla</button></div></div>`;
+  Object.keys(TPL_PARTS).forEach((k) => watchXXX($("te_" + k)));
+  let changed = false;
+  dlg.querySelectorAll("input,textarea").forEach((el) => el.addEventListener("input", () => (changed = true)));
+  const close = () => { if (changed && !confirm("Tienes cambios sin guardar. ¿Descartarlos?")) return; dlg.close(); };
+  $("teClose").onclick = $("teCancel").onclick = close;
+  dlg.oncancel = (e) => { e.preventDefault(); close(); };
+  $("teSave").onclick = async () => {
+    const t2 = { ...d, name: $("teName").value.trim(), ...Object.fromEntries(Object.keys(TPL_PARTS).map((k) => [k, $("te_" + k).value])), updated_at: new Date().toISOString() };
+    if (!t2.name) return toast("Escribe el nombre de la plantilla");
+    if (!Object.keys(TPL_PARTS).some((k) => t2[k].trim())) return toast("La plantilla está vacía");
+    try {
+      const list = (await loadPTPL(true)).slice(), i = list.findIndex((x) => x.id === t2.id);
+      if (i >= 0) list[i] = t2; else list.push(t2);
+      await savePTPL(list); changed = false; dlg.close(); drawPTPLCard(); toast("Plantilla guardada");
+    } catch (e) { toast(e.message, 6000); }
+  };
+  dlg.showModal();
+}
+
 /* ================= CONFIGURACIÓN ================= */
 async function renderConfig() {
   const M = isMaestro();
@@ -2844,8 +2971,16 @@ async function renderConfig() {
       <div class="small" id="dsOut" style="margin-top:10px">${c.deepseek.source === "secreto" ? '<span class="muted">Se está usando una clave guardada en Cloudflare. Si pegas una aquí, se usa esta.</span>' : ""}</div>
     </div>` : ""}
 
+    <div class="card" id="ptplCard">
+      <div class="card-h"><div><h2>4 · Plantillas de prompt</h2><p>Puntos de partida para configurar tiendas nuevas: prompt general, base de conocimiento y prompts de comentarios y DMs. Se usan con el botón «Usar plantilla». Escribe XXX donde va un dato de cada negocio.</p></div>
+        <button class="btn small primary" id="ptplNew">${ICON.plus} Nueva plantilla</button></div>
+      <div id="ptplList" style="margin-top:8px"><div class="empty">Cargando…</div></div>
+      <div class="help">También puedes guardar una tienda que ya funciona bien como plantilla: Tiendas → Configurar → IA → «Guardar esta tienda como plantilla».</div>
+    </div>
     <div class="info">Tus notificaciones, tu contraseña y tus datos ahora están en <a href="#perfil">Mi perfil</a> (toca tu nombre arriba a la derecha).</div>`;
   bindCopy($("cfgBody"));
+  $("ptplNew").onclick = () => openTplEditor(null);
+  drawPTPLCard();
   const ok = (el, t) => ($(el).innerHTML = `<span style="color:var(--ok)">${t}</span>`);
   const bad = (el, t) => ($(el).innerHTML = `<span style="color:var(--bad)">${esc(t)}</span>`);
   const refreshSession = async () => { S.session = await api("/api/session"); renderNav(); };
