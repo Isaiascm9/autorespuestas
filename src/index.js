@@ -124,6 +124,11 @@ function ensureSchema(env) {
         env.DB.prepare("CREATE INDEX IF NOT EXISTS messages_mid ON messages (mid)"),
         env.DB.prepare("CREATE INDEX IF NOT EXISTS contacts_paused ON contacts (paused, brand_id)"),
       ]);
+      // Chats y registros viejos sin tienda: se les asigna la tienda de su cuenta
+      await env.DB.batch([
+        env.DB.prepare("UPDATE contacts SET brand_id = (SELECT a.brand_id FROM accounts a WHERE a.id = contacts.account_id) WHERE brand_id IS NULL AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = contacts.account_id AND a.brand_id IS NOT NULL)"),
+        env.DB.prepare("UPDATE logs SET brand_id = (SELECT a.brand_id FROM accounts a WHERE a.id = logs.account_id) WHERE brand_id IS NULL AND account_id IS NOT NULL AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = logs.account_id AND a.brand_id IS NOT NULL)"),
+      ]);
       // Valores que se generan solos la primera vez
       await env.DB.batch([
         env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('verify_token', ?)").bind(randomToken(16)),
