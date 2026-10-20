@@ -502,6 +502,9 @@ function cleanOpts(o = {}) {
     ignore_users: str(o.ignore_users, 5000),
     pause_on_human: bool(o.pause_on_human),
     ai_use_name: bool(o.ai_use_name),
+    link_buttons: (Array.isArray(o.link_buttons) ? o.link_buttons : []).slice(0, 10)
+      .map((x) => ({ title: str(x && x.title, 20).trim(), url: str(x && x.url, 1000).trim(), when: str(x && x.when, 400).trim() }))
+      .filter((x) => x.title && /^https?:\/\/\S+\.\S+/i.test(x.url)),
     templates: (Array.isArray(o.templates) ? o.templates : []).slice(0, 60)
       .map((t) => ({ id: str(t && t.id, 60) || crypto.randomUUID(), title: str(t && t.title, 80).trim(), text: str(t && t.text, 1000) }))
       .filter((t) => t.title || t.text),
@@ -715,6 +718,59 @@ async function sendRuleDM(env, acc, to, text, rule, source) {
   await setContact(env, acc.id, to, { last_bot_at: nowIso() });
   return warns;
 }
+/* ---------- enlaces de la IA como botón (ej. link de pago) ---------- */
+const normUrl = (u) => String(u || "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[\/?#]+$/, "").toLowerCase();
+/**
+ * Si la respuesta de la IA trae alguno de los enlaces configurados en la tienda, lo saca del texto
+ * y lo devuelve como botón. Devuelve null si no trae ninguno.
+ */
+function extractLinkButtons(text, list) {
+  if (!list || !list.length || !text) return null;
+  const wanted = list.map((b) => ({ ...b, n: normUrl(b.url) })).filter((b) => b.n);
+  const found = [];
+  let out = String(text);
+  // [texto](url) de markdown y enlaces sueltos
+  out = out.replace(/\[([^\]]{0,80})\]\((https?:\/\/[^\s)]+)\)|(?:https?:\/\/|www\.)[^\s<>()"']+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\/[^\s<>()"']*/gi, (m, _t, mdUrl) => {
+    const raw = (mdUrl || m).replace(/[.,;:!?)\]]+$/, "");
+    const tail = (mdUrl ? "" : m.slice(raw.length));
+    const n = normUrl(raw);
+    const hit = wanted.find((b) => n === b.n || n.startsWith(b.n + "/") || n.startsWith(b.n + "?"));
+    if (!hit) return m;
+    if (!found.some((f) => f.title === hit.title)) found.push({ type: "url", title: hit.title, url: raw.startsWith("http") ? raw : "https://" + raw });
+    return mdUrl ? `${_t.trim()} 👇` : "\u0000" + tail;
+  });
+  out = out.replace(/^[ \t]*\u0000[ \t]*\n?/gm, "").replace(/\u0000/g, "").replace(/👇[ \t]*[.,;:]/g, "👇");
+  if (!found.length) return null;
+  out = out.replace(/[ \t]*(?:aquí|aqui|en este (?:link|enlace)|este (?:link|enlace)|el (?:link|enlace)|link|enlace)?[ \t]*:[ \t]*$/gim, (m) => (/:\s*$/.test(m) ? m.replace(/:\s*$/, "").trimEnd() + " 👇" : m))
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!out) out = "Toca el botón para continuar 👇";
+  return { text: out, buttons: found.slice(0, 3) };
+}
+/** Envía la respuesta de la IA con los enlaces como botones. Si Meta rechaza la plantilla, manda el texto original con el enlace. */
+async function sendWithLinkButtons(env, acc, to, original, lb, source) {
+  const P = PLATFORM[acc.platform];
+  const btns = lb.buttons.map((b) => ({ type: "web_url", url: b.url, title: b.title }));
+  const tpl = (t) => ({ attachment: { type: "template", payload: { template_type: "button", text: t, buttons: btns } } });
+  let r;
+  try {
+    if (enc.encode(lb.text).length <= BTN_TEXT_MAX) r = await P.sendRaw(env, acc, { id: to }, tpl(lb.text));
+    else {
+      // Texto largo: primero el texto y luego el botón con una línea corta
+      const first = await P.sendDM(env, acc, to, lb.text);
+      await saveMessage(env, acc.id, to, "assistant", lb.text, { source, mid: first && first.message_id });
+      r = await P.sendRaw(env, acc, { id: to }, tpl("Toca aquí 👇"));
+      await saveMessage(env, acc.id, to, "assistant", `[Botón: ${lb.buttons.map((b) => b.title).join(" · ")}]`, { source, mid: r && r.message_id });
+      await setContact(env, acc.id, to, { last_bot_at: nowIso() });
+      return [];
+    }
+  } catch (e) {
+    await sendAndSave(env, acc, to, original, source);
+    return ["Botón de enlace: " + errText(e)];
+  }
+  await saveMessage(env, acc.id, to, "assistant", lb.text + `\n[Botón: ${lb.buttons.map((b) => b.title).join(" · ")}]`, { source, mid: r && r.message_id });
+  await setContact(env, acc.id, to, { last_bot_at: nowIso() });
+  return [];
+}
 /** Respuesta privada a un comentario: Meta deja una sola, así que va el texto con sus botones. */
 async function privateRuleReply(env, acc, commentId, text, rule) {
   const P = PLATFORM[acc.platform];
@@ -880,6 +936,7 @@ async function handleDM(env, acc, ev, cfg) {
             : "No sabes qué mostraba la historia. Si hace falta, pregúntale con amabilidad a qué producto se refiere."));
         }
         if (adTitle && (!contact || adRef)) extra.push(`=== ANUNCIO ===\nEl cliente llegó desde el anuncio: "${adTitle}". Si pregunta "info" o "precio" sin decir el producto, asume que es el del anuncio.`);
+        if ((o.link_buttons || []).length) extra.push("=== ENLACES CON BOTÓN ===\nEstos enlaces le llegan al cliente como un botón. Envía uno SOLO cuando tus instrucciones lo indiquen o el cliente lo pida o confirme que quiere avanzar (por ejemplo, que ya quiere pagar). Si solo pregunta, responde sin enviarlo. Si un enlace dice cuándo usarlo, síguelo y elige el que corresponda (por ejemplo, según el monto); no envíes varios a la vez si no hace falta. Cuando lo envíes, escribe la dirección completa tal cual, en una línea aparte, sin decir \"botón\":\n" + o.link_buttons.map((x) => `- ${x.title}: ${x.url}${x.when ? `\n  Cuándo usarlo: ${x.when}` : ""}`).join("\n"));
         if (o.ai_use_name && who.name) extra.push(`=== CLIENTE ===\nSe llama ${who.name}. Puedes usar su nombre al saludar; no lo repitas en cada mensaje.`);
         if (off) extra.push("=== HORARIO ===\nAhora la tienda está fuera de su horario de atención. Puedes seguir ayudando, pero si pasas a una persona, avisa que se le responde en horario de atención.");
         try {
@@ -904,7 +961,9 @@ async function handleDM(env, acc, ev, cfg) {
   let sent = false;
   if (reply) {
     try {
+      const lb = !richRule && kind === "ai" ? extractLinkButtons(reply, (brand.opts || {}).link_buttons) : null;
       if (richRule) errors.push(...(await sendRuleDM(env, acc, from, reply, richRule, "regla")));
+      else if (lb) errors.push(...(await sendWithLinkButtons(env, acc, from, reply, lb, "ia")));
       else await sendAndSave(env, acc, from, reply, kind === "ai" ? "ia" : kind);
       sent = true;
     } catch (e) { errors.push("Envío: " + errText(e)); }
