@@ -979,10 +979,15 @@ $("saveBtn").onclick = async () => { if (saveFn) { $("saveBtn").disabled = true;
 $("discardBtn").onclick = () => { setDirty(false); if (discardFn) discardFn(); else render(); };
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
+// Tienda por defecto: la primera que tenga cuentas conectadas (no una vacía de prueba)
+function defaultBrand() {
+  const withAcc = S.brands.find((b) => (S.accounts || []).some((a) => a.brand_id === b.id));
+  return (withAcc || S.brands[0] || {}).id || null;
+}
 async function loadData() {
   [S.brands, S.accounts] = await Promise.all([api("/api/brands"), api("/api/accounts")]);
   if (!S.selBrand) { try { S.selBrand = localStorage.getItem("ar_store"); } catch {} }
-  if (!S.selBrand || !brandById(S.selBrand)) S.selBrand = S.brands[0]?.id || null;
+  if (!S.selBrand || !brandById(S.selBrand)) S.selBrand = defaultBrand();
   S.actBrand = S.dashBrand = S.selBrand || "";
   if (S.actBrand && !brandById(S.actBrand)) S.actBrand = "";
   if (S.dashBrand && !brandById(S.dashBrand)) S.dashBrand = "";
@@ -1261,7 +1266,7 @@ const firstOk = (tabs, want) => { const ok = tabs.filter((t) => !t[2] || t[2]())
 function render() {
   const [view, rest] = parseRoute(S.route);
   S.view = view;
-  if (S.brands.length && !brandById(S.selBrand)) S.selBrand = S.brands[0].id;
+  if (S.brands.length && !brandById(S.selBrand)) S.selBrand = defaultBrand();
   renderNav();
   $("crumb").textContent = VIEWS[view];
   $("main").innerHTML = "";
