@@ -438,6 +438,9 @@ table.posts td{vertical-align:middle}
 .store-sw.static{cursor:default;border-color:transparent}
 .sw-pop{position:absolute;top:calc(100% + 8px);right:0;width:min(330px,calc(100vw - 24px));background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(17,24,39,.18);z-index:60;padding:8px;max-height:70vh;overflow:auto}
 @media (max-width:760px){.sw-pop{position:fixed;top:60px;left:12px;right:12px;width:auto}}
+.lb-row{display:grid;grid-template-columns:minmax(140px,200px) 1fr auto;gap:8px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.lb-row textarea{grid-column:1/3;grid-row:2}.lb-row .icon-btn{grid-column:3;grid-row:1/3}
+@media (max-width:640px){.lb-row{grid-template-columns:1fr auto}.lb-row input[data-k=url]{grid-column:1;grid-row:2}.lb-row textarea{grid-column:1;grid-row:3}.lb-row .icon-btn{grid-column:2;grid-row:1/4}}
 .sw-pop .gl{padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af}
 .sw-pop .s-it{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;width:100%;border:0;background:none;text-align:left;cursor:pointer}
 .sw-pop .s-it:hover{background:#f3f4f6}
@@ -1490,6 +1493,13 @@ function renderStoreCfg(sections) {
         <div class="row" style="margin-top:10px"><span class="help" style="margin:0">Reanudar después de</span><input id="fResumeH" type="number" min="1" max="720" value="${o.auto_resume_hours || 12}" style="width:90px" ${roT}><span class="help" style="margin:0">horas</span></div>`, !canT)}
       ${feature("fHuman", o.pause_on_human, "Pausar el bot cuando respondes tú", "Si le escribes a un cliente desde la app de Instagram o Facebook, el bot deja de responderle para no interrumpirte.", "", !canT)}
       <div class="info">El mensaje que recibe el cliente al pasar a una persona, y uno distinto según el motivo (pago, reclamo…), se escriben en <a href="#configuracion/mensajes">Configuración → Mensajes</a>.</div>`,
+    links: `
+      <h2 style="font-size:16px;margin:0 0 4px">Enlaces como botón</h2>
+      <p class="muted small" style="margin:0 0 12px">Cuando el vendedor mande uno de estos enlaces (por ejemplo, tu link de pago de Spidi), al cliente le llega como un botón en vez de un link pegado en el texto. Puedes tener hasta 10 (por ejemplo, uno por monto) y decirle a la IA cuándo usar cada uno.</p>
+      <div id="lbList"></div>
+      ${canT ? `<button class="btn small" type="button" id="lbAdd">${ICON.plus} Agregar enlace</button>` : ""}
+      <div class="info" style="margin-top:14px"><b>¿Cuándo lo manda?</b> Lo decide la IA según la conversación: si el cliente solo pregunta («¿aceptan pago móvil?») responde sin el link; si confirma que quiere comprar, lo manda. Para afinarlo, escríbelo en <a href="#asistentes/vendedor/instrucciones">Instrucciones</a>, por ejemplo: <i>«Envía el link de pago solo cuando el cliente confirme producto, talla y que quiere pagar.»</i></div>
+      <div style="margin-top:14px;max-width:320px"><div class="muted small" style="margin-bottom:6px">Así lo ve el cliente</div><div id="lbPrev"></div></div>`,
     follow: `
       ${feature("fFollow", o.follow_up.enabled, "Seguimiento automático", "Si el cliente deja de responder, le escribe una vez para retomar (dentro de las 24 h que permite Meta).", `
         <div class="row" style="margin-top:10px"><span class="help" style="margin:0">Escribirle si no responde en</span><input id="fFollowH" type="number" min="1" max="22" value="${o.follow_up.hours}" style="width:80px" ${roT}><span class="help" style="margin:0">horas</span></div>
@@ -1519,7 +1529,7 @@ function renderStoreCfg(sections) {
       ${Object.entries(NOTIFY_LABELS).map(([k, [l, h]]) => `<div class="box"><div class="box-h"><div><strong>${l}</strong>${h ? `<p>${h}</p>` : ""}</div>${swHtml("n_" + k, o.notify[k], !canT)}</div></div>`).join("")}`,
   };
 
-  const TITLES = { general: "General", ia: "IA y conocimiento", mensajes: "Mensajes", respuestas: "Respuestas guardadas", avisos: "Avisos", stories: "", hours: "", human: "", follow: "" };
+  const TITLES = { general: "General", ia: "IA y conocimiento", mensajes: "Mensajes", respuestas: "Respuestas guardadas", avisos: "Avisos", stories: "", hours: "", human: "", follow: "", links: "" };
   dlg.innerHTML = sections.map((k) => `<div class="card">${TITLES[k] ? `<h2 style="font-size:16px;margin:0 0 4px">${TITLES[k]}</h2>` : ""}${panes[k]}</div>`).join("")
     + (M && sections.includes("general") ? `<div class="card" style="border-color:#fecaca"><div class="card-h"><div><h2 style="color:var(--bad)">Eliminar tienda</h2><p>Se borran sus prompts, reglas, catálogo y actividad. Sus cuentas quedan sin asignar.</p></div><button class="btn danger" type="button" id="cDelete">${ICON.trash} Eliminar</button></div></div>` : "");
   const q = (s) => dlg.querySelector(s);
@@ -1532,6 +1542,28 @@ function renderStoreCfg(sections) {
   val("cDefault", (v) => (d.default_reply = v)); val("cCool", (v) => (d.cooldown_hours = v)); val("cTestUsers", (v) => (d.test_users = v)); val("cFallback", (v) => (d.ai_fallback = v));
   chk("cActive", (v) => (d.active = v)); chk("cTest", (v) => (d.test_mode = v)); chk("cUseName", (v) => (o.ai_use_name = v));
   on("cModel", "onchange", (t) => (d.ai_model = t.value));
+  // enlaces como botón
+  if ($("lbList")) {
+    o.link_buttons ||= [];
+    const drawLb = () => {
+      $("lbList").innerHTML = o.link_buttons.length ? o.link_buttons.map((x, i) => `<div class="lb-row" data-lb="${i}">
+        <input data-k="title" maxlength="20" value="${esc(x.title)}" placeholder="Texto del botón (ej: Pagar con Spidi)" ${roT}>
+        <input data-k="url" value="${esc(x.url)}" placeholder="https://… tu link de pago" ${roT}>
+        <textarea data-k="when" ${roT} placeholder="Cuándo enviarlo (opcional). Ej: cuando el total del pedido sea 8 $" style="min-height:44px">${esc(x.when || "")}</textarea>
+        ${canT ? `<button class="icon-btn danger" type="button" data-lbdel="${i}" aria-label="Quitar">${ICON.trash}</button>` : ""}</div>`).join("")
+        : `<div class="muted small" style="margin-bottom:10px">Aún no hay enlaces.</div>`;
+      $("lbList").querySelectorAll("[data-lb] input, [data-lb] textarea").forEach((inp) => (inp.oninput = () => { o.link_buttons[+inp.closest("[data-lb]").dataset.lb][inp.dataset.k] = inp.value; prevLb(); mark(); }));
+      $("lbList").querySelectorAll("[data-lbdel]").forEach((bt) => (bt.onclick = () => { o.link_buttons.splice(+bt.dataset.lbdel, 1); drawLb(); mark(); }));
+      if ($("lbAdd")) $("lbAdd").disabled = o.link_buttons.length >= 10;
+      prevLb();
+    };
+    const prevLb = () => {
+      const l = o.link_buttons.filter((x) => x.title).slice(0, 1);
+      $("lbPrev").innerHTML = `<div style="background:#efefef;border-radius:16px;overflow:hidden;font-size:14px"><div style="padding:10px 12px">¡Perfecto! Puedes pagar de forma segura aquí 👇</div>${(l.length ? l : [{ title: "Pagar" }]).map((x) => `<div style="border-top:1px solid #ddd;padding:9px;text-align:center;color:#0a66c2;font-weight:600">${esc(x.title)}</div>`).join("")}</div>`;
+    };
+    if ($("lbAdd")) $("lbAdd").onclick = () => { if (o.link_buttons.length < 10) { o.link_buttons.push({ title: o.link_buttons.length ? "" : "Pagar", url: "", when: "" }); drawLb(); mark(); } };
+    drawLb();
+  }
   // funciones
   const featureSw = (elId, fn) => chk(elId, (v) => { fn(v); $(elId).closest(".feature").classList.toggle("on", v); });
   featureSw("fStories", (v) => (o.stories.enabled = v)); featureSw("fHours", (v) => (o.hours.enabled = v)); featureSw("fHuman", (v) => (o.pause_on_human = v)); featureSw("fFollow", (v) => (o.follow_up.enabled = v));
@@ -3597,7 +3629,7 @@ async function toggleAssistant(b, x, v, sw) {
   catch (e) { sw.checked = !v; sw.disabled = false; toast(e.message, 6000); }
 }
 const ASSIST_TABS = {
-  vendedor: [["instrucciones", "Instrucciones y prueba", () => can("prompts")], ["persona", "Pasar a una persona", () => can("tienda")]],
+  vendedor: [["instrucciones", "Instrucciones y prueba", () => can("prompts")], ["enlaces", "Botón de pago", () => can("tienda")], ["persona", "Pasar a una persona", () => can("tienda")]],
   comentarios: [["instrucciones", "Instrucciones y prueba", () => can("prompts")]],
   historias: [["ajustes", "Ajustes", () => can("tienda")], ["contexto", "Historias activas", () => can("catalogo")]],
   seguimiento: [["ajustes", "Ajustes", () => can("tienda")]],
@@ -3631,6 +3663,7 @@ function renderAssistants(key, sub) {
   if (!t) return ($("tabBody").innerHTML = `<div class="card empty">Tu usuario no tiene permiso para cambiar este asistente.</div>`);
   if (x.k === "vendedor" && t === "instrucciones") { S.promptOnly = "dm"; tabPrompts(); }
   else if (x.k === "comentarios") { S.promptOnly = "comment"; tabPrompts(); }
+  else if (x.k === "vendedor" && t === "enlaces") renderStoreCfg(["links"]);
   else if (x.k === "vendedor") renderStoreCfg(["human"]);
   else if (x.k === "historias" && t === "contexto") tabStories();
   else if (x.k === "historias") renderStoreCfg(["stories"]);
