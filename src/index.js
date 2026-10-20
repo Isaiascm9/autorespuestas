@@ -77,6 +77,15 @@ const SCHEMA = [
     account_id TEXT NOT NULL, date TEXT NOT NULL, followers INTEGER, follows INTEGER, media_count INTEGER,
     PRIMARY KEY (account_id, date))`,
   `CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, name TEXT NOT NULL, business TEXT, instagram TEXT,
+    whatsapp TEXT, rubro TEXT, plan TEXT, ip TEXT, status TEXT NOT NULL DEFAULT 'nuevo', note TEXT)`,
+  `CREATE INDEX IF NOT EXISTS leads_at ON leads (id DESC)`,
+  `CREATE TABLE IF NOT EXISTS usage (brand_id TEXT NOT NULL, month TEXT NOT NULL, replies INTEGER NOT NULL DEFAULT 0, ai_calls INTEGER NOT NULL DEFAULT 0,
+    tokens_in INTEGER NOT NULL DEFAULT 0, tokens_out INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (brand_id, month))`,
+  `CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, brand_id TEXT NOT NULL, at TEXT NOT NULL, amount REAL NOT NULL,
+    method TEXT, months INTEGER NOT NULL DEFAULT 1, note TEXT, by TEXT)`,
+  `CREATE INDEX IF NOT EXISTS payments_brand ON payments (brand_id, id DESC)`,
 ];
 
 // Columnas que pueden faltar si la base se creó con una versión anterior
@@ -87,12 +96,13 @@ const COLUMNS = {
     knowledge: "TEXT NOT NULL DEFAULT ''", ai_handoff: "TEXT NOT NULL DEFAULT ''", ai_model: "TEXT NOT NULL DEFAULT 'deepseek-flash'",
     ai_api_key: "TEXT NOT NULL DEFAULT ''", moderation: "TEXT NOT NULL DEFAULT 'off'",
     test_mode: "INTEGER NOT NULL DEFAULT 0", test_users: "TEXT NOT NULL DEFAULT ''", ai_fallback: "TEXT NOT NULL DEFAULT ''",
-    opts: "TEXT NOT NULL DEFAULT '{}'",
+    opts: "TEXT NOT NULL DEFAULT '{}'", billing: "TEXT NOT NULL DEFAULT '{}'", ads: "TEXT NOT NULL DEFAULT '{}'",
   },
   logs: { account_id: "TEXT", platform: "TEXT", media_id: "TEXT", comment_id: "TEXT", moderation: "TEXT", level: "TEXT" },
   contacts: {
     brand_id: "TEXT", platform: "TEXT", paused_at: "TEXT", pause_reason: "TEXT", name: "TEXT", name_checked: "INTEGER NOT NULL DEFAULT 0",
     last_dm_at: "TEXT", last_bot_at: "TEXT", followup_at: "TEXT", off_hours_at: "TEXT",
+    closed_at: "TEXT", assigned_to: "TEXT", ad_id: "TEXT", ad_title: "TEXT", unread: "INTEGER NOT NULL DEFAULT 0", tags: "TEXT NOT NULL DEFAULT '[]'", notes: "TEXT NOT NULL DEFAULT '[]'",
   },
   messages: { source: "TEXT", mid: "TEXT", user_name: "TEXT" },
   push_subs: { user_id: "TEXT" },
@@ -240,10 +250,12 @@ async function setSetting(env, key, value) {
 const PLATFORM = {
   instagram: {
     sendDM: (env, acc, to, text) => ig(env, acc.token, "/me/messages", { recipient: { id: to }, message: { text } }),
+    sendRaw: (env, acc, recipient, message) => ig(env, acc.token, "/me/messages", { recipient, message }),
+    mediaImage: async (env, acc, id) => { const d = await ig(env, acc.token, `/${id}?fields=media_url,thumbnail_url,media_type`); return d.thumbnail_url || d.media_url || null; },
     privateReply: (env, acc, commentId, text) => ig(env, acc.token, "/me/messages", { recipient: { comment_id: commentId }, message: { text } }),
     publicReply: (env, acc, commentId, text) => ig(env, acc.token, `/${commentId}/replies`, { message: text }),
     hide: (env, acc, commentId) => ig(env, acc.token, `/${commentId}?hide=true`, null, "POST"),
-    subscribe: (env, acc) => ig(env, acc.token, "/me/subscribed_apps?subscribed_fields=messages,comments", null, "POST"),
+    subscribe: (env, acc) => ig(env, acc.token, "/me/subscribed_apps?subscribed_fields=messages,messaging_postbacks,comments", null, "POST"),
     profile: async (env, acc, userId) => { const d = await ig(env, acc.token, `/${userId}?fields=username,name`); return { username: d.username || null, name: d.name || null }; },
     async media(env, acc) {
       const d = await ig(env, acc.token, "/me/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url&limit=50");
@@ -255,10 +267,12 @@ const PLATFORM = {
   },
   facebook: {
     sendDM: (env, acc, to, text) => fb(env, acc.token, "/me/messages", { recipient: { id: to }, messaging_type: "RESPONSE", message: { text } }),
+    sendRaw: (env, acc, recipient, message) => fb(env, acc.token, "/me/messages", { recipient, messaging_type: "RESPONSE", message }),
+    mediaImage: async (env, acc, id) => { const d = await fb(env, acc.token, `/${id}?fields=full_picture`); return d.full_picture || null; },
     privateReply: (env, acc, commentId, text) => fb(env, acc.token, "/me/messages", { recipient: { comment_id: commentId }, message: { text } }),
     publicReply: (env, acc, commentId, text) => fb(env, acc.token, `/${commentId}/comments`, { message: text }),
     hide: (env, acc, commentId) => fb(env, acc.token, `/${commentId}?is_hidden=true`, null, "POST"),
-    subscribe: (env, acc) => fb(env, acc.token, `/${acc.id}/subscribed_apps?subscribed_fields=messages,feed`, null, "POST"),
+    subscribe: (env, acc) => fb(env, acc.token, `/${acc.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,feed`, null, "POST"),
     profile: async (env, acc, userId) => { const d = await fb(env, acc.token, `/${userId}?fields=first_name,name`); return { username: d.name || null, name: d.first_name || d.name || null }; },
     async media(env, acc) {
       const d = await fb(env, acc.token, "/me/posts?fields=id,message,created_time,permalink_url,full_picture&limit=50");
@@ -270,24 +284,41 @@ const PLATFORM = {
 };
 
 /* ================= Páginas legales (Meta las pide para publicar la app) ================= */
-function legalPage(url) {
-  const del = url.pathname === "/eliminar-datos";
-  const body = del
-    ? `<h1>Eliminación de datos</h1>
-<p>Para eliminar los datos de tus conversaciones con nuestras cuentas, escríbenos por mensaje directo en Instagram o Facebook pidiendo «eliminar mis datos». Borraremos tus mensajes y tu registro de contacto en un plazo máximo de 30 días.</p>
-<p>También puedes quitar el acceso de esta app desde la configuración de tu cuenta de Instagram o Facebook, en «Apps y sitios web».</p>`
+async function legalPage(url, env) {
+  let site = {};
+  try { const r = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first(); site = parseJson(r && r.value, {}); } catch {}
+  const brand = escHtml(site.brand || "Autorespuestas"), wa = String(site.whatsapp || "").replace(/[^\d+]/g, "");
+  const contact = wa ? `por WhatsApp al <a href="https://wa.me/${wa.replace(/\D/g, "")}">${wa}</a>` : "por mensaje directo en nuestras cuentas";
+  const kind = url.pathname === "/eliminar-datos" ? "del" : url.pathname === "/terminos" ? "terms" : "priv";
+  const T = { del: "Eliminación de datos", terms: "Términos del servicio", priv: "Política de privacidad" }[kind];
+  const body = kind === "del" ? `<h1>Eliminación de datos</h1>
+<h2>Si escribiste a una tienda que usa ${brand}</h2>
+<p>Escríbele a esa tienda por mensaje directo pidiendo «eliminar mis datos». La tienda puede borrar tu conversación y tu registro de contacto desde su panel al momento. También puedes pedirlo directamente a ${brand} ${contact}. Lo hacemos en un plazo máximo de 30 días.</p>
+<p>Además, puedes quitar el acceso de esta app desde tu cuenta de Instagram o Facebook, en «Apps y sitios web».</p>
+<h2>Si eres cliente de ${brand}</h2>
+<p>Pídenos ${contact} que eliminemos tu tienda. Borramos su configuración, conversaciones, contactos y registros en un plazo máximo de 30 días.</p>`
+    : kind === "terms" ? `<h1>Términos del servicio</h1>
+<p>${brand} es un servicio que responde automáticamente mensajes directos, comentarios e historias en Instagram y Facebook, usando la conexión oficial de Meta y un servicio de inteligencia artificial.</p>
+<h2>El servicio</h2><p>El asistente responde con la información que la tienda escribe en su panel. La tienda es responsable de que esa información (precios, existencias, condiciones) sea correcta y de las ventas que realiza. Las respuestas automáticas pueden tener errores; por eso el asistente pasa a una persona los casos que no puede resolver.</p>
+<h2>Planes y pagos</h2><p>El servicio se paga por mes o por año según el plan elegido. Si un pago vence, hay unos días de gracia; después, el asistente se pausa hasta registrar el pago. Las conversaciones y la configuración se conservan. No hay permanencia mínima: puedes cancelar cuando quieras.</p>
+<h2>Uso permitido</h2><p>No se permite usar el servicio para spam, engaños, productos ilegales ni para violar las políticas de Meta. Podemos suspender cuentas que lo hagan.</p>
+<h2>Límites</h2><p>Cada plan incluye una cantidad de respuestas al mes. Avisamos antes de llegar al límite. Meta permite responder por mensaje privado solo dentro de las 24 horas siguientes al último mensaje del cliente.</p>
+<h2>Datos</h2><p>Los datos de las conversaciones son de la tienda. Los tratamos según nuestra <a href="/privacidad">política de privacidad</a>.</p>
+<h2>Cambios</h2><p>Podemos actualizar estos términos; avisaremos a las tiendas por el panel o por WhatsApp.</p>`
     : `<h1>Política de privacidad</h1>
-<p>Esta aplicación la usan nuestras tiendas para responder automáticamente mensajes directos y comentarios en Instagram y Facebook.</p>
-<h2>Qué datos usamos</h2>
-<p>El identificador y el nombre de usuario de quien nos escribe, y el texto de sus mensajes y comentarios. Solo se usan para responder y para ver el historial de atención.</p>
-<h2>Con quién se comparten</h2>
-<p>El texto de los mensajes se procesa con un servicio de inteligencia artificial (DeepSeek) únicamente para redactar la respuesta. No vendemos ni compartimos datos con fines publicitarios.</p>
-<h2>Cuánto tiempo se guardan</h2>
-<p>Los registros se borran automáticamente con el tiempo. Puedes pedir que eliminemos tus datos en cualquier momento: <a href="/eliminar-datos">cómo eliminar tus datos</a>.</p>`;
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${del ? "Eliminación de datos" : "Política de privacidad"}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;line-height:1.6;color:#222}h1{font-size:1.6rem}h2{font-size:1.1rem;margin-top:1.6em}</style></head><body>${body}<p style="color:#888;font-size:.9rem;margin-top:3em">Contacto: por mensaje directo en nuestras cuentas.</p></body></html>`;
+<p>${brand} ayuda a tiendas a responder automáticamente sus mensajes directos y comentarios en Instagram y Facebook.</p>
+<h2>Qué datos usamos</h2><p>De quien escribe a una tienda: su identificador, nombre de usuario y nombre público, y el texto de sus mensajes y comentarios. De las tiendas: los datos de su cuenta y la información que escriben en su panel. Si una tienda conecta su cuenta de anuncios, leemos sus resultados (solo lectura).</p>
+<h2>Para qué</h2><p>Para responder, pasar la conversación a una persona cuando hace falta, mostrar el historial y las estadísticas a la tienda. No vendemos datos ni los usamos para publicidad.</p>
+<h2>Con quién se comparten</h2><p>El texto de los mensajes se procesa con un proveedor de inteligencia artificial (DeepSeek) solo para redactar la respuesta. La información se aloja en Cloudflare. Meta recibe las respuestas que enviamos en su nombre.</p>
+<h2>Cuánto tiempo</h2><p>Los mensajes y registros se borran automáticamente a los 90 días. La tienda puede borrar los datos de un cliente en cualquier momento.</p>
+<h2>Tus derechos</h2><p>Puedes pedir ver o eliminar tus datos: <a href="/eliminar-datos">cómo eliminar tus datos</a>.</p>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${T} · ${brand}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;line-height:1.65;color:#1f2937}h1{font-size:1.7rem}h2{font-size:1.1rem;margin-top:1.7em}a{color:#0e7c86}nav{display:flex;gap:16px;font-size:.92rem;margin-bottom:24px}</style></head><body>
+<nav><a href="/web/">${brand}</a><a href="/privacidad">Privacidad</a><a href="/terminos">Términos</a><a href="/eliminar-datos">Eliminar datos</a></nav>${body}
+<p style="color:#6b7280;font-size:.9rem;margin-top:3em">Contacto: ${contact}. Última actualización: ${new Date().getFullYear()}.</p></body></html>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
+const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 /* ================= IA (DeepSeek) ================= */
 
@@ -339,7 +370,7 @@ async function deepseekKey(env, brand, cfg) {
  * Llama a DeepSeek. Si está saturado o tarda, lo reintenta sin pasarse del tiempo
  * que tiene Cloudflare para terminar (budgetMs). Los errores de clave o saldo no se reintentan.
  */
-async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, budgetMs = 22000) {
+async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, budgetMs = 22000, brandId = null) {
   const deadline = Date.now() + budgetMs;
   let lastErr = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -365,6 +396,7 @@ async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, b
       }
       const text = ((d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || "").trim();
       if (!text && !jsonMode) { const e = new Error("DeepSeek respondió vacío"); e.status = 503; throw e; }
+      if (brandId) await trackUsage(env, brandId, { ai_calls: 1, tokens_in: (d.usage && d.usage.prompt_tokens) || 0, tokens_out: (d.usage && d.usage.completion_tokens) || 0 }).catch(() => {});
       return text;
     } catch (e) {
       lastErr = e;
@@ -384,7 +416,7 @@ async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, b
 async function askAI(env, brand, convo, mode, platform, extra, cfg, budgetMs) {
   const apiKey = await deepseekKey(env, brand, cfg);
   if (!apiKey) throw new Error("Falta la clave de DeepSeek: pégala en Configuración");
-  let t = await deepseekChat(env, apiKey, brand.ai_model, [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs);
+  let t = await deepseekChat(env, apiKey, brand.ai_model, [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs, brand.id);
   const hm = t.match(/\[HUMANO(?:\s*[:|\-]\s*([^\]]*))?\]/i);
   if (hm) {
     // La IA puede escribir el mensaje para el cliente después de [HUMANO:motivo]
@@ -406,7 +438,7 @@ async function moderate(env, brand, text, cfg) {
   const out = await deepseekChat(env, apiKey, "deepseek-flash", [
     { role: "system", content: 'Clasificas comentarios públicos en redes sociales de una tienda. Es OFENSIVO si contiene insultos, groserías, acoso, odio o estafas/spam fraudulento. Las quejas de clientes, aunque vengan bravas, NO son ofensivas. Responde solo JSON: {"ofensivo": true|false, "motivo": "máximo 6 palabras"}' },
     { role: "user", content: String(text).slice(0, 1000) },
-  ], 60, true, 7000);
+  ], 60, true, 7000, brand.id);
   let d = {};
   try { d = JSON.parse(out); } catch { d = { ofensivo: /true/i.test(out) }; }
   return { offensive: d.ofensivo === true, reason: String(d.motivo || "").slice(0, 80) };
@@ -427,6 +459,8 @@ async function deepseekBalance(env, key) {
 function parseBrand(b) {
   if (!b) return null;
   try { b.rules = JSON.parse(b.rules || "[]"); } catch { b.rules = []; }
+  b.bill = cleanBilling(parseJson(b.billing, {}));
+  b.ads = parseJson(typeof b.ads === "string" ? b.ads : "{}", {});
   let o = {};
   try { o = JSON.parse(b.opts || "{}"); } catch {}
   b.opts = cleanOpts(o);
@@ -437,7 +471,7 @@ function parseBrand(b) {
 
 const DAYS = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
 const REASONS = { pago: "Pago por verificar", reclamo: "Reclamo", persona: "Quiere hablar con una persona", mayor: "Compra al mayor", otro: "Por atender" };
-const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false };
+const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false, billing: true, ads: true, system: true };
 
 /** Deja las opciones de una tienda completas y válidas (lo que no venga queda con su valor de fábrica). */
 function cleanOpts(o = {}) {
@@ -538,6 +572,8 @@ function brandOut(b, accounts = [], u = null) {
     ai_key_tail: b.ai_api_key ? b.ai_api_key.slice(-4) : "", moderation: b.moderation || "off",
     test_mode: !!b.test_mode, test_users: b.test_users || "", ai_fallback: b.ai_fallback || "",
     accounts: accounts.filter((a) => a.brand_id === b.id).map(accountOut),
+    bill_state: billState(b), ...(u && u.role === "maestro" ? { billing: b.bill } : {}),
+    ads: { connected: !!(b.ads && b.ads.account && b.ads.token), account: (b.ads && b.ads.account) || "", advisor: !!(b.ads && b.ads.advisor), pro: adsPro(b), error: (b.ads && b.ads.error) || "" },
   };
 }
 
@@ -562,9 +598,10 @@ const getContact = (env, accountId, userId) =>
 async function upsertContact(env, { acc, userId, username, name, text, channel, nameChecked }) {
   const at = nowIso();
   await env.DB.prepare(
-    `INSERT INTO contacts (account_id, user_id, brand_id, platform, username, name, name_checked, last_message, last_channel, last_at, first_at, messages, last_dm_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, 1, ?11)
+    `INSERT INTO contacts (account_id, user_id, brand_id, platform, username, name, name_checked, last_message, last_channel, last_at, first_at, messages, last_dm_at, unread)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, 1, ?11, 1)
      ON CONFLICT (account_id, user_id) DO UPDATE SET
+       closed_at = NULL, unread = contacts.unread + 1,
        brand_id = excluded.brand_id, username = COALESCE(excluded.username, contacts.username), name = COALESCE(excluded.name, contacts.name),
        name_checked = MAX(contacts.name_checked, excluded.name_checked),
        last_message = excluded.last_message, last_channel = excluded.last_channel, last_at = excluded.last_at,
@@ -593,7 +630,9 @@ async function autoResumeAll(env) {
   if (stmts.length) await env.DB.batch(stmts);
 }
 
+const COUNTED = new Set(["rule", "ai", "default", "handoff", "fallback", "mention", "reaction", "offhours", "followup"]);
 async function addLog(env, acc, l) {
+  if (acc.brand_id && COUNTED.has(l.kind) && (l.reply || l.publicReply)) await trackUsage(env, acc.brand_id, { replies: 1 }).catch(() => {});
   await env.DB.prepare(
     `INSERT INTO logs (brand_id, account_id, platform, channel, media_id, comment_id, from_id, username, text, reply, public_reply, kind, rule_id, moderation, error, level, at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -614,6 +653,71 @@ async function sendAndSave(env, acc, to, text, source, userName) {
   await saveMessage(env, acc.id, to, "assistant", text, { source, mid: r && r.message_id, userName });
   await setContact(env, acc.id, to, { last_bot_at: nowIso() });
   return r;
+}
+
+
+/* ---------- botones, respuestas rápidas y carrusel ---------- */
+const BTN_TEXT_MAX = 640;
+function buttonsFor(rule) {
+  return (rule.buttons || []).map((b, i) => b.type === "url" ? { type: "web_url", url: b.url, title: b.title } : { type: "postback", title: b.title, payload: `b:${rule.id}:${i}` });
+}
+const quickFor = (rule) => (rule.quick || []).map((q) => ({ content_type: "text", title: q, payload: `q:${q}` }));
+/** Imagen del carrusel: si viene del catálogo se pide de nuevo a Meta (las de Instagram vencen). */
+async function carouselElements(env, acc, rule) {
+  return Promise.all((rule.carousel || []).map(async (c, i) => {
+    let image = c.image;
+    if (c.mediaId) { try { image = (await PLATFORM[acc.platform].mediaImage(env, acc, c.mediaId)) || image; } catch {} }
+    const btns = [{ type: "postback", title: c.button || "LO QUIERO", payload: `c:${rule.id}:${i}` }];
+    if (c.url) btns.push({ type: "web_url", url: c.url, title: "Ver más" });
+    return { title: c.title, ...(c.subtitle ? { subtitle: c.subtitle } : {}), ...(image ? { image_url: image } : {}), buttons: btns };
+  }));
+}
+/** Mensaje principal: texto con botones (plantilla) o texto con respuestas rápidas. */
+function mainMessage(text, rule, withQuick) {
+  const btns = buttonsFor(rule);
+  const msg = btns.length
+    ? { attachment: { type: "template", payload: { template_type: "button", text: truncateBytes(text, BTN_TEXT_MAX), buttons: btns } } }
+    : { text };
+  if (withQuick && rule.quick && rule.quick.length) msg.quick_replies = quickFor(rule);
+  return msg;
+}
+const richNote = (rule) => [
+  rule.buttons && rule.buttons.length ? `[Botones: ${rule.buttons.map((b) => b.title).join(" · ")}]` : "",
+  rule.carousel && rule.carousel.length ? `[Carrusel: ${rule.carousel.map((c) => c.title).join(" · ")}]` : "",
+  rule.quick && rule.quick.length ? `[Opciones: ${rule.quick.join(" · ")}]` : "",
+].filter(Boolean).join("\n");
+const hasRich = (rule) => !!(rule && ((rule.buttons || []).length || (rule.carousel || []).length || (rule.quick || []).length));
+
+/** Envía la respuesta de una regla con todo lo que tenga. Si Meta rechaza algo, cae a texto simple y avisa. */
+async function sendRuleDM(env, acc, to, text, rule, source) {
+  const P = PLATFORM[acc.platform], warns = [];
+  const quickOnMain = !(rule.buttons || []).length && !(rule.carousel || []).length;
+  let first = null;
+  try { first = await P.sendRaw(env, acc, { id: to }, mainMessage(text, rule, quickOnMain)); }
+  catch (e) { warns.push("Botones: " + errText(e)); first = await P.sendDM(env, acc, to, text); }
+  await saveMessage(env, acc.id, to, "assistant", text + (richNote(rule) ? "\n" + richNote(rule) : ""), { source, mid: first && first.message_id });
+  if ((rule.carousel || []).length) {
+    try {
+      const r = await P.sendRaw(env, acc, { id: to }, { attachment: { type: "template", payload: { template_type: "generic", elements: await carouselElements(env, acc, rule) } } });
+      await saveMessage(env, acc.id, to, "assistant", "[Carrusel enviado]", { source, mid: r && r.message_id });
+    } catch (e) { warns.push("Carrusel: " + errText(e)); }
+  }
+  if (!quickOnMain && (rule.quick || []).length) {
+    const qt = rule.quickText && rule.quickText.trim() ? rule.quickText.trim() : "Elige una opción 👇";
+    try { const r = await P.sendRaw(env, acc, { id: to }, { text: qt, quick_replies: quickFor(rule) }); await saveMessage(env, acc.id, to, "assistant", qt, { source, mid: r && r.message_id }); }
+    catch (e) { warns.push("Opciones: " + errText(e)); }
+  }
+  await setContact(env, acc.id, to, { last_bot_at: nowIso() });
+  return warns;
+}
+/** Respuesta privada a un comentario: Meta deja una sola, así que va el texto con sus botones. */
+async function privateRuleReply(env, acc, commentId, text, rule) {
+  const P = PLATFORM[acc.platform];
+  if ((rule.buttons || []).length) {
+    try { return { r: await P.sendRaw(env, acc, { comment_id: commentId }, mainMessage(text, rule, false)), warn: null }; }
+    catch (e) { return { r: await P.privateReply(env, acc, commentId, text), warn: "Botones: " + errText(e) }; }
+  }
+  return { r: await P.privateReply(env, acc, commentId, text), warn: null };
 }
 
 async function getHistory(env, accountId, userId, n = 30) {
@@ -668,8 +772,15 @@ function handoffText(brand, out, off, who) {
 /* ================= lógica del bot ================= */
 
 async function handleDM(env, acc, ev, cfg) {
+  // Toques en botones (postback) y en respuestas rápidas
+  let payload = null;
+  if (!ev.message && ev.postback) {
+    payload = String(ev.postback.payload || "");
+    ev = { ...ev, message: { mid: ev.postback.mid || `pb:${ev.timestamp}:${ev.sender && ev.sender.id}:${payload}`, text: ev.postback.title || "" } };
+  }
   const msg = ev.message;
   if (!msg || msg.is_deleted) return;
+  if (msg.quick_reply && msg.quick_reply.payload) payload = String(msg.quick_reply.payload);
   if (msg.is_echo) return handleEcho(env, acc, ev);
   const from = ev.sender && ev.sender.id;
   if (!from || from === String(acc.id)) return;
@@ -689,23 +800,43 @@ async function handleDM(env, acc, ev, cfg) {
   else if (story) inText = `[Respondió a tu historia] ${text || "(foto o audio)"}`;
   else if (shared) inText = `[Compartió una publicación${shared.payload && shared.payload.title ? ": " + String(shared.payload.title).slice(0, 200) : ""}] ${text}`.trim();
   else inText = text || "[El cliente envió una foto, audio o archivo]";
+  let forced = null;
+  if (payload) {
+    const [kindP, rid, idx] = payload.split(":");
+    const r0 = (brand.rules || []).find((r) => r.id === rid);
+    if (kindP === "b" && r0 && r0.buttons && r0.buttons[+idx]) {
+      const bt = r0.buttons[+idx];
+      inText = `[Tocó el botón «${bt.title}»]`;
+      if (bt.type === "text" && bt.text.trim()) forced = { type: "text", text: bt.text, ruleId: r0.id };
+      else if (bt.type === "handoff") forced = { type: "handoff", reason: "persona" };
+    } else if (kindP === "c" && r0 && r0.carousel && r0.carousel[+idx]) {
+      const el = r0.carousel[+idx];
+      inText = `[Eligió del carrusel: ${el.title}${el.subtitle ? " — " + el.subtitle : ""}] Lo quiero`;
+      if (r0.carouselAction === "handoff") forced = { type: "handoff", reason: "otro" };
+    } else if (kindP === "q") inText = text || payload.slice(2);
+    else if (ev.postback) inText = `[Tocó el botón «${text}»]`;
+  }
 
   const contact = await getContact(env, acc.id, from);
   const prof = await profileOf(env, acc, from, contact);
   const username = prof.username;
   const who = { name: firstName(prof.name), username, platform: acc.platform };
 
-  const useAI = brand.ai_enabled && (await deepseekKey(env, brand, cfg));
+  const useAI = brand.ai_enabled && (await deepseekKey(env, brand, cfg)) && !(await overLimit(env, brand));
   const history = useAI ? await getHistory(env, acc.id, from) : [];
   await saveMessage(env, acc.id, from, "user", inText, { source: "cliente" });
   await upsertContact(env, { acc, userId: from, username, name: prof.name, text: inText, channel: "dm", nameChecked: prof.checked });
+  const ref = ev.referral || msg.referral;
+  const adRef = ref && ref.ad_id ? { id: String(ref.ad_id), title: String((ref.ads_context_data && ref.ads_context_data.ad_title) || ref.ad_title || "").slice(0, 200) } : null;
+  if (adRef) await setContact(env, acc.id, from, { ad_id: adRef.id, ad_title: adRef.title || null });
+  const adTitle = adRef ? adRef.title : contact && contact.ad_title;
 
   let paused = !!(contact && contact.paused);
   if (paused && o.auto_resume_hours && contact.paused_at && Date.now() - Date.parse(contact.paused_at) > o.auto_resume_hours * 3600 * 1000) {
     await resumeContact(env, acc.id, from); paused = false;
   }
 
-  let reply = null, ruleId = null, kind = "none", reason = null, skipped = false, aiFailed = false, markOff = false;
+  let reply = null, ruleId = null, kind = "none", reason = null, skipped = false, aiFailed = false, markOff = false, richRule = null;
   const errors = [];
   const off = offHours(o);
 
@@ -715,7 +846,7 @@ async function handleDM(env, acc, ev, cfg) {
     kind = "test";
   } else if (paused) {
     kind = "paused";
-  } else if (!brand.active) {
+  } else if (!brand.active || billState(brand).blocked) {
     kind = "none";
   } else if (mention) {
     kind = "mention";
@@ -728,9 +859,13 @@ async function handleDM(env, acc, ev, cfg) {
     const last = contact && contact.off_hours_at ? Date.parse(contact.off_hours_at) : 0;
     if (o.hours.off_message.trim() && Date.now() - last > 12 * 3600 * 1000) { reply = fillVars(o.hours.off_message, who); markOff = true; }
   } else {
-    const rule = findRule(brand.rules, text, "dm", null);
-    if (rule && rule.dmReply) {
-      reply = fillVars(rule.dmReply, who); ruleId = rule.id; kind = "rule";
+    const rule = forced || (payload && !payload.startsWith("q:")) ? null : findRule(brand.rules, text, "dm", null);
+    if (forced && forced.type === "text") {
+      reply = fillVars(forced.text, who); ruleId = forced.ruleId; kind = "rule";
+    } else if (forced && forced.type === "handoff") {
+      reason = forced.reason; reply = handoffText(brand, { reason }, off, who); kind = "handoff";
+    } else if (rule && rule.dmReply) {
+      reply = fillVars(rule.dmReply, who); ruleId = rule.id; kind = "rule"; if (hasRich(rule)) richRule = rule;
     } else {
       if (useAI) {
         const extra = [];
@@ -739,6 +874,7 @@ async function handleDM(env, acc, ev, cfg) {
           extra.push("=== HISTORIA QUE RESPONDIÓ EL CLIENTE ===\n" + (ctx ? "La historia es sobre: " + ctx
             : "No sabes qué mostraba la historia. Si hace falta, pregúntale con amabilidad a qué producto se refiere."));
         }
+        if (adTitle && (!contact || adRef)) extra.push(`=== ANUNCIO ===\nEl cliente llegó desde el anuncio: "${adTitle}". Si pregunta "info" o "precio" sin decir el producto, asume que es el del anuncio.`);
         if (o.ai_use_name && who.name) extra.push(`=== CLIENTE ===\nSe llama ${who.name}. Puedes usar su nombre al saludar; no lo repitas en cada mensaje.`);
         if (off) extra.push("=== HORARIO ===\nAhora la tienda está fuera de su horario de atención. Puedes seguir ayudando, pero si pasas a una persona, avisa que se le responde en horario de atención.");
         try {
@@ -762,8 +898,11 @@ async function handleDM(env, acc, ev, cfg) {
 
   let sent = false;
   if (reply) {
-    try { await sendAndSave(env, acc, from, reply, kind === "ai" ? "ia" : kind); sent = true; }
-    catch (e) { errors.push("Envío: " + errText(e)); }
+    try {
+      if (richRule) errors.push(...(await sendRuleDM(env, acc, from, reply, richRule, "regla")));
+      else await sendAndSave(env, acc, from, reply, kind === "ai" ? "ia" : kind);
+      sent = true;
+    } catch (e) { errors.push("Envío: " + errText(e)); }
   }
   if (sent && kind === "default") await setContact(env, acc.id, from, { last_default_at: nowIso() });
   if (sent && markOff) await setContact(env, acc.id, from, { off_hours_at: nowIso() });
@@ -848,7 +987,7 @@ async function handleComment(env, acc, c, cfg) {
     kind = "test";
   } else if (contact && contact.paused) {
     kind = "paused";
-  } else if (brand.active) {
+  } else if (brand.active && !billState(brand).blocked) {
     const product = await catalogFor(env, brand.id, c.mediaId);
     const rule = ruleMatch;
     if (rule) {
@@ -861,14 +1000,15 @@ async function handleComment(env, acc, c, cfg) {
       if (rule.dmReply) {
         reply = fillVars(rule.dmReply, who);
         try {
-          const r = await P.privateReply(env, acc, c.commentId, reply); sentSomething = true;
+          const { r, warn } = await privateRuleReply(env, acc, c.commentId, reply, rule); sentSomething = true;
+          if (warn) errors.push(warn);
           if (c.fromId) {
             await saveMessage(env, acc.id, c.fromId, "user", `[Comentó en una publicación${product ? " de: " + product : ""}] ${text}`, { source: "comentario" });
-            await saveMessage(env, acc.id, c.fromId, "assistant", reply, { source: "regla", mid: r && r.message_id });
+            await saveMessage(env, acc.id, c.fromId, "assistant", reply + ((rule.buttons || []).length ? `\n[Botones: ${rule.buttons.map((b) => b.title).join(" · ")}]` : ""), { source: "regla", mid: r && r.message_id });
           }
         } catch (e) { errors.push("Privado: " + errText(e)); }
       }
-    } else if (brand.ai_comments && text.trim() && (await deepseekKey(env, brand, cfg))) {
+    } else if (brand.ai_comments && text.trim() && (await deepseekKey(env, brand, cfg)) && !(await overLimit(env, brand))) {
       try {
         const whoTxt = c.username ? (acc.platform === "instagram" ? `@${c.username}` : c.username) : "un usuario";
         const extra = product ? `=== PUBLICACIÓN COMENTADA ===\nEsta publicación es de: ${product}` : null;
@@ -1039,8 +1179,9 @@ async function notifyAll(env, data, scope = {}) {
       const x = await users[uid];
       if (!x || !x.u.active) return;
       const u = x.u;
+      if (scope.maestroOnly && u.role !== "maestro") return;
       if (scope.brandId && !canBrand(u, scope.brandId)) return;
-      if (!can(u, "conversaciones")) return;
+      if (!scope.maestroOnly && !can(u, "conversaciones")) return;
       if (scope.event && u.notify[scope.event] === false) return;
       await sendPush(env, s, { ...data, badge: x.badge }).catch((e) => console.log("Push", errText(e)));
     }));
@@ -1060,6 +1201,7 @@ const PERMS = {
   reglas: "Editar reglas",
   catalogo: "Editar catálogo e historias",
   tienda: "Configurar la tienda (funciones, mensajes, horario, avisos)",
+  anuncios: "Ver anuncios y sus recomendaciones",
   exportar: "Exportar datos",
 };
 const ROLES = { maestro: "Maestro", equipo: "Equipo", cliente: "Cliente" };
@@ -1279,6 +1421,18 @@ function cleanRules(input) {
     mediaLabel: r.mediaLabel ? String(r.mediaLabel).slice(0, 120) : "",
     publicReply: String(r.publicReply || "").slice(0, 2000),
     dmReply: String(r.dmReply || "").slice(0, 1000),
+    buttons: (Array.isArray(r.buttons) ? r.buttons : []).slice(0, 3).map((x) => ({
+      type: ["url", "text", "ai", "handoff"].includes(x.type) ? x.type : "ai",
+      title: String(x.title || "").trim().slice(0, 20), url: String(x.url || "").trim().slice(0, 500), text: String(x.text || "").slice(0, 1000),
+    })).filter((x) => x.title && (x.type !== "url" || /^https?:\/\//i.test(x.url))),
+    quick: (Array.isArray(r.quick) ? r.quick : []).map((q) => String(q).trim().slice(0, 20)).filter(Boolean).slice(0, 13),
+    quickText: String(r.quickText || "").slice(0, 300),
+    carousel: (Array.isArray(r.carousel) ? r.carousel : []).slice(0, 10).map((c) => ({
+      mediaId: c.mediaId ? String(c.mediaId) : "", title: String(c.title || "").trim().slice(0, 80), subtitle: String(c.subtitle || "").trim().slice(0, 80),
+      image: /^https:\/\//i.test(String(c.image || "")) ? String(c.image).slice(0, 1000) : "", button: String(c.button || "LO QUIERO").trim().slice(0, 20) || "LO QUIERO",
+      url: /^https?:\/\//i.test(String(c.url || "")) ? String(c.url).slice(0, 500) : "",
+    })).filter((c) => c.title),
+    carouselAction: ["ai", "handoff"].includes(r.carouselAction) ? r.carouselAction : "ai",
   }));
 }
 
@@ -1310,6 +1464,33 @@ async function accountFor(env, u, id) {
   return acc;
 }
 
+
+/* ================= página de venta: contenido editable y solicitudes de prueba ================= */
+
+// Solo se guardan los campos que cambias; lo demás usa el texto que trae la página.
+const SITE_TEXT = { brand: 80, whatsapp: 30, setup_price: 30, badge_tag: 20, badge: 90, h1_pre: 90, h1_hl: 30, h1_post: 90, lead: 400,
+  pay_note: 160, addon_title: 60, addon_price: 40, addon_text: 200 };
+function cleanSite(b) {
+  const out = {};
+  for (const [k, max] of Object.entries(SITE_TEXT)) if (typeof b[k] === "string" && b[k].trim()) out[k] = b[k].trim().slice(0, max);
+  if (out.whatsapp) out.whatsapp = out.whatsapp.replace(/[^\d+]/g, "");
+  const days = parseInt(b.trial_days, 10);
+  if (days >= 1 && days <= 60) out.trial_days = days;
+  if (Array.isArray(b.plans) && b.plans.length) {
+    out.plans = b.plans.slice(0, 4).map((p) => ({
+      name: String(p.name || "").trim().slice(0, 40), desc: String(p.desc || "").trim().slice(0, 90),
+      price: Math.max(0, Math.round(Number(p.price) * 100) / 100 || 0), popular: !!p.popular,
+      replies: Math.max(0, parseInt(p.replies, 10) || 0), users: Math.max(0, parseInt(p.users, 10) || 0),
+      features: (Array.isArray(p.features) ? p.features : String(p.features || "").split("\n")).map((f) => String(f).trim().slice(0, 80)).filter(Boolean).slice(0, 10),
+    })).filter((p) => p.name);
+  }
+  if (Array.isArray(b.faq) && b.faq.length) {
+    out.faq = b.faq.slice(0, 12).map((f) => ({ q: String(f.q || "").trim().slice(0, 140), a: String(f.a || "").trim().slice(0, 600) })).filter((f) => f.q && f.a);
+  }
+  return out;
+}
+const LEAD_STATUS = ["nuevo", "contactado", "en prueba", "cliente", "descartado"];
+
 async function api(req, env, url) {
   const p = url.pathname;
   const m = req.method;
@@ -1333,6 +1514,13 @@ async function api(req, env, url) {
   if (p === "/api/login" && m === "POST") {
     const { password, login } = await body();
     const who = normalize(String(login || "")).replace(/\s+/g, "");
+    const lockKey = `lock:${req.headers.get("CF-Connecting-IP") || "local"}:${who || "maestro"}`;
+    const lk = await env.DB.prepare("SELECT value, at FROM cache WHERE key = ?").bind(lockKey).first();
+    const fails = lk && Date.now() - Date.parse(lk.at) < 15 * 60e3 ? Number(lk.value) || 0 : 0;
+    if (fails >= 5) {
+      const mins = Math.max(1, Math.ceil((15 * 60e3 - (Date.now() - Date.parse(lk.at))) / 60e3));
+      return json({ error: `Demasiados intentos. Por seguridad, espera ${mins} minuto${mins === 1 ? "" : "s"} y vuelve a intentar.` }, 429);
+    }
     let u = null;
     if (!who || who === "maestro" || (cfg.maestroLogin && who === cfg.maestroLogin)) {
       if (await checkPassword(cfg, env, String(password || ""))) u = await loadUser(env, cfg, "maestro");
@@ -1343,7 +1531,15 @@ async function api(req, env, url) {
         if (safeEqual(await hashPassword(String(password || ""), salt), row.pw)) u = userFromRow(row);
       }
     }
-    if (!u) { await sleep(800); return json({ error: who && who !== "maestro" && who !== cfg.maestroLogin ? "Usuario o contraseña incorrectos" : "Contraseña incorrecta" }, 401); }
+    if (!u) {
+      await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = ?, at = CASE WHEN ? = '1' THEN excluded.at ELSE cache.at END")
+        .bind(lockKey, String(fails + 1), nowIso(), String(fails + 1), String(fails + 1)).run();
+      if (fails + 1 === 5) await notifyAll(env, { title: "Seguridad · intentos fallidos", body: `5 contraseñas incorrectas para «${who || "maestro"}». Se bloqueó 15 minutos.`, url: "/#equipo" }, { maestroOnly: true, event: "system" });
+      await sleep(800);
+      const left = 5 - (fails + 1);
+      return json({ error: (who && who !== "maestro" && who !== cfg.maestroLogin ? "Usuario o contraseña incorrectos" : "Contraseña incorrecta") + (left > 0 && left <= 2 ? `. ${left === 1 ? "Te queda 1 intento" : `Te quedan ${left} intentos`}.` : left <= 0 ? ". Espera 15 minutos." : "") }, 401);
+    }
+    await env.DB.prepare("DELETE FROM cache WHERE key = ?").bind(lockKey).run();
     if (u.id !== "maestro") await env.DB.prepare("UPDATE users SET last_login = ? WHERE id = ?").bind(nowIso(), u.id).run();
     await audit(env, u, "Entró al panel");
     return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(await makeSession(cfg, u), 2592000) });
@@ -1367,6 +1563,30 @@ async function api(req, env, url) {
     const u = await loadUser(env, cfg, row.id);
     await audit(env, u, "Aceptó la invitación y creó su contraseña");
     return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(await makeSession(cfg, u), 2592000) });
+  }
+
+
+  /* ----- página de venta (público) ----- */
+  if (p === "/api/site" && m === "GET") {
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
+    return json(parseJson(row && row.value, {}), 200, { "Cache-Control": "public, max-age=60" });
+  }
+  if (p === "/api/leads" && m === "POST") {
+    const b = await body();
+    if (b.website) return json({ ok: true }); // trampa para robots
+    const t = (v, max) => String(v || "").trim().slice(0, max);
+    const lead = { name: t(b.name, 80), business: t(b.business, 80), instagram: t(b.instagram, 60).replace(/^@?/, "@").replace(/^@$/, ""),
+      whatsapp: t(b.whatsapp, 30), rubro: t(b.rubro, 40), plan: t(b.plan, 40) };
+    if (!lead.name || !lead.business) return json({ error: "Escribe tu nombre y el de tu negocio." }, 400);
+    if (lead.whatsapp.replace(/\D/g, "").length < 7) return json({ error: "Escribe un WhatsApp válido para poder contactarte." }, 400);
+    const ip = req.headers.get("CF-Connecting-IP") || "";
+    const since = new Date(Date.now() - 3600e3).toISOString();
+    const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM leads WHERE ip = ? AND at > ?").bind(ip, since).first();
+    if (ip && recent && recent.n >= 5) return json({ error: "Ya recibimos tus datos. Te escribimos pronto." }, 429);
+    await env.DB.prepare("INSERT INTO leads (at, name, business, instagram, whatsapp, rubro, plan, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(nowIso(), lead.name, lead.business, lead.instagram, lead.whatsapp, lead.rubro, lead.plan, ip).run();
+    await notifyAll(env, { title: "Nueva solicitud de prueba", body: `${lead.name} · ${lead.business}${lead.plan ? " · plan " + lead.plan : ""}`, url: "/#clientes" }, { maestroOnly: true, event: "lead" });
+    return json({ ok: true });
   }
 
   const u = await sessionUser(req, env, cfg);
@@ -1426,11 +1646,201 @@ async function api(req, env, url) {
     const { results } = await env.DB.prepare("SELECT at, brand_id, action, detail FROM audit WHERE user_id = ? ORDER BY id DESC LIMIT 40").bind(u.id).all();
     return json(results);
   }
+  /* ----- respaldo ----- */
+  if (p === "/api/backup" && m === "GET") {
+    need(u, "maestro");
+    const ids = url.searchParams.get("brand") ? [url.searchParams.get("brand")] : null;
+    const data = await makeBackup(env, ids);
+    await audit(env, u, "Descargó un respaldo", ids ? "1 tienda" : "todo");
+    return new Response(JSON.stringify(data, null, 1), { headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="respaldo-${localDate()}.json"` } });
+  }
+  if (p === "/api/restore" && m === "POST") {
+    need(u, "maestro");
+    const b = await body();
+    const n = await restoreBackup(env, b.data, Array.isArray(b.brands) && b.brands.length ? b.brands.map(String) : null);
+    await audit(env, u, "Restauró un respaldo", `${n} tienda${n === 1 ? "" : "s"}`);
+    return json({ ok: true, brands: n });
+  }
+  /* ----- anuncios ----- */
+  let am = p.match(/^\/api\/ads\/([\w-]+)$/);
+  if (am && m === "PUT") {
+    need(u, "maestro");
+    const brand = await getBrand(env, am[1]);
+    if (!brand) return json({ error: "Tienda no encontrada" }, 404);
+    const b = await body();
+    let ads = { ...(brand.ads || {}) };
+    if (b.disconnect) ads = {};
+    else {
+      if ("advisor" in b) ads.advisor = !!b.advisor;
+      if (b.account !== undefined || b.token) {
+        const account = String(b.account || ads.account || "").trim().replace(/^act_/, "");
+        const token = String(b.token || ads.token || "").trim();
+        if (!/^\d{5,}$/.test(account)) return json({ error: "El ID de la cuenta publicitaria son solo números (lo ves en el Administrador de anuncios, arriba a la izquierda)." }, 400);
+        if (!token) return json({ error: "Pega el token de acceso" }, 400);
+        let info;
+        try { info = await fb(env, token, `/act_${account}?fields=name,currency,account_status`); }
+        catch (e) { return json({ error: "Meta no aceptó estos datos: " + errText(e) }, 400); }
+        Object.assign(ads, { account: "act_" + account, token, name: info.name || "", currency: info.currency || "", connected_at: nowIso(), error: "" });
+      }
+    }
+    await env.DB.prepare("UPDATE brands SET ads = ? WHERE id = ?").bind(JSON.stringify(ads), brand.id).run();
+    await audit(env, u, b.disconnect ? "Desconectó la cuenta de anuncios" : "Configuró la cuenta de anuncios", ads.name || "", brand.id);
+    return json({ ok: true, name: ads.name || "", account: ads.account || "" });
+  }
+  if (p === "/api/ads" && m === "GET") {
+    const id = url.searchParams.get("brand");
+    needBrand(u, id); if (u.role !== "maestro") need(u, "anuncios");
+    const brand = await getBrand(env, id);
+    const to = url.searchParams.get("to") || addDays(localDate(), -1), from = url.searchParams.get("from") || addDays(to, -6);
+    try { return json(await adsReport(env, brand, from, to, url.searchParams.get("force") === "1")); }
+    catch (e) {
+      if (!e.status) await env.DB.prepare("UPDATE brands SET ads = json_set(ads, '$.error', ?) WHERE id = ?").bind(errText(e), brand.id).run();
+      return json({ error: e.status ? e.message : "Meta respondió: " + errText(e) }, e.status || 502);
+    }
+  }
+  if (p === "/api/ads/summary" && m === "POST") {
+    const b = await body();
+    needBrand(u, b.brand); if (u.role !== "maestro") need(u, "anuncios");
+    const brand = await getBrand(env, b.brand);
+    if (!adsPro(brand) && u.role !== "maestro") return json({ error: "El resumen con recomendaciones es parte del Asesor de anuncios." }, 403);
+    const ck = `adsum:${brand.id}:${b.from}:${b.to}`;
+    const c = !b.force && (await env.DB.prepare("SELECT value FROM cache WHERE key = ?").bind(ck).first());
+    if (c) return json({ text: JSON.parse(c.value) });
+    const rep = await adsReport(env, brand, b.from, b.to, false);
+    const text = await adsSummaryAI(env, brand, rep, cfg);
+    await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(ck, JSON.stringify(text), nowIso()).run();
+    return json({ text });
+  }
+  if (p === "/api/ads-rules" && m === "GET") { need(u, "maestro"); return json(await adsRules(env)); }
+  if (p === "/api/ads-rules" && m === "PUT") {
+    need(u, "maestro");
+    const b = await body(), cur = await adsRules(env);
+    for (const k of Object.keys(ADS_DEFAULT_RULES)) if (b[k] !== undefined && !isNaN(Number(b[k]))) cur[k] = Number(b[k]);
+    await setSetting(env, "ads_rules", JSON.stringify(cur));
+    return json(cur);
+  }
+  /* ----- cobros (cuenta maestra) y plan (cada tienda) ----- */
+  if (p === "/api/billing" && m === "GET") {
+    need(u, "maestro");
+    const [{ results: rows }, plans, pr, { results: pays }, { results: us }, { results: users }] = await Promise.all([
+      env.DB.prepare("SELECT * FROM brands ORDER BY name COLLATE NOCASE").all(), billingPlans(env), aiPrices(env),
+      env.DB.prepare("SELECT * FROM payments ORDER BY id DESC LIMIT 50").all(),
+      env.DB.prepare("SELECT * FROM usage WHERE month = ?").bind(monthKey()).all(),
+      env.DB.prepare("SELECT id, name, role, brands FROM users WHERE active = 1").all(),
+    ]);
+    const list = rows.map((r) => {
+      const b = parseBrand(r), plan = plans.find((x) => x.name === b.bill.plan), use = us.find((x) => x.brand_id === b.id) || { replies: 0, tokens_in: 0, tokens_out: 0, ai_calls: 0 };
+      const price = b.bill.price ?? (plan ? plan.price : 0);
+      return { id: b.id, name: b.name, billing: b.bill, state: billState(b), price, plan_replies: plan ? plan.replies : null, usage: use, ai_cost: aiCost(use, pr),
+        clients: users.filter((x) => x.role === "cliente" && parseJson(x.brands, []).map(String).includes(b.id)).map((x) => x.name) };
+    });
+    return json({ brands: list, plans, payments: pays.map((x) => ({ ...x, brand: (rows.find((r) => r.id === x.brand_id) || {}).name || "" })), ai_prices: pr, month: monthKey() });
+  }
+  let bm = p.match(/^\/api\/billing\/([\w-]+)(\/payments)?$/);
+  if (bm) {
+    need(u, "maestro");
+    const brand = await getBrand(env, bm[1]);
+    if (!brand) return json({ error: "Tienda no encontrada" }, 404);
+    if (!bm[2] && m === "PUT") {
+      const x = cleanBilling({ ...brand.bill, ...(await body()), warned: "" });
+      await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify(x), brand.id).run();
+      await audit(env, u, "Cambió el plan o cobro", `${x.plan || "sin plan"} · ${x.status}`, brand.id);
+      return json({ billing: x, state: billState({ bill: x }) });
+    }
+    if (bm[2] && m === "POST") {
+      const b = await body();
+      const amount = Math.round(Number(b.amount) * 100) / 100, months = Math.min(24, Math.max(1, parseInt(b.months, 10) || 1));
+      if (!(amount > 0)) return json({ error: "Escribe el monto" }, 400);
+      const x = { ...brand.bill };
+      const base = x.next_due && x.next_due > localDate() ? x.next_due : localDate();
+      const d = new Date(base + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + months);
+      x.next_due = d.toISOString().slice(0, 10); x.status = x.status === "free" ? "free" : "active"; x.warned = "";
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO payments (brand_id, at, amount, method, months, note, by) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .bind(brand.id, nowIso(), amount, String(b.method || "").slice(0, 40), months, String(b.note || "").slice(0, 200), u.name),
+        env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify(cleanBilling(x)), brand.id),
+      ]);
+      await audit(env, u, "Registró un pago", `$${amount} · ${months} mes${months > 1 ? "es" : ""} · hasta ${x.next_due}`, brand.id);
+      return json({ ok: true, next_due: x.next_due });
+    }
+    if (bm[2] && m === "GET") {
+      const { results } = await env.DB.prepare("SELECT * FROM payments WHERE brand_id = ? ORDER BY id DESC LIMIT 100").bind(brand.id).all();
+      return json(results);
+    }
+  }
+  const pm = p.match(/^\/api\/payments\/(\d+)$/);
+  if (pm && m === "DELETE") {
+    need(u, "maestro");
+    await env.DB.prepare("DELETE FROM payments WHERE id = ?").bind(pm[1]).run();
+    await audit(env, u, "Borró un pago registrado", "#" + pm[1]);
+    return json({ ok: true });
+  }
+  if (p === "/api/ai-prices" && m === "PUT") {
+    need(u, "maestro");
+    const b = await body();
+    const v = { in: Math.max(0, Number(b.in) || 0), out: Math.max(0, Number(b.out) || 0) };
+    await setSetting(env, "ai_prices", JSON.stringify(v));
+    return json(v);
+  }
+  if (p === "/api/plan" && m === "GET") {
+    const id = url.searchParams.get("brand");
+    needBrand(u, id);
+    const brand = await getBrand(env, id);
+    if (!brand) return json({ error: "Tienda no encontrada" }, 404);
+    const plans = await billingPlans(env), plan = plans.find((x) => x.name === brand.bill.plan) || null;
+    const use = await usageFor(env, brand.id);
+    const team = (await env.DB.prepare("SELECT brands FROM users WHERE active = 1 AND role != 'maestro'").all()).results.filter((x) => parseJson(x.brands, []).map(String).includes(brand.id)).length;
+    return json({ name: brand.name, plan, plans, billing: { plan: brand.bill.plan, price: brand.bill.price ?? (plan ? plan.price : null), next_due: brand.bill.next_due, status: brand.bill.status },
+      state: billState(brand), usage: { replies: use.replies, month: monthKey() }, team, over: plan && plan.replies ? use.replies >= plan.replies * 1.2 : false });
+  }
+  if (p === "/api/plan/upgrade" && m === "POST") {
+    const b = await body();
+    needBrand(u, b.brand);
+    const brand = await getBrand(env, b.brand);
+    const want = String(b.plan || "").slice(0, 40);
+    await notifyAll(env, { title: `${brand.name} quiere ${want ? "el plan " + want : "mejorar su plan"}`, body: `${u.name} lo pidió desde Mi plan.`, url: "/#clientes/tiendas" }, { maestroOnly: true });
+    await audit(env, u, "Pidió mejorar el plan", want, brand.id);
+    return json({ ok: true });
+  }
+  /* ----- página de venta y solicitudes (solo la cuenta maestra) ----- */
+  if (p === "/api/site" && m === "PUT") {
+    need(u, "maestro");
+    const clean = cleanSite(await body());
+    await setSetting(env, "site_content", JSON.stringify(clean));
+    await audit(env, u, "Editó la página de venta");
+    return json(clean);
+  }
+  if (p === "/api/leads" && m === "GET") {
+    need(u, "maestro");
+    const { results } = await env.DB.prepare("SELECT id, at, name, business, instagram, whatsapp, rubro, plan, status, note FROM leads ORDER BY id DESC LIMIT 300").all();
+    return json({ leads: results, statuses: LEAD_STATUS });
+  }
+  const leadM = p.match(/^\/api\/leads\/(\d+)$/);
+  if (leadM && m === "PUT") {
+    need(u, "maestro");
+    const b = await body();
+    const status = LEAD_STATUS.includes(b.status) ? b.status : null;
+    await env.DB.prepare("UPDATE leads SET status = COALESCE(?, status), note = COALESCE(?, note) WHERE id = ?")
+      .bind(status, typeof b.note === "string" ? b.note.slice(0, 500) : null, leadM[1]).run();
+    return json({ ok: true });
+  }
+  if (leadM && m === "DELETE") {
+    need(u, "maestro");
+    await env.DB.prepare("DELETE FROM leads WHERE id = ?").bind(leadM[1]).run();
+    return json({ ok: true });
+  }
   /* ----- plantillas de prompt (las edita la cuenta maestra; las usan quienes editan prompts) ----- */
   if (p === "/api/templates" && m === "GET") {
     if (!can(u, "tienda")) need(u, "prompts");
     const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'prompt_templates'").first();
-    return json(parseJson(row && row.value, []));
+    let list = parseJson(row && row.value, []);
+    const seeded = await env.DB.prepare("SELECT 1 FROM settings WHERE key = 'ptpl_rubros_v1'").first();
+    if (!seeded) {
+      list = [...list, ...RUBRO_TEMPLATES.filter((t) => !list.some((x) => x.id === t.id)).map((t) => ({ ...t, updated_at: nowIso() }))];
+      await setSetting(env, "prompt_templates", JSON.stringify(list));
+      await setSetting(env, "ptpl_rubros_v1", "1");
+    }
+    return json(list);
   }
   if (p === "/api/templates" && m === "PUT") {
     need(u, "maestro");
@@ -1609,17 +2019,40 @@ async function api(req, env, url) {
     need(u, "conversaciones");
     const w = brandWhere(u, url.searchParams.get("brand"), "c.brand_id");
     const f = url.searchParams.get("filter"), q = String(url.searchParams.get("q") || "").trim();
-    let sql = `SELECT c.*, b.name AS brand FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE 1 = 1${w.sql}`;
+    let sql = `SELECT c.account_id, c.user_id, c.brand_id, c.platform, c.username, c.name, c.last_message, c.last_channel, c.last_at, c.messages, c.paused, c.pause_reason,
+      c.last_dm_at, c.closed_at, c.assigned_to, c.unread, c.tags, b.name AS brand FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE 1 = 1${w.sql}`;
     const binds = [...w.binds];
-    if (f === "pending") sql += " AND c.paused = 1";
-    if (f === "dm") sql += " AND c.last_dm_at IS NOT NULL";
+    const FILTERS = { pending: " AND c.paused = 1 AND c.closed_at IS NULL", dm: " AND c.last_dm_at IS NOT NULL", open: " AND c.closed_at IS NULL", closed: " AND c.closed_at IS NOT NULL",
+      unread: " AND c.unread > 0", unassigned: " AND c.assigned_to IS NULL AND c.closed_at IS NULL" };
+    if (FILTERS[f]) sql += FILTERS[f];
+    if (f === "mine") { sql += " AND c.assigned_to = ?"; binds.push(u.id); }
+    const reason = url.searchParams.get("reason");
+    if (reason) { sql += " AND c.paused = 1 AND c.pause_reason = ?"; binds.push(reason); }
+    const plat = url.searchParams.get("platform");
+    if (plat === "instagram" || plat === "facebook") { sql += " AND c.platform = ?"; binds.push(plat); }
     if (q) { sql += " AND (c.username LIKE ? OR c.name LIKE ? OR c.last_message LIKE ? OR c.user_id = ?)"; const like = `%${q.replace(/^@/, "")}%`; binds.push(like, like, like, q); }
     const before = url.searchParams.get("before");
     if (before) { sql += " AND c.last_at < ?"; binds.push(before); }
     const { results } = await env.DB.prepare(sql + " ORDER BY c.last_at DESC LIMIT 60").bind(...binds).all();
-    return json(results);
+    return json(results.map((r) => ({ ...r, tags: parseJson(r.tags, []) })));
   }
-  mm = p.match(/^\/api\/conversations\/(\d+)\/([\w.-]+)(\/send|\/ignore)?$/);
+  if (p === "/api/conversations/counts" && m === "GET") {
+    need(u, "conversaciones");
+    const w = brandWhere(u, url.searchParams.get("brand"), "brand_id");
+    const r = await env.DB.prepare(`SELECT COUNT(*) AS todas,
+        SUM(CASE WHEN paused = 1 AND closed_at IS NULL THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN closed_at IS NULL THEN 1 ELSE 0 END) AS open,
+        SUM(CASE WHEN closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed,
+        SUM(CASE WHEN unread > 0 THEN 1 ELSE 0 END) AS unread,
+        SUM(CASE WHEN assigned_to = ? THEN 1 ELSE 0 END) AS mine,
+        SUM(CASE WHEN assigned_to IS NULL AND closed_at IS NULL THEN 1 ELSE 0 END) AS unassigned,
+        SUM(CASE WHEN platform = 'instagram' THEN 1 ELSE 0 END) AS instagram,
+        SUM(CASE WHEN platform = 'facebook' THEN 1 ELSE 0 END) AS facebook
+      FROM contacts WHERE 1 = 1${w.sql}`).bind(u.id, ...w.binds).first();
+    const { results } = await env.DB.prepare(`SELECT pause_reason AS r, COUNT(*) AS n FROM contacts WHERE paused = 1 AND closed_at IS NULL${w.sql} GROUP BY pause_reason`).bind(...w.binds).all();
+    return json({ ...Object.fromEntries(Object.entries(r || {}).map(([k, v]) => [k, v || 0])), reasons: Object.fromEntries(results.map((x) => [x.r || "pausado", x.n])) });
+  }
+  mm = p.match(/^\/api\/conversations\/(\d+)\/([\w.-]+)(\/send|\/ignore|\/meta)?$/);
   if (mm) {
     need(u, "conversaciones");
     const acc = await accountFor(env, u, mm[1]);
@@ -1629,12 +2062,44 @@ async function api(req, env, url) {
     if (!mm[3] && m === "GET") {
       const { results } = await env.DB.prepare("SELECT role, content, at, source, user_name FROM messages WHERE account_id = ? AND user_id = ? ORDER BY id DESC LIMIT 300").bind(String(acc.id), userId).all();
       const brand = acc.brand_id ? await getBrand(env, acc.brand_id) : null;
+      if (contact.unread) await setContact(env, acc.id, userId, { unread: 0 });
+      const team = [{ id: "maestro", name: cfg.maestroName || "Maestro" }];
+      const rows = (await env.DB.prepare("SELECT * FROM users WHERE active = 1 AND pw IS NOT NULL ORDER BY name COLLATE NOCASE").all()).results.map(userFromRow);
+      for (const x of rows) if (canBrand(x, acc.brand_id) && can(x, "conversaciones")) team.push({ id: x.id, name: x.name });
       return json({
-        contact: { ...contact, brand: brand && brand.name, first_name: firstName(contact.name) }, account: accountOut(acc),
+        contact: { ...contact, tags: parseJson(contact.tags, []), notes: parseJson(contact.notes, []), brand: brand && brand.name, first_name: firstName(contact.name) }, account: accountOut(acc), team,
         messages: results.reverse(), templates: brand ? brand.opts.templates : [],
         ignored: brand ? inList(brand.opts.ignore_users, userId, contact.username) : false,
         window_open: !!contact.last_dm_at && Date.now() - Date.parse(contact.last_dm_at) < 24 * 3600 * 1000,
       });
+    }
+    if (!mm[3] && m === "DELETE") {
+      if (!can(u, "tienda") && !can(u, "pausar")) need(u, "tienda");
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM messages WHERE account_id = ? AND user_id = ?").bind(String(acc.id), userId),
+        env.DB.prepare("DELETE FROM logs WHERE account_id = ? AND from_id = ?").bind(String(acc.id), userId),
+        env.DB.prepare("DELETE FROM contacts WHERE account_id = ? AND user_id = ?").bind(String(acc.id), userId),
+      ]);
+      await audit(env, u, "Borró los datos de un cliente", whoLabel(acc.platform, contact.username, userId), acc.brand_id);
+      return json({ ok: true });
+    }
+    if (mm[3] === "/meta" && m === "PATCH") {
+      const b = await body();
+      const set = {};
+      if ("closed" in b) { set.closed_at = b.closed ? nowIso() : null; if (b.closed) Object.assign(set, { unread: 0, paused: 0, paused_at: null, pause_reason: null }); }
+      if ("assigned_to" in b) set.assigned_to = b.assigned_to ? String(b.assigned_to).slice(0, 60) : null;
+      if (Array.isArray(b.tags)) set.tags = JSON.stringify([...new Set(b.tags.map((t) => String(t).trim().slice(0, 24)).filter(Boolean))].slice(0, 12));
+      if (b.note && String(b.note.text || "").trim()) {
+        const notes = parseJson(contact.notes, []);
+        notes.push({ at: nowIso(), by: u.name, text: String(b.note.text).trim().slice(0, 500) });
+        set.notes = JSON.stringify(notes.slice(-30));
+      }
+      if (Number.isInteger(b.delete_note)) { const notes = parseJson(contact.notes, []); notes.splice(b.delete_note, 1); set.notes = JSON.stringify(notes); }
+      if (b.unread === true) set.unread = 1;
+      if (Object.keys(set).length) await setContact(env, acc.id, userId, set);
+      if ("closed" in b) await audit(env, u, b.closed ? "Finalizó una conversación" : "Reabrió una conversación", whoLabel(acc.platform, contact.username, userId), acc.brand_id);
+      if ("assigned_to" in b) await audit(env, u, "Asignó una conversación", `${whoLabel(acc.platform, contact.username, userId)} → ${b.assigned_to || "nadie"}`, acc.brand_id);
+      return json({ ok: true });
     }
     if (mm[3] === "/send" && m === "POST") {
       need(u, "responder");
@@ -2391,6 +2856,480 @@ async function cron(env) {
   if ((!row || row.value !== today) && hour >= 9) {
     await setSetting(env, "daily_done", today);
     await dailyTasks(env);
+    try { await systemAlerts(env); } catch (e) { console.log("Alertas", errText(e)); }
+    try { await billingDaily(env); } catch (e) { console.log("Cobros", errText(e)); }
+    try { await adsDaily(env); } catch (e) { console.log("Anuncios", errText(e)); }
+  }
+}
+
+
+/* Plantillas de prompt por tipo de negocio. Se agregan una sola vez a las plantillas de la cuenta maestra. */
+const DM_BASE = (extra) => `CÓMO RESPONDER POR PRIVADO
+- Largo: 2 a 4 frases, estilo chat. Nada de párrafos largos.
+- Responde primero lo que preguntó; luego haz UNA pregunta que acerque a la compra.
+${extra}
+- Si no tienes el dato en la base de conocimiento, no lo inventes: pasa a una persona.`;
+const COMMENT_BASE = (extra) => `CÓMO RESPONDER COMENTARIOS
+- Largo: 1 frase corta, máximo 2, con 1 emoji.
+- Si preguntan precio, envío o cómo comprar: no des el precio en público; invita a escribir por DM.
+- Si es un elogio: agradece con cariño.
+- Si es una queja: responde con empatía e invita al DM para ayudar.
+- Si es spam o de otra marca: no respondas.
+${extra}`;
+const RUBRO_TEMPLATES = [
+  { id: "rubro-ropa", name: "Tienda de ropa y accesorios",
+    general: `TONO
+- Cercano y con estilo, tuteando. Emojis con moderación (✨🛍️).
+- Habla como alguien del equipo de XXX, no como un robot.
+
+PASOS AL ATENDER
+1. Saluda y responde la duda (precio, tallas, colores, envío).
+2. Si no sabe su talla, pregúntale medidas o la talla que usa normalmente y recomiéndale.
+3. Cuando quiera comprar, pide en un solo mensaje: nombre completo, teléfono, ciudad, dirección, producto, talla y color.
+4. Confirma el pedido y el total; explica cómo pagar.
+5. Si envía el comprobante, pasa a una persona para verificarlo.
+
+NUNCA
+- Inventar tallas, colores o existencias.
+- Prometer descuentos que no estén en la base de conocimiento.`,
+    knowledge: `PRODUCTOS Y PRECIOS
+- XXX: $XXX — tallas XXX — colores XXX
+- XXX: $XXX — tallas XXX — colores XXX
+
+GUÍA DE TALLAS
+- S: XXX · M: XXX · L: XXX
+
+PROMOCIONES VIGENTES
+- XXX (si no hay, escribe "ninguna")
+
+ENVÍOS
+- Zonas: XXX
+- Empresa de envío: XXX
+- Tiempo de entrega: XXX
+- Costo: XXX
+
+PAGOS
+- Métodos: XXX (pago móvil, Zelle, Binance, efectivo…)
+
+CAMBIOS Y DEVOLUCIONES
+- Plazo: XXX días, prenda sin usar y con etiqueta.
+
+TIENDA FÍSICA / RETIRO
+- XXX (si no hay, escribe "solo online")
+
+HORARIO DE ATENCIÓN
+- XXX`,
+    comments: COMMENT_BASE("- Si preguntan por tallas o colores en público: di que sí hay opciones y que les escribes por DM."),
+    dm: DM_BASE("- Si pregunta por una prenda que vio en una publicación, usa el producto de esa publicación.\n- Ofrece la talla y el color antes de pedir los datos.") },
+  { id: "rubro-belleza", name: "Belleza y cuidado personal",
+    general: `TONO
+- Cálido y experto, tuteando. Como una asesora que sabe del tema. Emojis suaves (💧✨🌿).
+
+PASOS AL ATENDER
+1. Pregunta su tipo de piel o cabello si hace falta para recomendar.
+2. Recomienda el producto adecuado y explica en una frase para qué sirve y cómo se usa.
+3. Cuando quiera comprar, pide: nombre completo, teléfono, ciudad, dirección y producto.
+4. Confirma el total y explica cómo pagar.
+5. Si envía el comprobante, pasa a una persona.
+
+NUNCA
+- Prometer resultados médicos ni curas.
+- Recomendar productos para condiciones de salud: sugiere consultar a un profesional.
+- Inventar ingredientes o tiempos de resultado.`,
+    knowledge: `PRODUCTOS Y PRECIOS
+- XXX: $XXX — para qué sirve: XXX — cómo se usa: XXX
+- XXX: $XXX — para qué sirve: XXX — cómo se usa: XXX
+
+PARA QUIÉN ES CADA UNO
+- Piel grasa: XXX
+- Piel seca: XXX
+- Cabello rizado: XXX
+
+INGREDIENTES PRINCIPALES
+- XXX
+
+RESULTADOS (lo que sí puedes decir)
+- XXX
+
+PROMOCIONES Y COMBOS
+- XXX
+
+ENVÍOS
+- Zonas: XXX · Tiempo: XXX · Costo: XXX
+
+PAGOS
+- Métodos: XXX
+
+CAMBIOS
+- XXX
+
+HORARIO DE ATENCIÓN
+- XXX`,
+    comments: COMMENT_BASE("- Si alguien pregunta qué producto le sirve: invítalo al DM para recomendarle según su tipo de piel o cabello."),
+    dm: DM_BASE("- Antes de recomendar, pregunta su tipo de piel o cabello si no lo dijo.\n- Si menciona una condición médica, sugiere consultar a un dermatólogo y no prometas resultados.") },
+  { id: "rubro-comida", name: "Comida y restaurante",
+    general: `TONO
+- Alegre y rápido, tuteando. Emojis de comida con moderación (🍔🍕🥤).
+
+PASOS AL ATENDER
+1. Responde la duda (menú, precios, horario, zona de delivery).
+2. Ayuda a armar el pedido: producto, cantidad, extras y bebidas.
+3. Pide: nombre, teléfono, dirección exacta con punto de referencia y método de pago.
+4. Confirma el pedido completo con el total y el tiempo estimado.
+5. Si envía el comprobante o el pedido es grande o para un evento, pasa a una persona.
+
+NUNCA
+- Confirmar un pedido fuera del horario o de la zona de delivery.
+- Inventar platos, precios o tiempos de entrega.`,
+    knowledge: `MENÚ Y PRECIOS
+- XXX: $XXX — XXX
+- XXX: $XXX — XXX
+- Bebidas: XXX
+
+COMBOS Y PROMOCIONES
+- XXX
+
+HORARIO
+- Lunes a viernes: XXX
+- Fines de semana: XXX
+
+DELIVERY
+- Zonas: XXX
+- Costo: XXX
+- Tiempo estimado: XXX
+
+RETIRO EN LOCAL
+- Dirección: XXX
+
+PAGOS
+- Métodos: XXX
+
+PEDIDOS PARA EVENTOS
+- Con cuánta anticipación: XXX`,
+    comments: COMMENT_BASE("- Si preguntan si hacen delivery a una zona: invita al DM para confirmar."),
+    dm: DM_BASE("- Cuando pidan, repite el pedido completo antes de pedir los datos.\n- Si está fuera del horario, dilo y ofrece dejar el pedido programado si la base de conocimiento lo permite.") },
+  { id: "rubro-servicios", name: "Servicios y citas",
+    general: `TONO
+- Profesional y amable, tuteando salvo que el cliente hable de usted.
+
+PASOS AL ATENDER
+1. Entiende qué necesita y explica el servicio adecuado, su precio y duración.
+2. Ofrece agendar: pregunta día y hora preferidos.
+3. Pide: nombre completo, teléfono y, si aplica, dirección.
+4. Confirma la cita en un mensaje claro (servicio, día, hora, precio).
+5. Si pide algo fuera de lo normal, un presupuesto especial o reprogramar, pasa a una persona.
+
+NUNCA
+- Confirmar un horario sin estar en la disponibilidad de la base de conocimiento.
+- Dar diagnósticos ni garantías que no estén escritas.`,
+    knowledge: `SERVICIOS Y PRECIOS
+- XXX: $XXX — duración XXX — incluye XXX
+- XXX: $XXX — duración XXX — incluye XXX
+
+DISPONIBILIDAD
+- Días y horas: XXX
+
+DÓNDE
+- Dirección o zonas a domicilio: XXX
+
+CÓMO SE AGENDA
+- Anticipo: XXX
+- Cancelación o cambio: con XXX horas de anticipación
+
+PAGOS
+- Métodos: XXX
+
+PREGUNTAS FRECUENTES
+- XXX`,
+    comments: COMMENT_BASE("- Si preguntan disponibilidad o precio: invita al DM para agendar."),
+    dm: DM_BASE("- Siempre termina ofreciendo agendar o pedir la información para el presupuesto.") },
+];
+
+/* ================= anuncios de Meta (solo lectura) ================= */
+const fx = (n, d) => Number(n || 0).toFixed(d).replace(".", ",");
+const ADS_DEFAULT_RULES = { cpc_good: 0.6, cpc_bad: 1.0, ctr_good: 1.0, ctr_bad: 0.8, freq_warn: 3, freq_bad: 4, hook_good: 25, hook_bad: 15, roas_good: 3, roas_bad: 1.5 };
+async function adsRules(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ads_rules'").first();
+  return { ...ADS_DEFAULT_RULES, ...parseJson(row && row.value, {}) };
+}
+const ACT_CHAT = ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.total_messaging_connection"];
+const ACT_BUY = ["purchase", "offsite_conversion.fb_pixel_purchase", "onsite_web_purchase", "omni_purchase"];
+const actVal = (list, types) => { for (const t of types) { const x = (list || []).find((a) => a.action_type === t); if (x) return Number(x.value) || 0; } return 0; };
+function adsMetrics(r) {
+  const spend = Number(r.spend) || 0, imp = Number(r.impressions) || 0, clicks = Number(r.inline_link_clicks || r.clicks) || 0;
+  const chats = actVal(r.actions, ACT_CHAT), buys = actVal(r.actions, ACT_BUY), revenue = actVal(r.action_values, ACT_BUY);
+  const hook = actVal(r.video_play_actions, ["video_view"]) ? null : null;
+  const v3 = actVal(r.actions, ["video_view"]);
+  return { spend, impressions: imp, reach: Number(r.reach) || 0, frequency: Number(r.frequency) || 0, clicks, ctr: imp ? (clicks / imp) * 100 : 0,
+    cpm: imp ? (spend / imp) * 1000 : 0, cpc: clicks ? spend / clicks : 0, chats, cost_chat: chats ? spend / chats : null, buys, revenue, roas: spend && revenue ? revenue / spend : null,
+    hook: imp && v3 ? (v3 / imp) * 100 : hook };
+}
+function lightOf(rules, k, v) {
+  if (v == null) return null;
+  if (k === "cost_chat") return v <= rules.cpc_good ? "g" : v <= rules.cpc_bad ? "y" : "r";
+  if (k === "ctr") return v >= rules.ctr_good ? "g" : v >= rules.ctr_bad ? "y" : "r";
+  if (k === "frequency") return v < rules.freq_warn ? "g" : v < rules.freq_bad ? "y" : "r";
+  if (k === "hook") return v >= rules.hook_good ? "g" : v >= rules.hook_bad ? "y" : "r";
+  if (k === "roas") return v >= rules.roas_good ? "g" : v >= rules.roas_bad ? "y" : "r";
+  return null;
+}
+/** Diagnóstico de cada anuncio en palabras simples (reglas de la agencia, sin IA). */
+function diagnose(ad, rules, best) {
+  if (ad.status === "DISAPPROVED") return { light: "r", tag: "Rechazado por Meta", act: "Corrige y vuelve a enviarlo", why: ad.review ? `Meta lo rechazó: ${ad.review}` : "Meta lo rechazó. Revisa el motivo en el Administrador de anuncios, corrige el texto o la imagen y vuelve a enviarlo." };
+  const m = ad.m;
+  if (m.impressions < 300) return { light: null, tag: "Pocos datos", act: "Espera unos días", why: "Todavía lo vio muy poca gente para saber si funciona." };
+  if (m.frequency >= rules.freq_bad || (m.frequency >= rules.freq_warn && m.ctr < rules.ctr_good)) return { light: "y", tag: "Se está cansando", act: "Prepara uno nuevo", why: `La misma persona ya lo vio ${fx(m.frequency, 1)} veces. Cuando pasa de ${rules.freq_warn}, la gente deja de tocarlo. Haz una versión nueva con otra foto o video.` };
+  if (m.ctr < rules.ctr_bad) return { light: "r", tag: "No engancha", act: "Cambia la imagen o el inicio", why: `De cada 100 que lo ven, solo ${fx(m.ctr, 1)} lo tocan. Prueba otra foto, o cambia los primeros 3 segundos del video.` };
+  if (m.hook != null && m.hook < rules.hook_bad) return { light: "y", tag: "El inicio no atrapa", act: "Cambia los primeros 3 segundos", why: `Solo el ${Math.round(m.hook)}% se queda a ver el inicio. Empieza con el producto en uso o con la pregunta que más te hacen.` };
+  if (m.cost_chat != null && m.cost_chat > rules.cpc_bad) return { light: "r", tag: "Chats caros", act: "Revisa el público", why: `Cada conversación cuesta $${fx(m.cost_chat, 2)}. Prueba un público más amplio o pon el precio en el anuncio para atraer gente lista para comprar.` };
+  if (best && ad.id === best.id && m.cost_chat != null && m.cost_chat <= rules.cpc_good) return { light: "g", tag: "Tu mejor anuncio", act: "Súbele el presupuesto", why: `Te escriben a $${fx(m.cost_chat, 2)} por conversación. Súbele un 20% cada 3 días mientras el costo se mantenga.` };
+  return { light: "g", tag: "Va bien", act: "Déjalo correr", why: "Sus números están dentro de lo normal para tu negocio." };
+}
+async function adsFetch(env, brand, from, to, force) {
+  const ads = brand.ads || {};
+  if (!ads.account || !ads.token) throw httpError(400, "Conecta la cuenta de anuncios en Integraciones");
+  const key = `ads:${brand.id}:${from}:${to}`;
+  if (!force) { const c = await env.DB.prepare("SELECT value, at FROM cache WHERE key = ?").bind(key).first(); if (c && Date.now() - Date.parse(c.at) < 3600e3) return JSON.parse(c.value); }
+  const act = ads.account.startsWith("act_") ? ads.account : "act_" + ads.account;
+  const tr = encodeURIComponent(JSON.stringify({ since: from, until: to }));
+  const days = daysBetween(from, to), pFrom = addDays(from, -days), pTo = addDays(from, -1);
+  const ptr = encodeURIComponent(JSON.stringify({ since: pFrom, until: pTo }));
+  const F = "ad_id,ad_name,adset_name,campaign_name,spend,impressions,reach,frequency,clicks,inline_link_clicks,actions,action_values";
+  const [cur, prev, list] = await Promise.all([
+    fb(env, ads.token, `/${act}/insights?level=ad&fields=${F}&time_range=${tr}&limit=200`),
+    fb(env, ads.token, `/${act}/insights?level=account&fields=${F}&time_range=${ptr}`),
+    fb(env, ads.token, `/${act}/ads?fields=id,name,effective_status,ad_review_feedback,creative{thumbnail_url}&limit=200`).catch(() => ({ data: [] })),
+  ]);
+  const meta = Object.fromEntries((list.data || []).map((a) => [a.id, a]));
+  const out = { from, to, prev_from: pFrom, prev_to: pTo, ads: (cur.data || []).map((r) => {
+    const a = meta[r.ad_id] || {};
+    const fb0 = a.ad_review_feedback && (a.ad_review_feedback.global || a.ad_review_feedback);
+    return { id: r.ad_id, name: r.ad_name, adset: r.adset_name, campaign: r.campaign_name, status: a.effective_status || "", thumb: a.creative && a.creative.thumbnail_url,
+      review: fb0 && typeof fb0 === "object" ? Object.values(fb0).join(" · ").slice(0, 200) : "", m: adsMetrics(r) };
+  }), prev: (prev.data || [])[0] ? adsMetrics(prev.data[0]) : null };
+  for (const a of Object.values(meta)) if (a.effective_status === "DISAPPROVED" && !out.ads.find((x) => x.id === a.id)) out.ads.push({ id: a.id, name: a.name, status: "DISAPPROVED", thumb: a.creative && a.creative.thumbnail_url, review: "", m: adsMetrics({}) });
+  await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(key, JSON.stringify(out), nowIso()).run();
+  return out;
+}
+const sumM = (list) => {
+  const t = list.reduce((a, x) => { for (const k of ["spend", "impressions", "reach", "clicks", "chats", "buys", "revenue"]) a[k] += x.m[k] || 0; return a; }, { spend: 0, impressions: 0, reach: 0, clicks: 0, chats: 0, buys: 0, revenue: 0 });
+  t.ctr = t.impressions ? (t.clicks / t.impressions) * 100 : 0; t.cost_chat = t.chats ? t.spend / t.chats : null; t.roas = t.spend && t.revenue ? t.revenue / t.spend : null;
+  t.frequency = t.reach ? t.impressions / t.reach : 0; t.cpm = t.impressions ? (t.spend / t.impressions) * 1000 : 0;
+  return t;
+};
+const adsPro = (brand) => (brand.bill && /pro/i.test(brand.bill.plan || "")) || !!(brand.ads && brand.ads.advisor);
+async function adsReport(env, brand, from, to, force) {
+  const d = await adsFetch(env, brand, from, to, force);
+  const rules = await adsRules(env);
+  const tot = sumM(d.ads);
+  const withChats = d.ads.filter((a) => a.m.cost_chat != null && a.m.impressions >= 300).sort((a, b) => a.m.cost_chat - b.m.cost_chat);
+  const best = withChats[0];
+  // Lo que pasó en los chats que llegaron por anuncios (lo sabe el bot)
+  const { results: cs } = await env.DB.prepare("SELECT ad_id, paused, pause_reason, closed_at FROM contacts WHERE brand_id = ? AND ad_id IS NOT NULL AND first_at >= ?").bind(brand.id, from + "T00:00:00").all();
+  const { results: firsts } = await env.DB.prepare(`SELECT m.content FROM messages m JOIN contacts c ON c.account_id = m.account_id AND c.user_id = m.user_id
+    WHERE c.brand_id = ? AND c.ad_id IS NOT NULL AND m.role = 'user' AND m.at >= ? ORDER BY m.id DESC LIMIT 400`).bind(brand.id, from + "T00:00:00").all();
+  const Q = [["¿Cuánto cuesta?", /precio|cu[aá]nto|cuesta|valor/i], ["¿Hacen envíos?", /env[ií]o|delivery|mandan|llega/i], ["Tallas, colores o modelos", /talla|color|modelo|medida|tama/i], ["¿Cómo pago?", /pago|zelle|binance|transfer|pago m[oó]vil/i], ["Dónde están / horario", /d[oó]nde|direcci|ubica|horario|abren/i]];
+  const asks = Q.map(([l, re]) => [l, firsts.filter((x) => re.test(x.content)).length]).filter((x) => x[1]).sort((a, b) => b[1] - a[1]);
+  const totalAsks = firsts.length;
+  const pro = adsPro(brand);
+  const L = (k, v) => lightOf(rules, k, v);
+  const ads = d.ads.map((a) => ({ ...a, bot_chats: cs.filter((c) => c.ad_id === a.id).length, bot_pay: cs.filter((c) => c.ad_id === a.id && c.pause_reason === "pago").length,
+    ...(pro ? { dx: diagnose(a, rules, best) } : {}) })).sort((a, b) => b.m.spend - a.m.spend);
+  return { from, to, prev: d.prev, prev_from: d.prev_from, prev_to: d.prev_to, totals: tot, pro, rules, ads,
+    lights: pro ? { cost_chat: L("cost_chat", tot.cost_chat), ctr: L("ctr", tot.ctr), frequency: L("frequency", tot.frequency), roas: L("roas", tot.roas) } : null,
+    funnel: { reach: tot.reach, clicks: tot.clicks, chats: tot.chats, bot_chats: cs.length, handoff_pay: cs.filter((c) => c.pause_reason === "pago").length },
+    asks: asks.map(([l, n]) => ({ label: l, pct: totalAsks ? Math.round((n / totalAsks) * 100) : 0 })) };
+}
+async function adsSummaryAI(env, brand, rep, cfg) {
+  const key = await deepseekKey(env, brand, cfg);
+  if (!key) throw httpError(400, "Falta la clave de la IA");
+  const t = rep.totals, p = rep.prev;
+  const lines = rep.ads.slice(0, 8).map((a) => `- ${a.name}: gasto $${a.m.spend.toFixed(2)}, chats ${a.m.chats}, costo/chat ${a.m.cost_chat != null ? "$" + a.m.cost_chat.toFixed(2) : "—"}, CTR ${a.m.ctr.toFixed(2)}%, frecuencia ${a.m.frequency.toFixed(1)}${a.dx ? `, diagnóstico: ${a.dx.tag} (${a.dx.act})` : ""}`).join("\n");
+  const text = await deepseekChat(env, key, "deepseek-flash", [
+    { role: "system", content: "Eres el asesor de anuncios de una pequeña tienda en Venezuela. Escribe en español, tuteando, frases cortas y sin tecnicismos (no digas CTR, CPM ni ROAS: tradúcelos). Da 3 o 4 viñetas que empiecen con '- ': qué pasó, cuál anuncio funciona, qué cambiar esta semana. Usa solo los números dados; no inventes." },
+    { role: "user", content: `Periodo ${rep.from} a ${rep.to}. Gasto $${t.spend.toFixed(2)}, conversaciones ${t.chats}, costo por conversación ${t.cost_chat != null ? "$" + t.cost_chat.toFixed(2) : "—"}${p ? `; periodo anterior: gasto $${p.spend.toFixed(2)}, conversaciones ${p.chats}, costo por conversación ${p.cost_chat != null ? "$" + p.cost_chat.toFixed(2) : "—"}` : ""}.
+Lo que más preguntan quienes llegan por anuncios: ${rep.asks.map((a) => `${a.label} ${a.pct}%`).join(", ") || "sin datos"}.
+Anuncios:\n${lines}` },
+  ], 500, false, 20000, brand.id);
+  return text.replace(/\*\*/g, "").trim();
+}
+
+
+async function adsDaily(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM brands WHERE ads LIKE '%\"token\"%'").all();
+  const monday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Caracas", weekday: "short" }).format(new Date()) === "Mon";
+  const cfg = await getConfig(env);
+  for (const raw of results) {
+    const b = parseBrand(raw);
+    try {
+      const to = addDays(localDate(), -1), from = addDays(to, -6);
+      const rep = await adsReport(env, b, from, to, true);
+      const seenRow = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind("ads_seen:" + b.id).first();
+      const seen = new Set(parseJson(seenRow && seenRow.value, []));
+      for (const a of rep.ads.filter((x) => x.status === "DISAPPROVED" && !seen.has(x.id))) {
+        await notifyAll(env, { title: `${b.name} · Anuncio rechazado`, body: `«${a.name}» fue rechazado por Meta. Revísalo en Anuncios.`, url: "/#anuncios" }, { brandId: b.id, event: "ads" });
+        seen.add(a.id);
+      }
+      await setSetting(env, "ads_seen:" + b.id, JSON.stringify([...seen].slice(-200)));
+      if (rep.prev && rep.prev.cost_chat && rep.totals.cost_chat && rep.totals.cost_chat > rep.prev.cost_chat * 1.3) {
+        await notifyAll(env, { title: `${b.name} · Las conversaciones están saliendo más caras`, body: `Esta semana $${rep.totals.cost_chat.toFixed(2)} por chat (antes $${rep.prev.cost_chat.toFixed(2)}).`, url: "/#anuncios" }, { brandId: b.id, event: "ads" });
+      }
+      if (monday && adsPro(b) && rep.totals.spend > 0) {
+        const text = await adsSummaryAI(env, b, rep, cfg);
+        await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(`adsum:${b.id}:${from}:${to}`, JSON.stringify(text), nowIso()).run();
+        await notifyAll(env, { title: `${b.name} · Resumen semanal de tus anuncios`, body: text.split("\n")[0].replace(/^-\s*/, "").slice(0, 160), url: "/#anuncios" }, { brandId: b.id, event: "ads" });
+      }
+    } catch (e) { console.log("Anuncios", b.name, errText(e)); }
+  }
+}
+
+
+/* ================= alertas para la cuenta maestra ================= */
+async function systemAlerts(env) {
+  const cfg = await getConfig(env), today = localDate();
+  const once = async (tag, data) => {
+    const k = "alert:" + tag, row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(k).first();
+    if (row && row.value === today) return;
+    await setSetting(env, k, today);
+    await notifyAll(env, data, { maestroOnly: true, event: "system" });
+  };
+  for (const a of await allAccounts(env)) {
+    if (a.token_error) await once("tok:" + a.id, { title: `Conexión caída · ${a.name}`, body: "El bot no puede responder en esa cuenta. Reconéctala en Integraciones.", url: "/#integraciones" });
+    else if (a.token_expires_at && Date.parse(a.token_expires_at) - Date.now() < 5 * DAY) await once("exp:" + a.id, { title: `La conexión de ${a.name} vence pronto`, body: "Reconéctala en Integraciones para que no se corte.", url: "/#integraciones" });
+  }
+  if (cfg.deepseekKey) {
+    try {
+      const r = await deepseekBalance(env, cfg.deepseekKey);
+      const n = parseFloat(String(r.balance || "").replace(/[^\d.]/g, ""));
+      if (r.available === false) await once("ds", { title: "La IA se quedó sin saldo", body: "Recarga en DeepSeek: el bot está usando el mensaje de respaldo.", url: "/#configuracion/sistema" });
+      else if (!isNaN(n) && n < 2) await once("ds", { title: `Saldo de la IA bajo ($${n.toFixed(2)})`, body: "Recarga en DeepSeek pronto.", url: "/#configuracion/sistema" });
+    } catch (e) { await once("dskey", { title: "La clave de la IA no funciona", body: errText(e).slice(0, 120), url: "/#configuracion/sistema" }); }
+  }
+  // Tiendas con bot activo que llevan 2 días sin recibir nada: puede que Meta dejó de mandar los avisos
+  const { results } = await env.DB.prepare(`SELECT b.id, b.name, (SELECT MAX(at) FROM logs l WHERE l.brand_id = b.id) AS last
+    FROM brands b WHERE b.active = 1 AND EXISTS (SELECT 1 FROM accounts a WHERE a.brand_id = b.id)`).all();
+  for (const b of results) {
+    if (b.last && Date.now() - Date.parse(b.last) > 2 * DAY) await once("quiet:" + b.id, { title: `${b.name} lleva 2 días sin mensajes`, body: "Si es raro, toca «Reconectar avisos» en Integraciones.", url: "/#integraciones" });
+  }
+}
+
+/* ================= respaldo y restauración (cuenta maestra) ================= */
+const BACKUP_BRAND_FIELDS = ["name", "active", "ai_enabled", "ai_comments", "ai_prompt", "ai_prompt_comments", "ai_prompt_general", "knowledge", "ai_handoff", "ai_model",
+  "default_reply", "cooldown_hours", "moderation", "test_mode", "test_users", "ai_fallback", "rules", "opts", "billing"];
+const BACKUP_SETTINGS = ["prompt_templates", "site_content", "ads_rules", "ai_prices", "maestro_name"];
+async function makeBackup(env, ids) {
+  const { results: brands } = await env.DB.prepare("SELECT * FROM brands").all();
+  const pick = brands.filter((b) => !ids || ids.includes(b.id));
+  const { results: catalog } = await env.DB.prepare("SELECT * FROM catalog").all();
+  const settings = {};
+  for (const k of BACKUP_SETTINGS) { const r = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(k).first(); if (r) settings[k] = r.value; }
+  return { kind: "autorespuestas-respaldo", version: 1, at: nowIso(),
+    brands: pick.map((b) => ({ id: b.id, ...Object.fromEntries(BACKUP_BRAND_FIELDS.map((f) => [f, b[f]])) })),
+    catalog: catalog.filter((c) => pick.some((b) => b.id === c.brand_id)), settings: ids ? {} : settings };
+}
+async function restoreBackup(env, data, onlyIds) {
+  if (!data || data.kind !== "autorespuestas-respaldo" || !Array.isArray(data.brands)) throw httpError(400, "Este archivo no es un respaldo del panel.");
+  const stmts = [];
+  let n = 0;
+  for (const b of data.brands) {
+    if (!b.id || (onlyIds && !onlyIds.includes(b.id))) continue;
+    const vals = BACKUP_BRAND_FIELDS.map((f) => (b[f] === undefined ? null : b[f]));
+    stmts.push(env.DB.prepare(`INSERT INTO brands (id, ${BACKUP_BRAND_FIELDS.join(", ")}) VALUES (?, ${BACKUP_BRAND_FIELDS.map(() => "?").join(", ")})
+      ON CONFLICT (id) DO UPDATE SET ${BACKUP_BRAND_FIELDS.map((f) => `${f} = COALESCE(excluded.${f}, ${f})`).join(", ")}`).bind(String(b.id), ...vals));
+    n++;
+  }
+  for (const c of data.catalog || []) if (!onlyIds || onlyIds.includes(c.brand_id))
+    stmts.push(env.DB.prepare("INSERT INTO catalog (brand_id, media_id, product, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT (brand_id, media_id) DO UPDATE SET product = excluded.product").bind(c.brand_id, c.media_id, c.product, c.updated_at || nowIso()));
+  if (!onlyIds) for (const [k, v] of Object.entries(data.settings || {})) if (BACKUP_SETTINGS.includes(k)) stmts.push(env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(k, String(v)));
+  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+  return n;
+}
+
+/* ================= cobros, planes y uso ================= */
+const monthKey = (d = new Date()) => localDate(d).slice(0, 7);
+async function trackUsage(env, brandId, inc) {
+  const f = { replies: 0, ai_calls: 0, tokens_in: 0, tokens_out: 0, ...inc };
+  await env.DB.prepare(`INSERT INTO usage (brand_id, month, replies, ai_calls, tokens_in, tokens_out) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (brand_id, month) DO UPDATE SET replies = replies + excluded.replies, ai_calls = ai_calls + excluded.ai_calls,
+    tokens_in = tokens_in + excluded.tokens_in, tokens_out = tokens_out + excluded.tokens_out`)
+    .bind(String(brandId), monthKey(), f.replies, f.ai_calls, f.tokens_in, f.tokens_out).run();
+}
+function cleanBilling(b) {
+  b = b && typeof b === "object" ? b : {};
+  const num = (v) => (v === "" || v == null || isNaN(Number(v)) ? null : Math.max(0, Math.round(Number(v) * 100) / 100));
+  return {
+    plan: String(b.plan || "").slice(0, 40), price: num(b.price), next_due: /^\d{4}-\d{2}-\d{2}$/.test(b.next_due || "") ? b.next_due : "",
+    grace_days: Math.min(60, Math.max(0, parseInt(b.grace_days ?? 7, 10) || 0)), status: ["active", "suspended", "free"].includes(b.status) ? b.status : "active",
+    owner: String(b.owner || "").slice(0, 80), phone: String(b.phone || "").slice(0, 30), note: String(b.note || "").slice(0, 300),
+    warned: String(b.warned || "").slice(0, 40),
+  };
+}
+const DEFAULT_PLANS = [
+  { name: "Emprende", price: 25, replies: 1500, users: 2, features: ["1.500 respuestas al mes", "Instagram y Facebook", "Mensajes, comentarios e historias", "2 personas del equipo", "Métricas del mes"] },
+  { name: "Crece", price: 49, replies: 5000, users: 5, features: ["5.000 respuestas al mes", "Todo lo de Emprende", "Seguimiento a quien no compró", "Botones y carruseles", "Reportes en PDF", "5 personas del equipo"] },
+  { name: "Pro", price: 99, replies: 15000, users: 10, features: ["15.000 respuestas al mes", "Todo lo de Crece", "Asesor de anuncios incluido", "Hasta 3 tiendas", "Conexión con tu tienda online", "Soporte prioritario"] },
+];
+async function billingPlans(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
+  const site = parseJson(row && row.value, {});
+  const list = Array.isArray(site.plans) && site.plans.length ? site.plans : null;
+  if (!list) return DEFAULT_PLANS.map((p) => ({ ...p }));
+  return list.map((p, i) => ({ name: p.name, price: p.price, replies: p.replies || (DEFAULT_PLANS[i] || DEFAULT_PLANS[2]).replies, users: p.users || (DEFAULT_PLANS[i] || DEFAULT_PLANS[2]).users, features: p.features || [] }));
+}
+async function aiPrices(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ai_prices'").first();
+  return { in: 0.28, out: 0.42, ...parseJson(row && row.value, {}) }; // dólares por millón de tokens (editable en Sistema)
+}
+const aiCost = (u, pr) => ((u.tokens_in || 0) * pr.in + (u.tokens_out || 0) * pr.out) / 1e6;
+/** Estado del cobro de una tienda: si ya pasó la fecha + días de gracia, el bot se detiene. */
+function billState(b) {
+  const x = b.bill || {};
+  if (x.status === "suspended") return { blocked: true, label: "Suspendida", cls: "bad" };
+  if (x.status === "free" || !x.next_due) return { blocked: false, label: x.status === "free" ? "Sin cobro" : "Sin fecha", cls: "gray" };
+  const today = localDate(), days = Math.round((Date.parse(x.next_due + "T12:00:00Z") - Date.parse(today + "T12:00:00Z")) / 864e5);
+  if (days < -x.grace_days) return { blocked: true, label: `Vencida hace ${-days} días`, cls: "bad", days };
+  if (days < 0) return { blocked: false, label: `Debe ${-days} día${days === -1 ? "" : "s"}`, cls: "bad", days };
+  if (days <= 3) return { blocked: false, label: days ? `Vence en ${days} día${days === 1 ? "" : "s"}` : "Vence hoy", cls: "warn", days };
+  return { blocked: false, label: "Al día", cls: "ok", days };
+}
+async function usageFor(env, brandId, month = monthKey()) {
+  return (await env.DB.prepare("SELECT * FROM usage WHERE brand_id = ? AND month = ?").bind(String(brandId), month).first()) || { replies: 0, ai_calls: 0, tokens_in: 0, tokens_out: 0 };
+}
+/** Límite de respuestas: avisa al 80% y al 100%; pasado el 120% la IA se detiene y responden solo reglas y el mensaje por defecto. */
+async function overLimit(env, brand) {
+  if (!brand.bill || !brand.bill.plan) return false;
+  const plan = (await billingPlans(env)).find((p) => p.name === brand.bill.plan);
+  if (!plan || !plan.replies) return false;
+  const u = await usageFor(env, brand.id);
+  return u.replies >= plan.replies * 1.2;
+}
+async function billingDaily(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM brands").all();
+  const plans = await billingPlans(env);
+  for (const raw of results) {
+    const b = parseBrand(raw), x = b.bill, st = billState(b);
+    const mark = async (tag) => { x.warned = tag; await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify(x), b.id).run(); };
+    const tagBase = x.next_due + ":";
+    if (x.next_due && x.status === "active") {
+      if (st.days === 3 && x.warned !== tagBase + "3") { await notifyAll(env, { title: `${b.name} · Tu plan vence en 3 días`, body: `Renueva para que el bot siga respondiendo (${x.next_due}).`, url: "/#plan" }, { brandId: b.id, event: "billing" }); await mark(tagBase + "3"); }
+      else if (st.days === 0 && x.warned !== tagBase + "0") { await notifyAll(env, { title: `${b.name} · Hoy vence tu plan`, body: "Si ya pagaste, avísanos para registrarlo.", url: "/#plan" }, { brandId: b.id, event: "billing" }); await mark(tagBase + "0"); }
+      else if (st.blocked && x.warned !== tagBase + "x") {
+        await notifyAll(env, { title: `${b.name} · Bot pausado por falta de pago`, body: "Los chats se guardan. Se reactiva al registrar el pago.", url: "/#plan" }, { brandId: b.id, event: "billing" });
+        await notifyAll(env, { title: `Cobros · ${b.name} quedó pausada`, body: `Venció el ${x.next_due} y pasaron los ${x.grace_days} días de gracia.`, url: "/#clientes/tiendas" }, { maestroOnly: true });
+        await mark(tagBase + "x");
+      }
+    }
+    // Avisos de uso del mes (80% y 100%)
+    const plan = plans.find((p) => p.name === x.plan);
+    if (plan && plan.replies) {
+      const u = await usageFor(env, b.id), pc = u.replies / plan.replies, mk = monthKey();
+      const k = pc >= 1 ? mk + ":100" : pc >= 0.8 ? mk + ":80" : "";
+      const seen = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind("usage_warn:" + b.id).first();
+      if (k && (!seen || seen.value !== k)) {
+        await notifyAll(env, { title: `${b.name} · ${pc >= 1 ? "Llegaste al límite de respuestas" : "Vas por el 80% de tus respuestas"}`, body: `${u.replies} de ${plan.replies} este mes.${pc >= 1 ? " El bot sigue un poco más; sube de plan para no quedarte sin IA." : ""}`, url: "/#plan" }, { brandId: b.id, event: "billing" });
+        await setSetting(env, "usage_warn:" + b.id, k);
+      }
+    }
   }
 }
 
@@ -2399,7 +3338,11 @@ async function cron(env) {
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    if (url.pathname === "/privacidad" || url.pathname === "/eliminar-datos") return legalPage(url);
+    if (url.pathname === "/privacidad" || url.pathname === "/eliminar-datos" || url.pathname === "/terminos") return legalPage(url, env);
+    // Con dominio propio para la página de venta (variable SITE_HOST), su portada es la página de venta
+    if (env.SITE_HOST && env.ASSETS && url.hostname === env.SITE_HOST && url.pathname === "/") {
+      return env.ASSETS.fetch(new Request(new URL("/web/", url), req));
+    }
     const needsDb = url.pathname === "/webhook" || url.pathname.startsWith("/auth/") || url.pathname.startsWith("/api/");
     if (needsDb) {
       try { await ensureSchema(env); }
