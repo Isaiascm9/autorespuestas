@@ -465,6 +465,7 @@ table.posts td{vertical-align:middle}
 .act{font-size:11px;font-weight:800;letter-spacing:.05em;border-radius:6px;padding:2px 8px;display:inline-block}
 .act.up{background:#dcfce7;color:#15803d}.act.keep{background:#f3f4f6;color:#374151}.act.cut{background:#fef3c7;color:#b45309}.act.off,.act.fix{background:#fee2e2;color:#b91c1c}.act.wait{background:#f3f4f6;color:#6b7280}
 .salesl b{color:var(--ink)}
+}
 .sw-pop .gl{padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af}
 .sw-pop .s-it{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;width:100%;border:0;background:none;text-align:left;cursor:pointer}
 .sw-pop .s-it:hover{background:#f3f4f6}
@@ -677,6 +678,15 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
 .dg .rec{margin-top:10px;background:#f8f9fa;border-radius:10px;padding:10px 12px;font-size:13.5px}.dg .rec b.t{display:block;margin-bottom:2px}
 .ai-sum{background:linear-gradient(135deg,var(--accent-soft),#fff);border:1px solid #b9e3e7;border-radius:14px;padding:18px 22px;margin-top:16px}
 .ai-sum h2{margin:0;font-size:16px;display:flex;gap:8px;align-items:center}.ai-sum ul{margin:8px 0 0;padding-left:20px}.ai-sum li{margin:5px 0}
+@media (max-width:800px){
+  .side{align-items:center;flex-wrap:nowrap;max-height:64px;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+  .side > *{flex:none;max-height:46px}
+  .side svg{width:18px;height:18px;flex:none}
+  .dg{grid-template-columns:44px minmax(0,1fr);gap:10px}
+  .dg .th{width:44px;height:44px}
+  .dg .mm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+  .dg .mm > span{min-width:0;overflow-wrap:anywhere}
+  .dg .rec{overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -2455,6 +2465,7 @@ const SRC = { cliente: "Cliente", comentario: "Comentario", ia: "IA", rule: "Reg
   default: "Por defecto", mention: "Agradecimiento por mención", reaction: "Reacción a historia", offhours: "Fuera de horario", seguimiento: "Seguimiento automático", humano: "Tú, desde la app", pago: "Confirmación de pago" };
 const REASON_PILL = (r) => (r ? `<span class="pill ${r === "pago" ? "ok" : r === "reclamo" ? "bad" : "warn"}">${esc((S.session.reasons || {})[r] || (r === "respondiste" ? "Respondiste tú" : r === "pausado" ? "En pausa" : r))}</span>` : `<span class="pill warn">En pausa</span>`);
 const PAY_PILL = (c) => c.pay_state === "probable" ? `<span class="pill warn">🕓 Por confirmar pago</span>` : c.pay_state === "paid" ? `<span class="pill ok">✓ Pagado</span>` : c.pay_state === "link" ? `<span class="pill gray">Link de pago enviado</span>` : "";
+const todayCcs = () => new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
 const PAY_METHODS = [["pago_movil", "Pago móvil"], ["zelle", "Zelle"], ["spidi", "Spidi"], ["transferencia", "Transferencia"], ["efectivo", "Efectivo"], ["binance", "Binance"], ["tarjeta", "Tarjeta"], ["otro", "Otro"]];
 const methodName = (k) => (PAY_METHODS.find((x) => x[0] === k) || [0, k || ""])[1];
 const contactName = (c) => c.name || (c.username ? (c.platform === "facebook" ? c.username : "@" + c.username) : "Cliente " + String(c.user_id).slice(-4));
@@ -2580,7 +2591,7 @@ async function loadThread(quiet) {
   if ($("ibPaid2")) $("ibPaid2").onclick = () => openPaid(d, sel);
   $("ibFichaBtn").onclick = () => { C.ficha = !C.ficha; $("inbox").classList.toggle("with-ficha", C.ficha); drawFicha(d, meta); };
   const menu = $("ibMenu");
-  $("ibMore").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); if (!menu.classList.contains("hidden")) document.addEventListener("click", () => menu.classList.add("hidden"), { once: true }); };
+  $("ibMore").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); if (!menu.classList.contains("hidden")) { fitMenu(menu); document.addEventListener("click", () => menu.classList.add("hidden"), { once: true }); } };
   menu.querySelectorAll("[data-mx]").forEach((b) => (b.onclick = async () => {
     const a = b.dataset.mx;
     if (a === "ig") return window.open(`https://ig.me/m/${encodeURIComponent(c.username)}`, "_blank", "noopener");
@@ -2640,7 +2651,17 @@ function drawFicha(d, meta) {
     try { await api(`/api/conversations/${S.inbox.sel.acc}/${encodeURIComponent(S.inbox.sel.user)}`, { method: "DELETE" }); toast("Datos del cliente borrados"); S.inbox.sel = null; renderInbox(); refreshBell(); } catch (e) { toast(e.message); }
   };
 }
-function openPaid(d, sel) {
+/** Que un menú desplegable quede dentro de la pantalla (en el teléfono se salía por la izquierda). */
+function fitMenu(menu) {
+  menu.style.left = ""; menu.style.right = ""; menu.style.maxWidth = "";
+  const r = menu.getBoundingClientRect(), pr = menu.offsetParent ? menu.offsetParent.getBoundingClientRect() : { left: 0 };
+  if (r.left < 8) { menu.style.right = "auto"; menu.style.left = Math.max(8 - pr.left, 8 - pr.left) + "px"; }
+  const r2 = menu.getBoundingClientRect();
+  if (r2.right > innerWidth - 8) { menu.style.maxWidth = (innerWidth - 16) + "px"; menu.style.left = (8 - pr.left) + "px"; menu.style.right = "auto"; }
+}
+let AD_LIST = null;
+async function openPaid(d, sel) {
+  if (!AD_LIST || AD_LIST.brand !== S.inbox.brand) { try { AD_LIST = { brand: S.inbox.brand, list: await api(`/api/ads/list?acc=${encodeURIComponent(sel.acc)}`) }; } catch { AD_LIST = { brand: S.inbox.brand, list: [] }; } }
   const c = d.contact, dlg = $("tplDlg");
   let method = "pago_movil";
   const amt = c.pay_amount != null ? String(c.pay_amount).replace(".", ",") : "";
@@ -2649,7 +2670,10 @@ function openPaid(d, sel) {
       <label class="f" for="pdA">Monto</label><div class="row" style="flex-wrap:nowrap;gap:8px"><input id="pdA" inputmode="decimal" value="${esc(amt)}" placeholder="0,00" style="flex:1;font-size:20px;font-weight:800" required><select id="pdC" style="width:96px"><option>USD</option><option>VES</option><option>COP</option><option>EUR</option></select></div>
       ${amt ? `<div class="help">Lo tomamos del botón de pago que le mandó el bot.</div>` : ""}
       <label class="f">Cómo pagó</label><div class="pchips" id="pdM">${PAY_METHODS.map(([k, l]) => `<button type="button" class="${k === method ? "on" : ""}" data-m="${k}">${l}</button>`).join("")}</div>
-      <label class="f" for="pdAd">Viene del anuncio</label><select id="pdAd">${c.ad_id ? `<option value="${esc(c.ad_id)}">${esc(c.ad_title || "Anuncio " + c.ad_id)} (detectado)</option>` : ""}<option value="">Sin anuncio</option></select>
+      <label class="f" for="pdD">Fecha del pago</label><input id="pdD" type="date" value="${todayCcs()}" max="${todayCcs()}" style="width:auto">
+      <label class="f" for="pdAd">Viene del anuncio</label><select id="pdAd">${c.ad_id ? `<option value="${esc(c.ad_id)}">${esc(c.ad_title || (AD_LIST.list.find((a) => a.id === c.ad_id) || {}).name || "Anuncio " + c.ad_id)} (detectado)</option>` : ""}<option value="">Sin anuncio</option>
+        ${AD_LIST.list.filter((a) => a.id !== c.ad_id).length ? `<optgroup label="Tus anuncios">${AD_LIST.list.filter((a) => a.id !== c.ad_id).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}${a.st && a.st !== "active" ? " · " + esc({ paused: "pausado", review: "en revisión", rejected: "rechazado" }[a.st] || a.st) : ""}</option>`).join("")}</optgroup>` : ""}</select>
+      ${!c.ad_id && !AD_LIST.list.length ? `<div class="help">Conecta Meta Ads en Integraciones para elegir entre tus anuncios.</div>` : ""}
       <label class="f" for="pdN">Nota (opcional)</label><input id="pdN" maxlength="300" placeholder="Ej: referencia 0123, gorro cobre">
       <label class="toggle-row" style="margin-top:14px;justify-content:flex-start;gap:12px;align-items:flex-start"><input type="checkbox" class="switch" id="pdT" ${d.window_open ? "checked" : "disabled"}><span><b>Avisarle al cliente</b><br><span class="small muted">${d.window_open ? `«${esc(d.pay_thanks || "")}»` : "Pasaron más de 24 horas desde su último mensaje: Meta no deja escribirle."}</span></span></label>
       <div class="small" id="pdOut" style="margin-top:8px"></div></div>
@@ -2661,7 +2685,7 @@ function openPaid(d, sel) {
   $("pdF").onsubmit = async (e) => {
     e.preventDefault(); $("pdS").disabled = true;
     try {
-      const r = await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/paid`, { method: "POST", body: { amount: $("pdA").value, currency: $("pdC").value, method, ad_id: $("pdAd").value, note: $("pdN").value, notify: $("pdT").checked } });
+      const r = await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/paid`, { method: "POST", body: { amount: $("pdA").value, currency: $("pdC").value, method, ad_id: $("pdAd").value, note: $("pdN").value, notify: $("pdT").checked, date: $("pdD").value } });
       dlg.close(); toast(r.warn ? "Pago registrado. " + r.warn : "Pago registrado ✓", r.warn ? 7000 : 3000); loadThread(); loadInboxList(true);
     } catch (er) { $("pdOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; $("pdS").disabled = false; }
   };
