@@ -488,6 +488,7 @@ function parseBrand(b) {
 
 const DAYS = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
 const REASONS = { pago: "Pago por verificar", reclamo: "Reclamo", persona: "Quiere hablar con una persona", mayor: "Compra al mayor", otro: "Por atender" };
+const PAY_THANKS = "¡Recibimos tu pago! 🤎 Ya estamos preparando tu pedido.";
 const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false, billing: true, ads: true, system: true, sales: true };
 
 /** Deja las opciones de una tienda completas y válidas (lo que no venga queda con su valor de fábrica). */
@@ -515,7 +516,7 @@ function cleanOpts(o = {}) {
     pause_on_human: bool(o.pause_on_human),
     ai_use_name: bool(o.ai_use_name),
     link_ref: o.link_ref !== false,
-    pay_thanks: str(o.pay_thanks, 600) || "¡Recibimos tu pago! 🤎 Ya estamos preparando tu pedido. Cualquier cosa, aquí estamos.",
+    pay_thanks: (str(o.pay_thanks, 600) || PAY_THANKS).replace(/\s*Cualquier cosa, aquí estamos\.?\s*$/, ""),
     link_buttons: (Array.isArray(o.link_buttons) ? o.link_buttons : []).slice(0, 10)
       .map((x) => ({ title: str(x && x.title, 20).trim(), url: str(x && x.url, 1000).trim(), when: str(x && x.when, 400).trim() }))
       .filter((x) => x.title && /^https?:\/\/\S+\.\S+/i.test(x.url)),
@@ -1982,11 +1983,24 @@ async function api(req, env, url) {
     needBrand(u, id); if (u.role !== "maestro") need(u, "anuncios");
     const brand = await getBrand(env, id);
     const to = url.searchParams.get("to") || addDays(localDate(), -1), from = url.searchParams.get("from") || addDays(to, -6);
-    try { return json(await adsReport(env, brand, from, to, url.searchParams.get("force") === "1")); }
+    const okD = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x || "") ? x : null);
+    try { return json(await adsReport(env, brand, from, to, url.searchParams.get("force") === "1", okD(url.searchParams.get("pfrom")), okD(url.searchParams.get("pto")))); }
     catch (e) {
       if (!e.status) await env.DB.prepare("UPDATE brands SET ads = json_set(ads, '$.error', ?) WHERE id = ?").bind(errText(e), brand.id).run();
       return json({ error: e.status ? e.message : "Meta respondió: " + errText(e) }, e.status || 502);
     }
+  }
+  if (p === "/api/ads/ask" && m === "POST") {
+    const b = await body();
+    needBrand(u, b.brand); if (u.role !== "maestro") need(u, "anuncios");
+    const brand = await getBrand(env, b.brand);
+    if (!adsPro(brand) && u.role !== "maestro") return json({ error: "Preguntarle a la IA es parte del Asesor de anuncios." }, 403);
+    const q = String(b.q || "").trim().slice(0, 400);
+    if (!q) return json({ error: "Escribe tu pregunta" }, 400);
+    if (!(await rateOk(env, `ask:${u.id}`, 30, 3600))) return json({ error: "Hiciste muchas preguntas en poco tiempo. Intenta en un rato." }, 429);
+    const rep = await adsReport(env, brand, b.from, b.to, false, b.pfrom || null, b.pto || null);
+    const text = await adsAskAI(env, brand, rep, cfg, q, (Array.isArray(b.history) ? b.history : []).slice(-6));
+    return json({ text });
   }
   if (p === "/api/ads/summary" && m === "POST") {
     const b = await body();
@@ -3252,6 +3266,15 @@ async function cron(env) {
   const today = localDate();
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'daily_done'").first();
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Caracas", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
+  // Anuncios: se recalculan solos a las 4:00 de lunes a viernes (periodo de 7 días)
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: "America/Caracas", weekday: "short" }).format(new Date());
+  if (hour >= 4 && hour < 9 && !["Sat", "Sun"].includes(wd)) {
+    const w = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ads_warm'").first();
+    if (!w || w.value !== today) {
+      await setSetting(env, "ads_warm", today);
+      try { await adsWarm(env); } catch (e) { console.log("Anuncios 4am", errText(e)); }
+    }
+  }
   if ((!row || row.value !== today) && hour >= 9) {
     await setSetting(env, "daily_done", today);
     await dailyTasks(env);
@@ -3491,22 +3514,23 @@ function diagnose(ad, rules, best) {
  */
 function adAction(a, rules, hasSales, dx, best) {
   const st = a.st || (a.status === "DISAPPROVED" ? "rejected" : a.status === "ACTIVE" || !a.status ? "active" : "other");
-  if (st === "rejected") return { k: "fix", label: "CORREGIR", why: "Meta lo rechazó. Corrige el texto o la imagen y vuelve a enviarlo." };
+  if (st === "rejected") return { k: "fix", label: "CORREGIR", rule: "Regla: anuncio rechazado por Meta", why: "Meta lo rechazó. Corrige el texto o la imagen y vuelve a enviarlo." };
   if (st === "paused" || st === "other") return null;
   if (st === "review" || a.nospend) return { k: "wait", label: "ESPERAR", why: st === "review" ? "Meta lo está revisando. Cuando empiece a gastar, en unos días te decimos qué hacer." : "Está activo pero aún no gasta. Espera unos días." };
   const m = a.m, bd = a.budget && a.budget.level === "adset" && a.budget.daily ? a.budget.daily : null;
   const r2 = (v) => Math.max(1, Math.round(v * 2) / 2);
   const to = (f) => (bd ? { from: bd, to: f === 0 ? 0 : r2(bd * f) } : null);
   const shared = a.budget && a.budget.level === "campaign" ? " (el presupuesto es de la campaña: cámbialo allá)" : "";
-  if (m.spend < 5 || m.impressions < 300) return { k: "wait", label: "ESPERAR", why: "Todavía lo vio muy poca gente para decidir. Déjalo correr unos días." };
+  if (m.spend < 5 || m.impressions < 300) return { k: "wait", label: "ESPERAR", rule: "Regla: menos de $5 gastados o menos de 300 personas lo vieron", why: "Todavía lo vio muy poca gente para decidir. Déjalo correr unos días." };
   if (hasSales) {
     const rr = a.roas_real || 0, sales = a.sales || { n: 0, total: 0 };
     const minSpend = Math.max(10, (bd || 0) * 3);
-    if (!sales.n && m.spend >= minSpend) return { k: "off", label: "APAGAR", budget: to(0), why: `Gastó $${fx(m.spend, 2)} y no trajo ninguna venta en tu tienda.${m.chats ? ` Te escribieron ${m.chats} personas pero nadie compró.` : ""} Apágalo y pasa ese dinero a tu mejor anuncio.` };
-    if (sales.n && rr >= rules.roas_good * 1.5) return { k: "up", label: "SUBIR", budget: to(1.2), why: `Vende $${fx(rr, 2)} por cada $1 en ventas reales. Súbele 20%${shared} y revisa en 3 días que se mantenga.` };
-    if (sales.n && rr < 1) return { k: "cut", label: "RECORTAR", budget: to(0.5), why: `Vendió $${fx(sales.total, 2)} y gastó $${fx(m.spend, 2)}: pierdes dinero. Bájale a la mitad${shared} mientras pruebas otro anuncio.` };
-    if (dx && dx.tag === "Se está cansando" && rr < rules.roas_good) return { k: "cut", label: "RECORTAR", budget: to(0.5), why: `${dx.why} En tu tienda vende $${fx(rr, 2)} por cada $1.` };
-    return { k: "keep", label: "MANTENER", budget: bd ? { from: bd, to: bd } : null, why: sales.n ? `Vende $${fx(rr, 2)} por cada $1. Déjalo correr; si llega a $${fx(rules.roas_good * 1.5, 1)}, súbelo.` : "Todavía no trae ventas, pero aún gastó poco. Dale unos días más." };
+    if (!sales.n && m.spend >= minSpend) return { k: "off", label: "APAGAR", budget: to(0), rule: `Regla: gastó más de $${fx(minSpend, 0)} sin ninguna venta`, why: `Gastó $${fx(m.spend, 2)} y no trajo ninguna venta en tu tienda.${m.chats ? ` Te escribieron ${m.chats} personas pero nadie compró.` : ""} Apágalo y pasa ese dinero a tu mejor anuncio.` };
+    if (sales.n && a.ppo != null && a.cpo > a.ppo) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: "Regla: el pedido cuesta más de lo que deja", why: `Cada pedido te cuesta $${fx(a.cpo, 2)} en anuncios y te deja $${fx(a.ppo, 2)} de ganancia: pierdes en cada venta. Bájale a la mitad${shared} y prueba otro anuncio.` };
+    if (sales.n && rr >= rules.roas_good * 1.5 && (a.ppo == null || a.cpo <= a.ppo * 0.6)) return { k: "up", label: "SUBIR", budget: to(1.2), rule: `Regla: vende más de $${fx(rules.roas_good * 1.5, 1)} por cada $1 y le sobra margen`, why: `Vende $${fx(rr, 2)} por cada $1 en ventas reales${a.cpo != null ? ` y cada pedido te cuesta $${fx(a.cpo, 2)}` : ""}. Súbele 20%${shared} y revisa en 3 días que se mantenga.` };
+    if (sales.n && rr < 1) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: "Regla: vende menos de lo que gasta", why: `Vendió $${fx(sales.total, 2)} y gastó $${fx(m.spend, 2)}: pierdes dinero. Bájale a la mitad${shared} mientras pruebas otro anuncio.` };
+    if (dx && dx.tag === "Se está cansando" && rr < rules.roas_good) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: `Regla: la misma persona lo vio más de ${rules.freq_warn} veces y vende menos de lo ideal`, why: `${dx.why} En tu tienda vende $${fx(rr, 2)} por cada $1.` };
+    return { k: "keep", label: "MANTENER", budget: bd ? { from: bd, to: bd } : null, rule: "Regla: rentable, sin cambios fuertes", why: sales.n ? `Vende $${fx(rr, 2)} por cada $1. Déjalo correr; si llega a $${fx(rules.roas_good * 1.5, 1)}, súbelo.` : "Todavía no trae ventas, pero aún gastó poco. Dale unos días más." };
   }
   if (!dx) return { k: "keep", label: "MANTENER", why: "Sus números están dentro de lo normal." };
   if (best && a.id === best.id && dx.light === "g") return { k: "up", label: "SUBIR", budget: to(1.2), why: dx.why + shared };
@@ -3514,22 +3538,25 @@ function adAction(a, rules, hasSales, dx, best) {
   if (dx.tag === "Se está cansando") return { k: "cut", label: "RECORTAR", budget: to(0.7), why: dx.why };
   return { k: "keep", label: "MANTENER", budget: bd ? { from: bd, to: bd } : null, why: dx.why };
 }
-async function adsFetch(env, brand, from, to, force) {
+async function adsFetch(env, brand, from, to, force, pf, pt) {
   const ads = brand.ads || {};
   if (!ads.account || !ads.token) throw httpError(400, "Conecta la cuenta de anuncios en Integraciones");
-  const key = `ads:${brand.id}:${from}:${to}`;
-  if (!force) { const c = await env.DB.prepare("SELECT value, at FROM cache WHERE key = ?").bind(key).first(); if (c && Date.now() - Date.parse(c.at) < 3600e3) return JSON.parse(c.value); }
+  const days = daysBetween(from, to), pFrom = pf || addDays(from, -days), pTo = pt || addDays(from, -1);
+  const key = `ads:${brand.id}:${from}:${to}:${pFrom}`;
+  // Los días ya cerrados no cambian: el cálculo vale todo el día (se recalcula solo a las 4:00 de lunes a viernes)
+  if (!force) { const c = await env.DB.prepare("SELECT value, at FROM cache WHERE key = ?").bind(key).first(); if (c && localDate("America/Caracas", new Date(c.at)) === localDate() && (to < localDate() || Date.now() - Date.parse(c.at) < 3600e3)) return JSON.parse(c.value); }
   const act = ads.account.startsWith("act_") ? ads.account : "act_" + ads.account;
   const tr = encodeURIComponent(JSON.stringify({ since: from, until: to }));
-  const days = daysBetween(from, to), pFrom = addDays(from, -days), pTo = addDays(from, -1);
   const ptr = encodeURIComponent(JSON.stringify({ since: pFrom, until: pTo }));
   const F = "ad_id,ad_name,adset_name,campaign_name,spend,impressions,reach,frequency,clicks,inline_link_clicks,actions,action_values";
-  const [cur, prev, list, daily] = await Promise.all([
+  const [cur, prev, list, daily, prevAds] = await Promise.all([
     fb(env, ads.token, `/${act}/insights?level=ad&fields=${F}&time_range=${tr}&limit=200`),
     fb(env, ads.token, `/${act}/insights?level=account&fields=${F}&time_range=${ptr}`),
     fb(env, ads.token, `/${act}/ads?fields=id,name,effective_status,ad_review_feedback,creative{thumbnail_url}&limit=200`).catch(() => ({ data: [] })),
     fb(env, ads.token, `/${act}/insights?level=ad&fields=ad_id,spend,actions&time_increment=1&time_range=${tr}&limit=1000`).catch(() => ({ data: [] })),
+    fb(env, ads.token, `/${act}/insights?level=ad&fields=${F}&time_range=${ptr}&limit=200`).catch(() => ({ data: [] })),
   ]);
+  const prevBy = Object.fromEntries((prevAds.data || []).map((r) => [r.ad_id, adsMetrics(r)]));
   // Tendencia: conversaciones por día de cada anuncio
   const dates = datesOf(from, to), trend = {};
   for (const r of daily.data || []) {
@@ -3537,10 +3564,10 @@ async function adsFetch(env, brand, from, to, force) {
     (trend[r.ad_id] ||= dates.map(() => 0))[i] += adsMetrics(r).chats || 0;
   }
   const meta = Object.fromEntries((list.data || []).map((a) => [a.id, a]));
-  const out = { from, to, prev_from: pFrom, prev_to: pTo, ads: (cur.data || []).map((r) => {
+  const out = { from, to, prev_from: pFrom, prev_to: pTo, computed_at: nowIso(), ads: (cur.data || []).map((r) => {
     const a = meta[r.ad_id] || {};
     const fb0 = a.ad_review_feedback && (a.ad_review_feedback.global || a.ad_review_feedback);
-    return { id: r.ad_id, name: r.ad_name, adset: r.adset_name, campaign: r.campaign_name, status: a.effective_status || "", thumb: a.creative && a.creative.thumbnail_url, trend: trend[r.ad_id] || null,
+    return { id: r.ad_id, name: r.ad_name, adset: r.adset_name, campaign: r.campaign_name, status: a.effective_status || "", thumb: a.creative && a.creative.thumbnail_url, trend: trend[r.ad_id] || null, pm: prevBy[r.ad_id] || null,
       review: fb0 && typeof fb0 === "object" ? Object.values(fb0).join(" · ").slice(0, 200) : "", m: adsMetrics(r) };
   }), prev: (prev.data || [])[0] ? adsMetrics(prev.data[0]) : null };
   for (const a of Object.values(meta)) if (a.effective_status === "DISAPPROVED" && !out.ads.find((x) => x.id === a.id)) out.ads.push({ id: a.id, name: a.name, status: "DISAPPROVED", thumb: a.creative && a.creative.thumbnail_url, review: "", m: adsMetrics({}) });
@@ -3598,8 +3625,8 @@ const sumM = (list) => {
   return t;
 };
 const adsPro = (brand) => (brand.bill && /pro/i.test(brand.bill.plan || "")) || !!(brand.ads && brand.ads.advisor);
-async function adsReport(env, brand, from, to, force) {
-  const [d, live] = await Promise.all([adsFetch(env, brand, from, to, force), adsLive(env, brand, force).catch(() => null)]);
+async function adsReport(env, brand, from, to, force, pf, pt) {
+  const [d, live] = await Promise.all([adsFetch(env, brand, from, to, force, pf, pt), adsLive(env, brand, force).catch(() => null)]);
   if (live) {
     // Estado y presupuesto de cada anuncio; los activos que aún no gastan también aparecen
     for (const a of d.ads) { const l = live.ads[a.id]; if (l) Object.assign(a, { st: l.st, budget: l.budget, today: l.today, adset: a.adset || l.adset, campaign: a.campaign || l.campaign }); }
@@ -3624,6 +3651,9 @@ async function adsReport(env, brand, from, to, force) {
   const sFrom = caracasDayStartIso(from), sTo = new Date(Date.parse(`${to}T23:59:59.999-04:00`)).toISOString();
   const { results: sRows } = await env.DB.prepare("SELECT ad_id, COUNT(*) AS n, SUM(amount) AS total FROM sales WHERE brand_id = ? AND status = 'paid' AND at >= ? AND at <= ? GROUP BY ad_id").bind(brand.id, sFrom, sTo).all();
   const salesBy = Object.fromEntries(sRows.filter((x) => x.ad_id).map((x) => [x.ad_id, { n: x.n, total: Math.round(x.total * 100) / 100 }]));
+  const { results: pRows } = await env.DB.prepare("SELECT ad_id, COUNT(*) AS n, SUM(amount) AS total FROM sales WHERE brand_id = ? AND status = 'paid' AND ad_id IS NOT NULL AND at >= ? AND at <= ? GROUP BY ad_id")
+    .bind(brand.id, caracasDayStartIso(d.prev_from), new Date(Date.parse(`${d.prev_to}T23:59:59.999-04:00`)).toISOString()).all();
+  const prevSalesBy = Object.fromEntries(pRows.map((x) => [x.ad_id, { n: x.n, total: x.total || 0 }]));
   const noAd = sRows.find((x) => !x.ad_id) || { n: 0, total: 0 };
   const { results: stList } = await env.DB.prepare("SELECT name, kind FROM stores WHERE brand_id = ? AND active = 1").bind(brand.id).all();
   const chatSales = await env.DB.prepare("SELECT COUNT(*) AS n FROM sales WHERE brand_id = ? AND source = 'chat'").bind(brand.id).first();
@@ -3632,17 +3662,31 @@ async function adsReport(env, brand, from, to, force) {
   const ads = d.ads.map((a) => {
     const sales = salesBy[a.id] || { n: 0, total: 0 };
     const x = { ...a, bot_chats: cs.filter((c) => c.ad_id === a.id).length, bot_pay: cs.filter((c) => c.ad_id === a.id && c.pause_reason === "pago").length, sales,
-      roas_real: hasSales && a.m.spend > 0 ? Math.round((sales.total / a.m.spend) * 100) / 100 : null };
+      roas_real: hasSales && a.m.spend > 0 ? Math.round((sales.total / a.m.spend) * 100) / 100 : null,
+      cpo: hasSales && sales.n ? Math.round((a.m.spend / sales.n) * 100) / 100 : null,
+      cpc: a.m.clicks ? Math.round((a.m.spend / a.m.clicks) * 100) / 100 : null,
+      conv: hasSales && (a.m.chats || a.bot_chats) ? Math.round((sales.n / Math.max(a.m.chats || 0, cs.filter((c) => c.ad_id === a.id).length)) * 1000) / 10 : null,
+      prev: (() => { const pm = a.pm, ps = prevSalesBy[a.id] || { n: 0, total: 0 }; if (!pm) return null;
+        return { spend: pm.spend, cpc: pm.clicks ? pm.spend / pm.clicks : null, roas_real: hasSales && pm.spend > 0 ? ps.total / pm.spend : null, cpo: hasSales && ps.n ? pm.spend / ps.n : null }; })(),
+      ppo: hasSales && sales.n && margin != null ? Math.round((sales.total / sales.n) * margin) / 100 : null };
     const dx = diagnose(a, rules, best);
     if (pro) x.dx = dx;
     x.action = adAction(x, rules, hasSales, dx, best);
     return x;
   }).sort((a, b) => b.m.spend - a.m.spend);
   const soldAds = Object.values(salesBy).reduce((t, x) => t + x.total, 0), ordersAds = Object.values(salesBy).reduce((t, x) => t + x.n, 0);
+  const soldPrev = Object.values(prevSalesBy).reduce((t, x) => t + x.total, 0), ordersPrev = Object.values(prevSalesBy).reduce((t, x) => t + x.n, 0);
+  const pSpend = d.prev ? d.prev.spend : null;
   return { from, to, prev: d.prev, prev_from: d.prev_from, prev_to: d.prev_to, totals: tot, pro, rules, ads,
     sales: { has: hasSales, sources: stList.map((x) => ({ name: x.name, kind: x.kind })), chat: !!(chatSales && chatSales.n), sold: Math.round(soldAds * 100) / 100, orders: ordersAds,
       no_ad: Math.round((noAd.total || 0) * 100) / 100, no_ad_n: noAd.n || 0, roas: tot.spend > 0 && hasSales ? Math.round((soldAds / tot.spend) * 100) / 100 : null,
-      margin, profit: margin != null && hasSales ? Math.round((soldAds * margin / 100 - tot.spend) * 100) / 100 : null },
+      margin, profit: margin != null && hasSales ? Math.round((soldAds * margin / 100 - tot.spend) * 100) / 100 : null,
+      cpo: hasSales && ordersAds ? Math.round((tot.spend / ordersAds) * 100) / 100 : null,
+      ppo: hasSales && ordersAds && margin != null ? Math.round((soldAds / ordersAds) * margin) / 100 : null,
+      ticket: ordersAds ? Math.round((soldAds / ordersAds) * 100) / 100 : null,
+      prev: { sold: soldPrev, orders: ordersPrev, cpo: ordersPrev && pSpend ? pSpend / ordersPrev : null, roas: pSpend ? soldPrev / pSpend : null } },
+    cpc: tot.clicks ? Math.round((tot.spend / tot.clicks) * 100) / 100 : null, cpc_prev: d.prev && d.prev.clicks ? d.prev.spend / d.prev.clicks : null,
+    computed_at: d.computed_at,
     live: live ? { at: live.at, currency: live.currency, account_status: live.account_status, active: live.active, total: live.total, review: live.review, daily_budget: live.daily_budget, lifetime_budget: live.lifetime_budget, today_spend: live.today_spend } : null,
     lights: pro ? { cost_chat: L("cost_chat", tot.cost_chat), ctr: L("ctr", tot.ctr), frequency: L("frequency", tot.frequency), roas: L("roas", hasSales && tot.spend > 0 ? soldAds / tot.spend : tot.roas) } : null,
     funnel: { reach: tot.reach, clicks: tot.clicks, chats: tot.chats, bot_chats: cs.length, handoff_pay: cs.filter((c) => c.pause_reason === "pago").length },
@@ -3664,6 +3708,44 @@ Anuncios:\n${lines}` },
 }
 
 
+/** Límite simple de uso (n veces por ventana de segundos) guardado en la tabla cache. */
+async function rateOk(env, k, n, secs) {
+  const key = `rl:${k}:${Math.floor(Date.now() / 1000 / secs)}`;
+  const r = await env.DB.prepare("SELECT value FROM cache WHERE key = ?").bind(key).first();
+  const c = r ? Number(r.value) || 0 : 0;
+  if (c >= n) return false;
+  await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(key, String(c + 1), nowIso()).run();
+  return true;
+}
+/** Los números de la pantalla de Anuncios en texto, para que la IA responda preguntas sobre ellos. */
+function adsContext(rep) {
+  const t = rep.totals, p = rep.prev, S2 = rep.sales || {};
+  const f2 = (v) => (v == null ? "—" : "$" + Number(v).toFixed(2));
+  const lines = rep.ads.slice(0, 15).map((a) => `- ${a.name} [${a.st || a.status || ""}]: gasto ${f2(a.m.spend)} (antes ${f2(a.prev && a.prev.spend)}), chats ${a.m.chats}, costo/chat ${f2(a.m.cost_chat)}, CPC ${f2(a.cpc)} (antes ${f2(a.prev && a.prev.cpc)}), frecuencia ${a.m.frequency.toFixed(1)}, CTR ${a.m.ctr.toFixed(2)}%`
+    + (S2.has ? `, ventas reales ${f2(a.sales && a.sales.total)} en ${a.sales ? a.sales.n : 0} pedidos, por cada $1 ${a.roas_real != null ? a.roas_real.toFixed(2) : "—"} (antes ${a.prev && a.prev.roas_real != null ? a.prev.roas_real.toFixed(2) : "—"}), costo por pedido ${f2(a.cpo)}, compran ${a.conv != null ? a.conv + "%" : "—"} de los que escriben` : "")
+    + (a.budget && a.budget.daily ? `, presupuesto ${f2(a.budget.daily)}/día` : "") + (a.action ? `, recomendación: ${a.action.label} (${a.action.why})` : ""));
+  return `Periodo ${rep.from} a ${rep.to}, comparado con ${rep.prev_from} a ${rep.prev_to}.
+Total: gasto ${f2(t.spend)} (antes ${f2(p && p.spend)}), conversaciones ${t.chats} (antes ${p ? p.chats : "—"}), costo por chat ${f2(t.cost_chat)}, CPC ${f2(rep.cpc)}.
+${S2.has ? `Ventas reales por anuncios ${f2(S2.sold)} en ${S2.orders} pedidos (antes ${f2(S2.prev && S2.prev.sold)} en ${S2.prev ? S2.prev.orders : "—"}); por cada $1 vende ${S2.roas != null ? S2.roas.toFixed(2) : "—"}; costo por pedido ${f2(S2.cpo)}; ${S2.margin != null ? `margen ${S2.margin}%, ganancia ${f2(S2.profit)}` : "sin margen cargado"}; ventas sin anuncio ${f2(S2.no_ad)}.` : "No hay ventas reales conectadas; solo datos de Meta."}
+${rep.live ? `Ahora: ${rep.live.active} anuncios activos, presupuesto diario ${f2(rep.live.daily_budget)}, gastado hoy ${f2(rep.live.today_spend)}.` : ""}
+Anuncios:
+${lines}`;
+}
+async function adsAskAI(env, brand, rep, cfg, q, history) {
+  const key = await deepseekKey(env, brand, cfg);
+  if (!key) throw httpError(400, "Falta la clave de la IA");
+  const msgs = [{ role: "system", content: "Eres el asesor de anuncios de una pequeña tienda en Venezuela. Responde en español, tuteando, en 2 a 5 frases cortas y sin tecnicismos (traduce CTR, CPC, ROAS a palabras simples). Usa SOLO los números dados; si no tienes el dato, dilo. Si recomiendas un cambio, di cuánto (ej. bajar el presupuesto de $3 a $1,50). No inventes anuncios ni cifras.\n\nDATOS:\n" + adsContext(rep) }];
+  for (const h of history) if (h && (h.role === "user" || h.role === "assistant") && h.content) msgs.push({ role: h.role, content: String(h.content).slice(0, 800) });
+  msgs.push({ role: "user", content: q });
+  const text = await deepseekChat(env, key, "deepseek-flash", msgs, 500, false, 25000, brand.id);
+  return text.replace(/\*\*/g, "").trim();
+}
+
+async function adsWarm(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM brands WHERE ads LIKE '%\"token\"%'").all();
+  const to = addDays(localDate(), -1), from = addDays(to, -6);
+  for (const raw of results) { try { await adsReport(env, parseBrand(raw), from, to, true); } catch (e) { console.log("Anuncios", raw.id, errText(e)); } }
+}
 async function adsDaily(env) {
   const { results } = await env.DB.prepare("SELECT * FROM brands WHERE ads LIKE '%\"token\"%'").all();
   const monday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Caracas", weekday: "short" }).format(new Date()) === "Mon";
@@ -3672,7 +3754,7 @@ async function adsDaily(env) {
     const b = parseBrand(raw);
     try {
       const to = addDays(localDate(), -1), from = addDays(to, -6);
-      const rep = await adsReport(env, b, from, to, true);
+      const rep = await adsReport(env, b, from, to, false);
       const seenRow = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind("ads_seen:" + b.id).first();
       const seen = new Set(parseJson(seenRow && seenRow.value, []));
       for (const a of rep.ads.filter((x) => x.status === "DISAPPROVED" && !seen.has(x.id))) {
