@@ -2305,6 +2305,21 @@ async function api(req, env, url) {
   }
 
 
+  if (p === "/api/ads/list" && m === "GET") {
+    // Anuncios para elegir al marcar un pago: los de Meta (si está conectado) y los que trajeron chats
+    need(u, "conversaciones");
+    const acc = await accountFor(env, u, url.searchParams.get("acc"));
+    const brand = acc.brand_id ? await getBrand(env, acc.brand_id) : null;
+    if (!brand) return json([]);
+    const out = new Map();
+    if (brand.ads && brand.ads.account && brand.ads.token) {
+      try { const live = await adsLive(env, brand); for (const a of Object.values(live.ads)) out.set(a.id, { id: a.id, name: a.name, st: a.st }); } catch {}
+    }
+    const { results } = await env.DB.prepare("SELECT ad_id, MAX(ad_title) AS t, MAX(last_at) AS l FROM contacts WHERE brand_id = ? AND ad_id IS NOT NULL GROUP BY ad_id ORDER BY l DESC LIMIT 50").bind(brand.id).all();
+    for (const r of results) if (!out.has(r.ad_id)) out.set(r.ad_id, { id: r.ad_id, name: r.t || "Anuncio " + r.ad_id, st: null });
+    const rank = { active: 0, review: 1, issues: 2, paused: 3 };
+    return json([...out.values()].sort((a, b) => (rank[a.st] ?? 4) - (rank[b.st] ?? 4)));
+  }
   /* ----- tiendas online ----- */
   if (p === "/api/stores" && m === "GET") {
     const brand = url.searchParams.get("brand");
@@ -2439,7 +2454,13 @@ async function api(req, env, url) {
       if (!(amount > 0) || amount > 1e7) return json({ error: "Escribe el monto" }, 400);
       const method = SALE_METHODS.includes(b.method) ? b.method : "otro";
       const brand = acc.brand_id ? await getBrand(env, acc.brand_id) : null;
-      const sale = await recordSale(env, { brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: b.ad_id === "" ? null : (b.ad_id || contact.ad_id || null),
+      // Fecha del pago (puede ser de días anteriores); hoy = la hora actual
+      let at = nowIso();
+      if (b.date && b.date !== caracasToday()) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date) || b.date > caracasToday() || b.date < addDays(caracasToday(), -366)) return json({ error: "Revisa la fecha del pago" }, 400);
+        at = new Date(Date.parse(`${b.date}T12:00:00-04:00`)).toISOString();
+      }
+      const sale = await recordSale(env, { at, brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: b.ad_id === "" ? null : (b.ad_id || contact.ad_id || null),
         amount, currency: /^[A-Z]{3}$/.test(b.currency || "") ? b.currency : "USD", method, source: "chat", ref: contact.ref || null, note: String(b.note || "").slice(0, 300) || null, by: u.name });
       await refreshPayState(env, acc.id, userId);
       let warn = null;
