@@ -720,7 +720,7 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
 .smc-r{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:4px}.smc-r > b{font-size:21px;color:var(--ink)}
 .lt2{border:0;border-radius:99px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
 .lt2.g{background:#dcfce7;color:#15803d}.lt2.y{background:#fef3c7;color:#b45309}.lt2.r{background:#fee2e2;color:#b91c1c}.lt2.n{background:#f3f4f6;color:var(--muted)}
-.lt2 span{opacity:.7}.lt2[aria-expanded="true"]{box-shadow:0 0 0 2px currentColor}
+.lt2{display:inline-flex;align-items:center;gap:5px}.lt2 .info-i{opacity:.8;flex:none}.lt2[aria-expanded="true"]{box-shadow:0 0 0 2px currentColor}
 .smc .pop{position:absolute;left:0;top:calc(100% + 8px);width:320px;max-width:calc(100vw - 32px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(17,24,39,.16);padding:12px 14px;z-index:30;font-size:13px;color:var(--ink2)}
 .pop-h{font-weight:800;margin-bottom:6px;color:var(--ink)}
 .pop-l{display:flex;justify-content:space-between;gap:10px;padding:4px 0}.pop-l b{white-space:nowrap;color:var(--ink)}.pop-l.tot{border-top:1px solid var(--line);margin-top:4px;padding-top:7px;font-weight:700;color:var(--ink)}
@@ -4527,7 +4527,7 @@ async function renderAds(force, cached) {
   const LT = { g: ["g", "🟢 Bien"], y: ["y", "🟡 Atención"], r: ["r", "🔴 Mejorar"] };
   // Semáforo compacto: título, número y etiqueta; la explicación sale al tocar la etiqueta
   const semC = (l, title, val, popHtml, valStyle = "") => `<div class="smc ${l || "n"}"><div class="smc-t">${title}</div><div class="smc-r"><b ${valStyle}>${val}</b>
-    <button type="button" class="lt2 ${l || "n"}" data-pop aria-expanded="false">${l ? LT[l][1] : "Ver"} <span aria-hidden="true">ⓘ</span></button></div><div class="pop hidden" role="dialog">${popHtml}</div></div>`;
+    <button type="button" class="lt2 ${l || "n"}" data-pop aria-expanded="false">${l ? LT[l][1] : "Ver"}<svg class="info-i" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4.9" r="1" fill="currentColor"/><path d="M8 7.2v4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div><div class="pop hidden" role="dialog">${popHtml}</div></div>`;
   const sem = (k, title, val, ex) => { const l = r.lights && r.lights[k]; return semC(l, title, val, `<div class="pop-h">${l ? LT[l][1].split(" ")[0] + " " : ""}${title}</div><p style="margin-top:2px">${ex}</p>`); };
   const R = r.rules;
   const L = r.live, SL = r.sales || { has: false }, SP = SL.prev || {};
