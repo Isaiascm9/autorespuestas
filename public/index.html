@@ -726,7 +726,7 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
 .pop-l{display:flex;justify-content:space-between;gap:10px;padding:4px 0}.pop-l b{white-space:nowrap;color:var(--ink)}.pop-l.tot{border-top:1px solid var(--line);margin-top:4px;padding-top:7px;font-weight:700;color:var(--ink)}
 .smc .neg{color:var(--bad)!important}.smc .pop p{margin:8px 0 0;color:var(--muted);font-size:12.5px}
 @media (max-width:800px){.smg{grid-template-columns:repeat(2,minmax(0,1fr))}.smc{min-width:0}.smc-r{flex-wrap:wrap;gap:4px}.smc-r > b{font-size:19px}
-  .smc .pop{position:fixed;left:12px!important;right:12px!important;top:auto;bottom:88px;width:auto;max-width:none;max-height:60vh;overflow:auto;z-index:70}}
+  .smc .pop{position:absolute;right:auto;max-width:none;z-index:40}}
 </style>
 </head>
 <body>
@@ -4605,8 +4605,15 @@ async function renderAds(force, cached) {
     e.stopPropagation(); const pop = btn.closest(".smc").querySelector(".pop"), was = !pop.classList.contains("hidden");
     closePops(); if (was) return;
     pop.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true");
-    pop.style.left = ""; pop.style.right = "";
-    const rc = pop.getBoundingClientRect(); if (rc.right > innerWidth - 8) { pop.style.left = "auto"; pop.style.right = "0"; }
+    pop.style.left = ""; pop.style.right = ""; pop.style.top = ""; pop.style.width = "";
+    if (innerWidth <= 800) {
+      // En el teléfono sale justo debajo de la tarjeta tocada, a lo ancho de la cuadrícula
+      const card = btn.closest(".smc"), grid = card.parentElement;
+      const gr = grid.getBoundingClientRect(), cr = card.getBoundingClientRect();
+      Object.assign(pop.style, { left: (gr.left - cr.left) + "px", width: gr.width + "px", top: (cr.height + 8) + "px" });
+    } else {
+      const rc = pop.getBoundingClientRect(); if (rc.right > innerWidth - 8) { pop.style.left = "auto"; pop.style.right = "0"; }
+    }
     setTimeout(() => document.addEventListener("click", function off(ev) { if (!pop.contains(ev.target)) { closePops(); document.removeEventListener("click", off); } }), 0);
   }));
   box.querySelectorAll("[data-only]").forEach((x) => (x.onclick = () => { ADS_PERIOD.only = x.dataset.only === "1"; box.querySelectorAll("[data-only]").forEach((y) => y.classList.toggle("on", y === x)); drawAdList(r); }));
