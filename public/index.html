@@ -705,6 +705,28 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
 .rec .rule{display:block;margin-top:4px;color:var(--muted);font-size:11.5px}
 @media (max-width:1100px){.mx{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:800px){.mx{grid-template-columns:repeat(2,minmax(0,1fr))}.adsearch{width:100%}.adtools .chips{width:100%}.page-head .adsel{flex:1}}
+@media (max-width:800px){
+  #main{max-width:100vw;overflow-x:hidden}
+  #main table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tabs{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+}
+.grow{min-width:0}.grow input,.grow select{width:100%}
+@media (max-width:800px){.list-row{flex-wrap:wrap;gap:8px}.box{min-width:0;max-width:100%}}
+.netl{margin:6px 0 0;padding-left:18px}.netl li{margin:2px 0}
+.smg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:16px;align-items:start}
+.smc{position:relative;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;padding:10px 12px}
+.smc.y{border-left-color:#f59e0b}.smc.r{border-left-color:var(--bad)}.smc.n{border-left-color:#d1d5db}
+.smc-t{font-size:12px;color:var(--muted);font-weight:600;line-height:1.3;min-height:31px}
+.smc-r{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:4px}.smc-r > b{font-size:21px;color:var(--ink)}
+.lt2{border:0;border-radius:99px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.lt2.g{background:#dcfce7;color:#15803d}.lt2.y{background:#fef3c7;color:#b45309}.lt2.r{background:#fee2e2;color:#b91c1c}.lt2.n{background:#f3f4f6;color:var(--muted)}
+.lt2 span{opacity:.7}.lt2[aria-expanded="true"]{box-shadow:0 0 0 2px currentColor}
+.smc .pop{position:absolute;left:0;top:calc(100% + 8px);width:320px;max-width:calc(100vw - 32px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(17,24,39,.16);padding:12px 14px;z-index:30;font-size:13px;color:var(--ink2)}
+.pop-h{font-weight:800;margin-bottom:6px;color:var(--ink)}
+.pop-l{display:flex;justify-content:space-between;gap:10px;padding:4px 0}.pop-l b{white-space:nowrap;color:var(--ink)}.pop-l.tot{border-top:1px solid var(--line);margin-top:4px;padding-top:7px;font-weight:700;color:var(--ink)}
+.smc .neg{color:var(--bad)!important}.smc .pop p{margin:8px 0 0;color:var(--muted);font-size:12.5px}
+@media (max-width:800px){.smg{grid-template-columns:repeat(2,minmax(0,1fr))}.smc{min-width:0}.smc-r{flex-wrap:wrap;gap:4px}.smc-r > b{font-size:19px}
+  .smc .pop{position:fixed;left:12px!important;right:12px!important;top:auto;bottom:88px;width:auto;max-width:none;max-height:60vh;overflow:auto;z-index:70}}
 </style>
 </head>
 <body>
@@ -3901,7 +3923,7 @@ async function renderSiteEditor() {
       <div class="grid2" style="margin-top:6px">${d.plans.map((p, i) => `<div class="box" style="margin-top:8px"><div class="row" style="justify-content:space-between"><b>Plan ${i + 1}</b><span class="row"><label class="toggle-row small" style="font-weight:500;gap:6px">Más elegido <input type="checkbox" data-pp="${i}" ${p.popular ? "checked" : ""}></label><button class="icon-btn danger" data-pdel="${i}">${ICON.trash}</button></span></div>
         <div class="row" style="flex-wrap:nowrap"><div class="grow"><label class="f">Nombre</label><input data-p="${i}" data-k="name" value="${esc(p.name)}"></div><div style="width:110px"><label class="f">Precio $</label><input data-p="${i}" data-k="price" type="number" min="0" step="1" value="${esc(p.price)}"></div></div>
         <label class="f">Para quién es</label><input data-p="${i}" data-k="desc" value="${esc(p.desc || "")}">
-        <div class="row" style="flex-wrap:nowrap"><div class="grow"><label class="f">Respuestas al mes</label><input data-p="${i}" data-k="replies" type="number" min="0" value="${esc(p.replies || "")}"></div><div class="grow"><label class="f">Personas del equipo</label><input data-p="${i}" data-k="users" type="number" min="0" value="${esc(p.users || "")}"></div></div>
+        <div class="row" style="flex-wrap:wrap"><div class="grow"><label class="f">Respuestas al mes</label><input data-p="${i}" data-k="replies" type="number" min="0" value="${esc(p.replies || "")}"></div><div class="grow"><label class="f">Personas del equipo</label><input data-p="${i}" data-k="users" type="number" min="0" value="${esc(p.users || "")}"></div></div>
         <label class="f">Incluye</label><textarea data-p="${i}" data-k="features" style="min-height:120px">${esc((p.features || []).join("\n"))}</textarea></div>`).join("")}</div></div>
     <div class="card"><div class="card-h"><div><h2>Asesor de anuncios y forma de pago</h2></div></div>
       <div class="grid2" style="gap:0 16px">${f("addon_title", "Nombre del extra")}${f("addon_price", "Precio del extra")}</div>${f("addon_text", "Descripción del extra")}${f("pay_note", "Nota de pago")}</div>
@@ -4131,7 +4153,7 @@ async function renderBilling() {
         <div class="list-row"><div><b>Días de gracia</b><div class="small muted">El bot sigue funcionando (7 por defecto, se cambia por tienda)</div></div></div>
         <div class="list-row"><div><b>Después de la gracia</b><div class="small muted">El bot se pausa y te avisa. Los chats se guardan. Al registrar el pago vuelve solo.</div></div></div>
         <div class="list-row"><div><b>Límite de respuestas</b><div class="small muted">Avisos al 80% y 100%. Pasado el 120% la IA se detiene; siguen las reglas y el mensaje por defecto.</div></div></div>
-        <hr class="divider" style="margin:12px 0"><b>Costo de la IA (para el cálculo)</b><div class="row" style="margin-top:8px;flex-wrap:nowrap"><span class="small muted">$ por millón de tokens · entrada</span><input id="aiIn" type="number" step="0.01" value="${r.ai_prices.in}" style="width:90px"><span class="small muted">salida</span><input id="aiOut" type="number" step="0.01" value="${r.ai_prices.out}" style="width:90px"><button class="btn small" id="aiSave">Guardar</button></div>
+        <hr class="divider" style="margin:12px 0"><b>Costo de la IA (para el cálculo)</b><div class="row" style="margin-top:8px;flex-wrap:wrap"><span class="small muted">$ por millón de tokens · entrada</span><input id="aiIn" type="number" step="0.01" value="${r.ai_prices.in}" style="width:90px"><span class="small muted">salida</span><input id="aiOut" type="number" step="0.01" value="${r.ai_prices.out}" style="width:90px"><button class="btn small" id="aiSave">Guardar</button></div>
         <div class="help">Revisa los precios actuales en la página de DeepSeek.</div></div>
     </div>`;
   box.querySelectorAll("[data-pay]").forEach((x) => (x.onclick = () => openPayment(r.brands.find((b) => b.id === x.dataset.pay))));
@@ -4501,9 +4523,12 @@ async function renderAds(force, cached) {
   renderAdsCached = r;
   const t = r.totals, p = r.prev, $$ = (n) => money(n);
   // Flecha y porcentaje contra el periodo anterior (verde si mejora)
-  const dl = (cur, prev, lowerBetter, neutral) => { if (prev == null || !prev || cur == null) return ""; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<span class="dl n">= igual</span>`; const good = lowerBetter ? d < 0 : d > 0; return `<span class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</span>`; };
+  const dl = (cur, prev, lowerBetter, neutral) => { if (cur == null) return ""; if (prev == null || !prev) return cur && prev === 0 ? `<span class="dl n">nuevo</span>` : ""; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<span class="dl n">= igual</span>`; if (d > 300) return `<span class="dl n">antes casi nada</span>`; const good = lowerBetter ? d < 0 : d > 0; return `<span class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</span>`; };
   const LT = { g: ["g", "🟢 Bien"], y: ["y", "🟡 Atención"], r: ["r", "🔴 Mejorar"] };
-  const sem = (k, title, val, ex) => { const l = r.lights && r.lights[k]; return `<div class="sm ${l || ""}"><div class="tp">${title}${l ? `<span class="lt ${LT[l][0]}">${LT[l][1]}</span>` : ""}</div><div class="vv">${val}</div><div class="ex">${ex}</div></div>`; };
+  // Semáforo compacto: título, número y etiqueta; la explicación sale al tocar la etiqueta
+  const semC = (l, title, val, popHtml, valStyle = "") => `<div class="smc ${l || "n"}"><div class="smc-t">${title}</div><div class="smc-r"><b ${valStyle}>${val}</b>
+    <button type="button" class="lt2 ${l || "n"}" data-pop aria-expanded="false">${l ? LT[l][1] : "Ver"} <span aria-hidden="true">ⓘ</span></button></div><div class="pop hidden" role="dialog">${popHtml}</div></div>`;
+  const sem = (k, title, val, ex) => { const l = r.lights && r.lights[k]; return semC(l, title, val, `<div class="pop-h">${l ? LT[l][1].split(" ")[0] + " " : ""}${title}</div><p style="margin-top:2px">${ex}</p>`); };
   const R = r.rules;
   const L = r.live, SL = r.sales || { has: false }, SP = SL.prev || {};
   const srcChips = SL.has ? [...(SL.sources || []).map((x) => `<span class="src"><i style="background:${(STORE_UI[x.kind] || STORE_UI.custom).bg}">${x.kind === "custom" ? "↔" : (STORE_UI[x.kind] || {}).t?.[0] || "T"}</i>${esc(x.name)}</span>`), SL.chat ? `<span class="src"><i style="background:var(--accent)">✓</i>Pagos marcados en el chat</span>` : ""].join("") : "";
@@ -4531,7 +4556,7 @@ async function renderAds(force, cached) {
     ${SL.has ? `<div class="kpis">
       <div class="kpi"><div class="l">Invertido</div><div class="v">${$$(t.spend)}</div><div class="s">${dl(t.spend, p && p.spend, false, true)} vs. ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}</div></div>
       <div class="kpi"><div class="l">Vendido por anuncios</div><div class="v">${$$(SL.sold)}</div><div class="s">${dl(SL.sold, SP.sold)} · ${nf(SL.orders)} pedido${SL.orders === 1 ? "" : "s"}</div></div>
-      <div class="kpi"><div class="l">Te cuesta cada pedido</div><div class="v">${SL.cpo != null ? $$(SL.cpo) : "—"}</div><div class="s">${dl(SL.cpo, SP.cpo, true)}${SL.ppo != null ? ` · te deja ${$$(SL.ppo)}` : SL.ticket != null ? ` · pedido promedio ${$$(SL.ticket)}` : ""}</div></div>
+      <div class="kpi"><div class="l">Te cuesta cada pedido</div><div class="v">${SL.cpo != null ? $$(SL.cpo) : "—"}</div><div class="s">${dl(SL.cpo, SP.cpo, true)}${SL.net_po != null ? ` · te quedan <b style="color:${SL.net_po < 0 ? "var(--bad)" : "var(--ok)"}">${$$(SL.net_po)}</b> por pedido` : SL.ticket != null ? ` · pedido promedio ${$$(SL.ticket)}` : ""}</div></div>
       <div class="kpi"><div class="l">Por cada $1, vendes</div><div class="v">${SL.roas != null ? $$(SL.roas) : "—"}</div><div class="s">${dl(SL.roas, SP.roas)} · real${t.roas != null ? ", Meta dice " + $$(t.roas) : ""}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada clic</div><div class="v">${r.cpc != null ? $$(r.cpc) : "—"}</div><div class="s">${dl(r.cpc, r.cpc_prev, true)} · CPC</div></div>
       <div class="kpi"><div class="l">Ganancia</div><div class="v">${SL.profit != null ? $$(SL.profit) : "—"}</div><div class="s">${SL.margin != null ? `con tu margen de ${SL.margin}% · ` : ""}${can("tienda") ? `<button class="linkbtn" id="adMargin" style="color:var(--accent);font-weight:600;margin:0">${SL.margin != null ? "cambiar" : "pon tu margen"}</button>` : ""}</div></div>
@@ -4543,9 +4568,17 @@ async function renderAds(force, cached) {
       <div class="kpi"><div class="l">Te cuesta cada clic</div><div class="v">${r.cpc != null ? $$(r.cpc) : "—"}</div><div class="s">${dl(r.cpc, r.cpc_prev, true)} · CPC</div></div>
       <div class="kpi"><div class="l">Llegaron al bot</div><div class="v">${nf(r.funnel.bot_chats)}</div><div class="s">${nf(r.funnel.handoff_pay)} mandaron pago</div></div>
     </div>`}
-    ${r.pro ? `<div class="sem">
-      ${SL.has && SL.cpo != null ? (() => { const l = SL.ppo == null ? null : SL.cpo <= SL.ppo * 0.5 ? "g" : SL.cpo <= SL.ppo ? "y" : "r";
-        return `<div class="sm ${l || ""}"><div class="tp">Lo que te cuesta cada pedido${l ? `<span class="lt ${l}">${LT[l][1]}</span>` : ""}</div><div class="vv">${$$(SL.cpo)}</div><div class="ex">${SL.ppo != null ? `Cada pedido te deja ${$$(SL.ppo)} de ganancia. ${l === "r" ? "Estás pagando más de lo que ganas por venta." : l === "y" ? "Ganas, pero poco por cada venta." : "Te sobra margen: puedes invertir más."}` : "Pon tu margen en la tarjeta Ganancia para saber si te conviene."}</div></div>`; })() : ""}
+    ${r.pro ? `<div class="smg" id="semG">
+      ${SL.has && SL.cpo != null ? (() => {
+        if (SL.ppo == null) return semC(null, "Lo que te queda por cada venta", "—", `<p style="margin:0">Pon tu margen en la tarjeta Ganancia para saber cuánto te queda por venta.</p>`);
+        const net = SL.net_po, l = net < 0 ? "r" : net >= SL.ppo * 0.5 ? "g" : "y";
+        const head = l === "g" ? "🟢 Vas bien" : l === "y" ? "🟡 Ganas, pero poco" : "🔴 Estás perdiendo";
+        const fin = l === "g" ? "Te queda más de la mitad. Puedes invertir un poco más en anuncios." : l === "y" ? "El anuncio se está comiendo más de la mitad de lo que deja cada venta." : `Pierdes ${$$(Math.abs(net))} en cada venta: el anuncio cuesta más de lo que te deja el producto.`;
+        return semC(l, "Lo que te queda por cada venta", $$(net), `<div class="pop-h">${head}</div>
+          <div class="pop-l"><span>Cada cliente te compró en promedio</span><b>${$$(SL.ticket)}</b></div>
+          <div class="pop-l"><span>Después de pagar el producto (margen ${SL.margin} %)</span><b>${$$(SL.ppo)}</b></div>
+          <div class="pop-l"><span>Menos lo que pagaste en anuncios por venta</span><b class="neg">− ${$$(SL.cpo)}</b></div>
+          <div class="pop-l tot"><span>Te queda por venta</span><b ${net < 0 ? 'class="neg"' : ""}>${$$(net)}</b></div><p>${fin}</p>`, net < 0 ? 'style="color:var(--bad)"' : ""); })() : ""}
       ${sem("cost_chat", "Cuánto te cuesta que te escriban", t.cost_chat != null ? $$(t.cost_chat) : "—", `Por cada persona que te escribe. Menos de $${R.cpc_good} es bueno para tu negocio.`)}
       ${sem("ctr", "De cada 100 que lo ven, cuántos lo tocan", dec(t.ctr), `Más de ${R.ctr_good} es bueno.`)}
       ${sem("frequency", "Veces que la misma persona lo vio", dec(t.frequency), `Pasando de ${R.freq_warn} la gente se cansa y toca renovar.`)}
@@ -4565,6 +4598,16 @@ async function renderAds(force, cached) {
     </div>
     <p class="help" style="margin-top:14px">Las recomendaciones son orientativas, según los criterios de tu agencia y los datos de Meta. No modificamos tus anuncios: los cambios los haces tú en el Administrador de anuncios.</p>`;
   drawAdList(r);
+  // Mini tarjetas del semáforo
+  const closePops = () => box.querySelectorAll(".smc .pop").forEach((x) => { x.classList.add("hidden"); x.parentElement.querySelector("[data-pop]").setAttribute("aria-expanded", "false"); });
+  box.querySelectorAll("[data-pop]").forEach((btn) => (btn.onclick = (e) => {
+    e.stopPropagation(); const pop = btn.closest(".smc").querySelector(".pop"), was = !pop.classList.contains("hidden");
+    closePops(); if (was) return;
+    pop.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true");
+    pop.style.left = ""; pop.style.right = "";
+    const rc = pop.getBoundingClientRect(); if (rc.right > innerWidth - 8) { pop.style.left = "auto"; pop.style.right = "0"; }
+    setTimeout(() => document.addEventListener("click", function off(ev) { if (!pop.contains(ev.target)) { closePops(); document.removeEventListener("click", off); } }), 0);
+  }));
   box.querySelectorAll("[data-only]").forEach((x) => (x.onclick = () => { ADS_PERIOD.only = x.dataset.only === "1"; box.querySelectorAll("[data-only]").forEach((y) => y.classList.toggle("on", y === x)); drawAdList(r); }));
   let qt; $("adQ").oninput = (e) => { clearTimeout(qt); qt = setTimeout(() => { ADS_PERIOD.q = e.target.value; drawAdList(r); }, 150); };
   if ($("adCross")) $("adCross").onclick = () => renderAds(true);
@@ -4609,13 +4652,13 @@ function drawAdList(r) {
   const list = ADS_PERIOD.act === "alert" ? base.filter(alertOf) : ADS_PERIOD.act ? base.filter((a) => a.action && a.action.k === ADS_PERIOD.act) : base;
   const spark = (pts, col) => { if (!pts || pts.length < 2 || !pts.some((v) => v)) return ""; const w = 76, h = 26, mx = Math.max(...pts), mn = Math.min(...pts); const xy = pts.map((v, i) => [4 + (i / (pts.length - 1)) * (w - 8), h - 4 - ((v - mn) / (mx - mn || 1)) * (h - 8)]);
     return `<svg class="spk" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="Tendencia de conversaciones por día"><polyline points="${xy.map((q) => q.join(",")).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/><circle cx="${xy[xy.length - 1][0]}" cy="${xy[xy.length - 1][1]}" r="2.6" fill="${col}"/></svg>`; };
-  const dl = (cur, prev, lowerBetter, neutral) => { if (prev == null || !prev || cur == null) return `<i class="dl n">—</i>`; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<i class="dl n">= igual</i>`; const good = lowerBetter ? d < 0 : d > 0; return `<i class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</i>`; };
+  const dl = (cur, prev, lowerBetter, neutral) => { if (cur == null) return `<i class="dl n">—</i>`; if (prev == null || !prev) return cur && prev === 0 ? `<i class="dl n">nuevo</i>` : `<i class="dl n">—</i>`; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<i class="dl n">= igual</i>`; if (d > 300) return `<i class="dl n">antes casi nada</i>`; const good = lowerBetter ? d < 0 : d > 0; return `<i class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</i>`; };
   const bTxt = (bd) => (bd ? (bd.to === bd.from ? `${$$(bd.from)}/día` : `${$$(bd.from)} → ${bd.to ? $$(bd.to) + "/día" : "$0"}`) : "");
   const bx = (label, val, d, sub) => `<div><span>${label}</span><b>${val}</b>${d || ""}${sub ? `<em>${sub}</em>` : ""}</div>`;
   el.innerHTML = list.length ? list.map((a) => {
     const P = a.prev || {}, pm = a.pm || {};
     const boxes = SL.has
-      ? bx("Gastado", $$(a.m.spend), dl(a.m.spend, P.spend, false, true)) + bx("Por cada $1", a.roas_real != null && a.sales.n ? $$(a.roas_real) : "—", dl(a.sales.n ? a.roas_real : null, P.roas_real)) + bx("Cada pedido", a.cpo != null ? $$(a.cpo) : "—", dl(a.cpo, P.cpo, true), a.ppo != null && a.cpo > a.ppo ? `<b style="color:var(--bad)">más de lo que deja</b>` : "")
+      ? bx("Gastado", $$(a.m.spend), dl(a.m.spend, P.spend, false, true)) + bx("Por cada $1", a.roas_real != null && a.sales.n ? $$(a.roas_real) : "—", dl(a.sales.n ? a.roas_real : null, P.roas_real)) + bx("Cada pedido", a.cpo != null ? $$(a.cpo) : "—", dl(a.cpo, P.cpo, true), a.net_po != null ? `te quedan <b style="font-size:11px;color:${a.net_po < 0 ? "var(--bad)" : "var(--ok)"}">${$$(a.net_po)}</b>` : "")
         + bx("Cada clic (CPC)", a.cpc != null ? $$(a.cpc) : "—", dl(a.cpc, P.cpc, true)) + bx("Compran", a.conv != null ? dec(a.conv) + "%" : "—", "", `${nf(a.sales.n)} de ${nf(Math.max(a.m.chats || 0, a.bot_chats || 0))} chats`)
       : bx("Gastado", $$(a.m.spend), dl(a.m.spend, P.spend, false, true)) + bx("Chats", nf(a.m.chats), dl(a.m.chats, pm.chats)) + bx("Costo por chat", a.m.cost_chat != null ? $$(a.m.cost_chat) : "—", dl(a.m.cost_chat, pm.cost_chat, true))
         + bx("Cada clic (CPC)", a.cpc != null ? $$(a.cpc) : "—", dl(a.cpc, P.cpc, true)) + bx("Lo tocan", dec(a.m.ctr) + " de 100", dl(a.m.ctr, pm.ctr));
