@@ -441,6 +441,30 @@ table.posts td{vertical-align:middle}
 .lb-row{display:grid;grid-template-columns:minmax(140px,200px) 1fr auto;gap:8px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .lb-row textarea{grid-column:1/3;grid-row:2}.lb-row .icon-btn{grid-column:3;grid-row:1/3}
 @media (max-width:640px){.lb-row{grid-template-columns:1fr auto}.lb-row input[data-k=url]{grid-column:1;grid-row:2}.lb-row textarea{grid-column:1;grid-row:3}.lb-row .icon-btn{grid-column:2;grid-row:1/4}}
+.live-ads .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:640px){.live-ads .kpi{padding:10px}.live-ads .kpi .v{font-size:20px}.live-ads .kpi .l,.live-ads .kpi .s{font-size:11px}}
+.paybtn{border-color:#16a34a !important;color:#15803d !important;font-weight:700}.paybtn svg{width:15px;height:15px}
+.paysolid{background:#16a34a;border-color:#16a34a;color:#fff}.paysolid:hover{background:#15803d}
+.paybar{flex-wrap:wrap;background:#fffbeb;border-color:#fde68a;color:#92400e;align-items:center}.paybar .btn{margin-left:auto;flex:none;background:#fff}
+.pchips{display:flex;flex-wrap:wrap;gap:6px}.pchips button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink2)}
+.pchips button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:8px 8px 8px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center;min-width:0}
+.code > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.evt{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;background:#fff}
+.tg{font-family:ui-monospace,monospace;font-size:11px;background:#f3f4f6;border-radius:6px;padding:1px 6px;color:var(--muted)}
+.steps-ol{margin:0;padding-left:20px;line-height:1.75;font-size:13.5px}
+.fmt{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fcfcfd}.fmt summary{cursor:pointer;font-weight:600;font-size:13px}
+.fmt pre{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px;font-size:11.5px;overflow:auto;max-height:340px}
+.slog{width:100%;border-collapse:collapse}.slog td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px}.slog tr:last-child td{border-bottom:0}
+.srcbar{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px}
+.src{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:4px 10px 4px 5px;font-size:12.5px;font-weight:600;background:#fff}
+.src i{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;color:#fff;font-style:normal;font-size:10px;font-weight:800}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:10px;padding:6px 11px;font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--ink2);cursor:pointer}
+.chip b{color:var(--muted);font-weight:600;margin-left:3px}.chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.act{font-size:11px;font-weight:800;letter-spacing:.05em;border-radius:6px;padding:2px 8px;display:inline-block}
+.act.up{background:#dcfce7;color:#15803d}.act.keep{background:#f3f4f6;color:#374151}.act.cut{background:#fef3c7;color:#b45309}.act.off,.act.fix{background:#fee2e2;color:#b91c1c}.act.wait{background:#f3f4f6;color:#6b7280}
+.salesl b{color:var(--ink)}
 .sw-pop .gl{padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af}
 .sw-pop .s-it{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;width:100%;border:0;background:none;text-align:left;cursor:pointer}
 .sw-pop .s-it:hover{background:#f3f4f6}
@@ -1277,7 +1301,7 @@ function render() {
   const r = rest || [];
   ({
     inicio: () => renderHome(), conversaciones: () => renderInbox(), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
-    metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => renderIntegrations(),
+    metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
     equipo: () => renderUsers(), plan: () => renderPlan(), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
   })[view]();
@@ -1408,7 +1432,7 @@ const DAY_LABELS = { lun: "Lunes", mar: "Martes", mie: "Miércoles", jue: "Jueve
 const REASON_HINT = { pago: "Envió el pago, la referencia o la captura", reclamo: "Producto dañado, pedido que no llegó…", persona: "Pide hablar con alguien o está molesto", mayor: "Quiere comprar al mayor o revender", otro: "Cualquier otro motivo" };
 const NOTIFY_LABELS = { handoff: ["Cliente pasado a una persona", "Pago enviado, reclamo, pide una persona…"], ai_fail: ["La IA no respondió", "DeepSeek caído o saturado (máximo un aviso cada 10 min)"],
   mention: ["Te mencionaron en una historia", ""], offensive: ["Comentario ofensivo", "Solo si «Comentarios ofensivos» está activo en el Moderador"],
-  billing: ["Plan y pagos", "Cuándo vence el plan y el uso del mes"], ads: ["Anuncios", "Anuncio rechazado, chats más caros y resumen semanal"] };
+  billing: ["Plan y pagos", "Cuándo vence el plan y el uso del mes"], ads: ["Anuncios", "Anuncio rechazado, chats más caros y resumen semanal"], sales: ["Ventas de tu tienda online", "Cuando tu tienda avisa un pedido pagado"] };
 const SYSTEM_NOTIFY = { system: ["Alertas del sistema (solo cuenta maestra)", "Conexión caída, saldo bajo de la IA, intentos de entrada fallidos"] };
 const CFG_TABS = [["general", "General"], ["ia", "IA"], ["funciones", "Funciones"], ["mensajes", "Mensajes"], ["avisos", "Avisos"]];
 const swHtml = (id, on, disabled) => `<input type="checkbox" role="switch" class="switch" id="${id}" ${on ? "checked" : ""} ${disabled ? "disabled" : ""}>`;
@@ -1498,6 +1522,9 @@ function renderStoreCfg(sections) {
       <p class="muted small" style="margin:0 0 12px">Cuando el vendedor mande uno de estos enlaces (por ejemplo, tu link de pago de Spidi), al cliente le llega como un botón en vez de un link pegado en el texto. Puedes tener hasta 10 (por ejemplo, uno por monto) y decirle a la IA cuándo usar cada uno.</p>
       <div id="lbList"></div>
       ${canT ? `<button class="btn small" type="button" id="lbAdd">${ICON.plus} Agregar enlace</button>` : ""}
+      <div class="box" style="margin-top:14px"><div class="box-h"><div><strong>Agregar la referencia del cliente al enlace</strong><p>Le suma <code>?ref=</code> al link. Si tu tienda o plataforma de pago la guarda, sabemos de qué chat y de qué anuncio vino cada pago. Apágalo si tu link deja de funcionar con eso.</p></div>${swHtml("lbRef", o.link_ref !== false, !canT)}</div></div>
+      <div class="box"><strong>Mensaje al confirmar un pago</strong><p class="muted small" style="margin:2px 0 8px">Se le envía al cliente cuando marcas «Pagado» en Conversaciones (si eliges avisarle) o cuando tu tienda avisa que pagó.</p>
+        ${ta("lbThanks", o.pay_thanks || "", "¡Recibimos tu pago! 🤎 Ya estamos preparando tu pedido.", 'style="min-height:56px"')}</div>
       <div class="info" style="margin-top:14px"><b>¿Cuándo lo manda?</b> Lo decide la IA según la conversación: si el cliente solo pregunta («¿aceptan pago móvil?») responde sin el link; si confirma que quiere comprar, lo manda. Para afinarlo, escríbelo en <a href="#asistentes/vendedor/instrucciones">Instrucciones</a>, por ejemplo: <i>«Envía el link de pago solo cuando el cliente confirme producto, talla y que quiere pagar.»</i></div>
       <div style="margin-top:14px;max-width:320px"><div class="muted small" style="margin-bottom:6px">Así lo ve el cliente</div><div id="lbPrev"></div></div>`,
     follow: `
@@ -1542,6 +1569,7 @@ function renderStoreCfg(sections) {
   val("cDefault", (v) => (d.default_reply = v)); val("cCool", (v) => (d.cooldown_hours = v)); val("cTestUsers", (v) => (d.test_users = v)); val("cFallback", (v) => (d.ai_fallback = v));
   chk("cActive", (v) => (d.active = v)); chk("cTest", (v) => (d.test_mode = v)); chk("cUseName", (v) => (o.ai_use_name = v));
   on("cModel", "onchange", (t) => (d.ai_model = t.value));
+  chk("lbRef", (v) => (o.link_ref = v)); val("lbThanks", (v) => (o.pay_thanks = v));
   // enlaces como botón
   if ($("lbList")) {
     o.link_buttons ||= [];
@@ -2424,8 +2452,11 @@ async function setupPush() {
 
 /* ================= CONVERSACIONES ================= */
 const SRC = { cliente: "Cliente", comentario: "Comentario", ia: "IA", rule: "Regla", regla: "Regla", handoff: "Pase a una persona", fallback: "Respaldo (la IA falló)",
-  default: "Por defecto", mention: "Agradecimiento por mención", reaction: "Reacción a historia", offhours: "Fuera de horario", seguimiento: "Seguimiento automático", humano: "Tú, desde la app" };
+  default: "Por defecto", mention: "Agradecimiento por mención", reaction: "Reacción a historia", offhours: "Fuera de horario", seguimiento: "Seguimiento automático", humano: "Tú, desde la app", pago: "Confirmación de pago" };
 const REASON_PILL = (r) => (r ? `<span class="pill ${r === "pago" ? "ok" : r === "reclamo" ? "bad" : "warn"}">${esc((S.session.reasons || {})[r] || (r === "respondiste" ? "Respondiste tú" : r === "pausado" ? "En pausa" : r))}</span>` : `<span class="pill warn">En pausa</span>`);
+const PAY_PILL = (c) => c.pay_state === "probable" ? `<span class="pill warn">🕓 Por confirmar pago</span>` : c.pay_state === "paid" ? `<span class="pill ok">✓ Pagado</span>` : c.pay_state === "link" ? `<span class="pill gray">Link de pago enviado</span>` : "";
+const PAY_METHODS = [["pago_movil", "Pago móvil"], ["zelle", "Zelle"], ["spidi", "Spidi"], ["transferencia", "Transferencia"], ["efectivo", "Efectivo"], ["binance", "Binance"], ["tarjeta", "Tarjeta"], ["otro", "Otro"]];
+const methodName = (k) => (PAY_METHODS.find((x) => x[0] === k) || [0, k || ""])[1];
 const contactName = (c) => c.name || (c.username ? (c.platform === "facebook" ? c.username : "@" + c.username) : "Cliente " + String(c.user_id).slice(-4));
 const initial = (c) => (String(c.name || c.username || "?").replace(/^@/, "").trim()[0] || "?").toUpperCase();
 
@@ -2457,6 +2488,7 @@ function drawInboxFilters(n) {
   el.innerHTML = it("all", "Todas", n.todas) + it("mine", "Asignadas a mí", n.mine) + it("unassigned", "Sin asignar", n.unassigned)
     + `<div class="g">Estado</div>` + it("pending", "Esperan persona", n.pending, true, "var(--bad)") + it("open", "Abiertas", n.open, false, "var(--accent)")
     + it("unread", "No leídas", n.unread, false, "#9ca3af") + it("closed", "Finalizadas", n.closed, false, "var(--ok)")
+    + `<div class="g">Pagos</div>` + it("topay", "Por confirmar", n.topay, true, "#f59e0b") + it("paidtoday", "Pagadas hoy", n.paidtoday, false, "var(--ok)")
     + (Object.keys(n.reasons || {}).length ? `<div class="g">Motivo</div>` + Object.entries(n.reasons).map(([k, v]) => `<button type="button" class="${C.reason === k ? "on" : ""}" data-r="${esc(k)}"><span class="ell">${esc(reasons[k] || (k === "respondiste" ? "Respondiste tú" : k === "pausado" ? "Pausado" : k))}</span>${cnt(v)}</button>`).join("") : "")
     + `<div class="g">Canal</div>` + [["instagram", "Instagram", n.instagram], ["facebook", "Facebook", n.facebook]].map(([k, l, v]) => `<button type="button" class="${C.platform === k ? "on" : ""}" data-p="${k}"><span class="ell">${l}</span>${cnt(v)}</button>`).join("");
   el.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { C.filter = b.dataset.f; C.reason = ""; C.platform = ""; loadInboxList(); }));
@@ -2474,7 +2506,7 @@ async function loadInboxList(quiet) {
   catch (e) { if (!quiet && $("ibList")) $("ibList").innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
   const el = $("ibList"); if (!el) return;
   drawInboxFilters(counts);
-  if (!list.length) { el.innerHTML = `<div class="empty">${C.filter === "pending" ? "Nadie esperando 🎉" : C.filter === "unread" ? "Todo leído ✓" : "No hay conversaciones aquí."}</div>`; return; }
+  if (!list.length) { el.innerHTML = `<div class="empty">${C.filter === "pending" ? "Nadie esperando 🎉" : C.filter === "unread" ? "Todo leído ✓" : C.filter === "topay" ? "No hay pagos por confirmar ✓" : "No hay conversaciones aquí."}</div>`; return; }
   el.innerHTML = list.map((c) => {
     const sel = C.sel && C.sel.acc === c.account_id && C.sel.user === c.user_id;
     const who = c.assigned_to ? teamName(c.assigned_to) || "Asignada" : "";
@@ -2482,7 +2514,7 @@ async function loadInboxList(quiet) {
       <span class="avatar ${c.platform === "facebook" ? "fb" : ""}">${esc(initial(c))}</span>
       <span class="ib-main"><span class="row" style="justify-content:space-between;gap:6px;flex-wrap:nowrap"><strong class="ell who">${esc(contactName(c))}</strong><span class="small muted" style="flex:none">${esc(agoText(c.last_at))}</span></span>
         <span class="small ell muted">${c.last_channel === "comment" ? "Comentario: " : ""}${esc(c.last_message || "")}</span>
-        <span class="badges">${c.closed_at ? '<span class="pill ok">Finalizada</span>' : c.paused ? REASON_PILL(c.pause_reason) : ""}<span class="pill ${c.platform === "instagram" ? "ig" : "fb"}">${PLAT[c.platform] || ""}</span>${(c.tags || []).slice(0, 2).map((t) => `<span class="pill gray">${esc(t)}</span>`).join("")}${who ? `<span class="mini-av" title="Atiende: ${esc(who)}">${esc(initials(who))}</span>` : ""}</span></span>
+        <span class="badges">${PAY_PILL(c)}${c.closed_at ? '<span class="pill ok">Finalizada</span>' : c.paused ? REASON_PILL(c.pause_reason) : ""}<span class="pill ${c.platform === "instagram" ? "ig" : "fb"}">${PLAT[c.platform] || ""}</span>${(c.tags || []).slice(0, 2).map((t) => `<span class="pill gray">${esc(t)}</span>`).join("")}${who ? `<span class="mini-av" title="Atiende: ${esc(who)}">${esc(initials(who))}</span>` : ""}</span></span>
       ${c.unread ? '<span class="ud" title="Sin leer"></span>' : ""}</button>`;
   }).join("");
   el.querySelectorAll(".ib-item").forEach((b) => (b.onclick = () => {
@@ -2514,6 +2546,7 @@ async function loadThread(quiet) {
         <span class="small muted">${PLAT[c.platform] || ""}${c.username && c.name ? " · " + esc(ig ? "@" + c.username : c.username) : ""}</span></div>
       <div class="ib-actions">
         <label class="assign" title="Quién atiende">Atiende: <select id="ibAssign" style="border:0;padding:0 2px;font-weight:600;width:auto;background:none"><option value="">Nadie</option>${TEAM.list.map((x) => `<option value="${esc(x.id)}" ${x.id === c.assigned_to ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>
+        <button class="btn small paybtn" id="ibPaid" title="Registrar que este cliente pagó">${ICON.check || "✓"} <span class="hide-sm">Marcar como pagado</span></button>
         <button class="btn small ${c.closed_at ? "" : "primary"}" id="ibClose">${c.closed_at ? "Reabrir" : "Finalizar"}</button>
         <div class="menu-wrap"><button class="icon-btn" id="ibMore" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
           <div class="menu hidden" id="ibMenu">
@@ -2526,6 +2559,7 @@ async function loadThread(quiet) {
       </div>
     </div>
     ${c.paused && !c.closed_at ? `<div class="reason-bar">${ICON.warn}<span><b>Pasó a una persona${c.pause_reason && (S.session.reasons || {})[c.pause_reason] ? " por: " + esc(S.session.reasons[c.pause_reason]) : ""}.</b> El bot está en pausa con este cliente hasta que lo reanudes o finalices la conversación.</span></div>` : ""}
+    ${c.pay_state === "probable" ? `<div class="reason-bar paybar"><span style="flex:1 1 200px"><b>🕓 Probable venta:</b> dice que pagó o mandó una foto después del link de pago. Verifícalo y márcalo.</span><button class="btn small paybtn" id="ibPaid2">Marcar como pagado</button></div>` : ""}
     <div class="ib-msgs" id="ibMsgs">${d.messages.length ? d.messages.map((m) => `<div class="msg ${m.role === "user" ? "in" : "out"} ${m.source === "humano" || m.source === "panel" ? "human" : ""}">
         <div class="bubble ${m.role === "user" ? "assistant" : "user"}">${esc(m.content)}</div>
         <div class="msg-meta">${esc(label(m))}${label(m) ? " · " : ""}${esc(fmt(m.at))}</div></div>`).join("")
@@ -2542,6 +2576,8 @@ async function loadThread(quiet) {
   $("ibBack").onclick = () => { C.sel = null; $("inbox").classList.remove("has-sel"); loadInboxList(); };
   $("ibAssign").onchange = (e) => meta({ assigned_to: e.target.value || null }, e.target.value ? `Asignada a ${teamName(e.target.value)}` : "Sin asignar");
   $("ibClose").onclick = () => meta({ closed: !c.closed_at }, c.closed_at ? "Conversación reabierta" : "Conversación finalizada ✓");
+  $("ibPaid").onclick = () => openPaid(d, sel);
+  if ($("ibPaid2")) $("ibPaid2").onclick = () => openPaid(d, sel);
   $("ibFichaBtn").onclick = () => { C.ficha = !C.ficha; $("inbox").classList.toggle("with-ficha", C.ficha); drawFicha(d, meta); };
   const menu = $("ibMenu");
   $("ibMore").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); if (!menu.classList.contains("hidden")) document.addEventListener("click", () => menu.classList.add("hidden"), { once: true }); };
@@ -2585,9 +2621,15 @@ function drawFicha(d, meta) {
       <span>Tienda</span><b>${esc(c.brand || "—")}</b>
       <span>Atiende</span><b>${esc(teamName(c.assigned_to) || "Nadie")}</b>
       <span>Estado</span><b>${c.closed_at ? "Finalizada" : c.paused ? "Espera a una persona" : "Abierta · bot activo"}</b></div></div>
+    <div class="sec"><h4>Ventas</h4>${(d.sales || []).length ? (d.sales || []).map((x) => `<div class="ord"><span><b>${money(x.amount)}</b> · ${esc(new Date(x.at).toLocaleDateString("es-VE", { day: "numeric", month: "short" }))}${x.order_id ? " · #" + esc(x.order_id) : ""}${x.method ? `<small class="muted" style="display:block">${esc(methodName(x.method))}${x.note ? " · " + esc(x.note) : ""}</small>` : ""}</span>
+        <span class="row" style="gap:4px;flex-wrap:nowrap">${x.status === "cancelled" ? `<span class="pill bad">Cancelada</span>` : x.source === "store" ? `<span class="pill ok" title="Confirmada por la tienda">✅ ${esc(x.store || "Tienda")}</span>` : `<span class="pill ok" title="Marcada en el chat por ${esc(x.by || "")}">✔️ Tú</span>`}${x.source === "chat" ? `<button class="icon-btn" data-sdel="${x.id}" title="Quitar" aria-label="Quitar">${ICON.x}</button>` : ""}</span></div>`).join("")
+        + `<div class="small muted" style="margin-top:6px">Total pagado: <b style="color:var(--ink)">${money((d.sales || []).filter((x) => x.status === "paid").reduce((a, x) => a + x.amount, 0))}</b></div>`
+      : `<p class="small muted" style="margin:0">Todavía no hay pagos registrados.</p>`}
+      ${c.ad_title || c.ad_id ? `<div class="small" style="margin-top:8px">Llegó por el anuncio <b>${esc(c.ad_title || c.ad_id)}</b></div>` : ""}</div>
     <div class="sec"><h4>Notas del equipo</h4>${notes.length ? notes.map((n, i) => `<div class="note">${esc(n.text)}<small>${esc(n.by || "")} · ${esc(fmt(n.at))} <button type="button" class="linkbtn" data-ndel="${i}">Borrar</button></small></div>`).join("") : `<p class="small muted" style="margin:0">Sin notas. Solo las ve tu equipo, nunca el cliente.</p>`}
       <textarea id="fNote" placeholder="Escribe una nota…" style="min-height:56px;margin-top:8px"></textarea><button class="btn small" id="fNoteAdd" style="margin-top:6px">Guardar nota</button></div>
     ${can("tienda") ? `<div class="sec"><h4>Privacidad</h4><button class="btn small danger" id="fWipe">Borrar todos sus datos</button><div class="help">Para cuando un cliente pide que eliminen su información. No se puede deshacer.</div></div>` : ""}`;
+  el.querySelectorAll("[data-sdel]").forEach((b) => (b.onclick = async () => { if (!confirm("¿Quitar este pago? Deja de contar en tus ventas.")) return; try { await api(`/api/sales/${b.dataset.sdel}`, { method: "DELETE" }); toast("Pago quitado"); loadThread(); loadInboxList(true); } catch (e) { toast(e.message); } }));
   $("fClose").onclick = () => { S.inbox.ficha = false; $("inbox").classList.remove("with-ficha"); el.innerHTML = ""; };
   $("fTag").onkeydown = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); meta({ tags: [...tags, e.target.value.trim()] }); } };
   el.querySelectorAll("[data-tdel]").forEach((b) => (b.onclick = () => meta({ tags: tags.filter((_, i) => i !== +b.dataset.tdel) })));
@@ -2596,6 +2638,32 @@ function drawFicha(d, meta) {
   if ($("fWipe")) $("fWipe").onclick = async () => {
     if (!confirm(`¿Borrar todos los datos de ${contactName(c)}? Se eliminan sus mensajes, notas, etiquetas y registro. No se puede deshacer.`)) return;
     try { await api(`/api/conversations/${S.inbox.sel.acc}/${encodeURIComponent(S.inbox.sel.user)}`, { method: "DELETE" }); toast("Datos del cliente borrados"); S.inbox.sel = null; renderInbox(); refreshBell(); } catch (e) { toast(e.message); }
+  };
+}
+function openPaid(d, sel) {
+  const c = d.contact, dlg = $("tplDlg");
+  let method = "pago_movil";
+  const amt = c.pay_amount != null ? String(c.pay_amount).replace(".", ",") : "";
+  dlg.innerHTML = `<form id="pdF" class="paydlg"><div class="modal-h"><div><h2>Marcar como pagado</h2><p>${esc(contactName(c))} · se suma a tus ventas${c.ad_title || c.ad_id ? " y al anuncio" : ""}</p></div><button type="button" class="icon-btn" id="pdX" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <label class="f" for="pdA">Monto</label><div class="row" style="flex-wrap:nowrap;gap:8px"><input id="pdA" inputmode="decimal" value="${esc(amt)}" placeholder="0,00" style="flex:1;font-size:20px;font-weight:800" required><select id="pdC" style="width:96px"><option>USD</option><option>VES</option><option>COP</option><option>EUR</option></select></div>
+      ${amt ? `<div class="help">Lo tomamos del botón de pago que le mandó el bot.</div>` : ""}
+      <label class="f">Cómo pagó</label><div class="pchips" id="pdM">${PAY_METHODS.map(([k, l]) => `<button type="button" class="${k === method ? "on" : ""}" data-m="${k}">${l}</button>`).join("")}</div>
+      <label class="f" for="pdAd">Viene del anuncio</label><select id="pdAd">${c.ad_id ? `<option value="${esc(c.ad_id)}">${esc(c.ad_title || "Anuncio " + c.ad_id)} (detectado)</option>` : ""}<option value="">Sin anuncio</option></select>
+      <label class="f" for="pdN">Nota (opcional)</label><input id="pdN" maxlength="300" placeholder="Ej: referencia 0123, gorro cobre">
+      <label class="toggle-row" style="margin-top:14px;justify-content:flex-start;gap:12px;align-items:flex-start"><input type="checkbox" class="switch" id="pdT" ${d.window_open ? "checked" : "disabled"}><span><b>Avisarle al cliente</b><br><span class="small muted">${d.window_open ? `«${esc(d.pay_thanks || "")}»` : "Pasaron más de 24 horas desde su último mensaje: Meta no deja escribirle."}</span></span></label>
+      <div class="small" id="pdOut" style="margin-top:8px"></div></div>
+    <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="pdCancel">Cancelar</button><button class="btn paysolid" id="pdS">✓ Confirmar pago</button></div></div></form>`;
+  dlg.showModal();
+  setTimeout(() => $("pdA").focus(), 50);
+  $("pdX").onclick = $("pdCancel").onclick = () => dlg.close();
+  $("pdM").querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { method = b.dataset.m; $("pdM").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
+  $("pdF").onsubmit = async (e) => {
+    e.preventDefault(); $("pdS").disabled = true;
+    try {
+      const r = await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/paid`, { method: "POST", body: { amount: $("pdA").value, currency: $("pdC").value, method, ad_id: $("pdAd").value, note: $("pdN").value, notify: $("pdT").checked } });
+      dlg.close(); toast(r.warn ? "Pago registrado. " + r.warn : "Pago registrado ✓", r.warn ? 7000 : 3000); loadThread(); loadInboxList(true);
+    } catch (er) { $("pdOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; $("pdS").disabled = false; }
   };
 }
 function openConversation(acc, user) { (S.inbox ||= { filter: "open", q: "", brand: S.selBrand || "", sel: null, reason: "", platform: "", ficha: innerWidth > 1250 }).sel = { acc, user }; S.inbox.filter = "all"; S.inbox.reason = ""; S.inbox.platform = ""; if (S.route === "conversaciones") renderInbox(); else go("conversaciones"); }
@@ -4191,10 +4259,14 @@ function renderIntegrations() {
         p: "Lo que gastas y cuántas conversaciones trae cada anuncio. Solo lectura: nunca cambiamos tus anuncios.", meta: b && b.ads.error ? esc(b.ads.error).slice(0, 120) : "",
         btns: M ? `<button class="btn small ${b && b.ads.connected ? "" : "primary"}" id="adsCon">${b && b.ads.connected ? "Configurar" : "Conectar"}</button>` : b && b.ads.connected && can("anuncios") ? `<a class="btn small" href="#anuncios">Ver anuncios</a>` : "" }),
     ])
-    + sec("Ventas y pagos", [
+    + `<div class="sec-t">Tu tienda online <span class="pill" style="background:#111827;color:#fff;text-transform:none;letter-spacing:0;margin-left:6px">Nuevo</span></div>
+      <p class="muted small" style="margin:6px 0 0">Conecta dónde vendes y sabrás <b>cuánto vendió de verdad cada anuncio</b>, no solo lo que dice Meta. Cada pedido pagado se cruza con su chat.</p>
+      <div class="integ" id="storeCards"><div class="muted small">Cargando…</div></div>`
+    + sec("Pagos", [
       card({ t: "Spidi", bg: "#0e7c86", icon: '<b style="color:#fff">S</b>', soon: 1, pill: ["gray", "Fase 2"], p: "Confirma pagos solos al leer el correo del banco." }),
-      card({ t: "Téreapp / tu tienda online", bg: "#3b2a20", icon: '<b style="color:#fff">t</b>', soon: 1, pill: ["gray", "Fase 2"], p: "Pedidos y clientes conectados con tu app." }),
-      card({ t: "Google Sheets", bg: "#0f9d58", icon: '<b style="color:#fff">▦</b>', soon: 1, pill: ["gray", "Pronto"], p: "Copia contactos y pedidos a una hoja." }),
+    ])
+    + sec("Exportar", [
+      card({ t: "Google Sheets", bg: "#0f9d58", icon: '<b style="color:#fff">▦</b>', soon: 1, pill: ["gray", "Pronto"], p: "Copia contactos, pedidos y ventas confirmadas a una hoja." }),
     ])
     + (M ? `<div class="sec-t">Cuentas conectadas (todas las tiendas)</div><div id="accWrap"></div>` : "");
   deepseekBalance().then((r) => { const el = $("intBal"); if (el && r) el.innerHTML = r.available === false ? `<span style="color:var(--bad)">Sin saldo</span>` : r.balance ? "Saldo: " + esc(r.balance) : ""; });
@@ -4204,12 +4276,120 @@ function renderIntegrations() {
     try { const r = await api(`/api/oauth/start?platform=${pl}`); location.href = r.url; } catch (e) { toast(e.message, 6000); }
   }));
   if ($("adsCon")) $("adsCon").onclick = () => openAdsConnect(b);
+  drawStoreCards(b, card);
   if (M) {
     const holder = document.createElement("div"); holder.id = "tabBodyAcc";
     // reutiliza la tabla de cuentas
     const keep = $("tabBody"); keep.id = "tabBodyMain"; $("accWrap").id = "tabBody"; tabAccounts(); $("tabBody").id = "accWrap"; keep.id = "tabBody";
   }
 }
+
+/* ---------- tiendas online ---------- */
+const STORE_UI = {
+  shopify: { t: "Shopify", bg: "#5e8e3e", icon: '<b style="color:#fff">S</b>', p: "Los pedidos pagados llegan solos. Se conecta con un webhook desde tu Shopify." },
+  woo: { t: "WooCommerce", bg: "#7f54b3", icon: '<b style="color:#fff">W</b>', p: "Para tiendas en WordPress. Pegas un enlace en tu tienda y listo." },
+  tiendanube: { t: "Tiendanube", bg: "#2c3357", icon: '<b style="color:#fff">N</b>', p: "Conexión con un clic desde la tienda de apps de Tiendanube.", soon: 1 },
+  custom: { t: "Otra tienda", bg: "#0e7c86", icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>', p: "Cualquier sistema que mande avisos (webhook): tu propia app de pedidos, Wix u otra plataforma." },
+};
+async function drawStoreCards(b, card) {
+  const el = $("storeCards"); if (!el) return;
+  let list = [];
+  if (b) { try { list = await api(`/api/stores?brand=${encodeURIComponent(b.id)}`); } catch {} }
+  if (!$("storeCards")) return;
+  const T = can("tienda");
+  const conn = list.map((x) => { const ui = STORE_UI[x.kind] || STORE_UI.custom; return card({ t: esc(x.name), sub: x.kind === "custom" ? "Otra tienda" : ui.t, bg: ui.bg, icon: ui.icon, on: x.active, pill: x.active ? (x.has_secret ? ["ok", "● Conectada"] : ["warn", "Falta la clave"]) : ["gray", "Apagada"],
+    p: x.last_at ? `Último aviso ${esc(agoText(x.last_at))}` : "Todavía no llega ningún aviso.", btns: `<a class="btn small" href="#integraciones/tienda/${x.id}">Ver detalles</a>` }); });
+  const add = ["shopify", "woo", "tiendanube", "custom"].map((k) => { const ui = STORE_UI[k]; return card({ t: ui.t, bg: ui.bg, icon: ui.icon, soon: ui.soon, pill: ui.soon ? ["gray", "Pronto"] : ["gray", list.some((x) => x.kind === k) ? "Agregar otra" : "Sin conectar"], p: ui.p,
+    btns: !ui.soon && T && b ? `<button class="btn small ${list.length ? "" : "primary"}" data-store="${k}">Conectar</button>` : "" }); });
+  el.innerHTML = conn.join("") + add.join("");
+  el.querySelectorAll("[data-store]").forEach((x) => (x.onclick = () => openStoreNew(b, x.dataset.store)));
+}
+function openStoreNew(b, kind) {
+  const ui = STORE_UI[kind], dlg = $("tplDlg");
+  dlg.innerHTML = `<form id="snF"><div class="modal-h"><div><h2>Conectar ${esc(ui.t)}</h2><p>${esc(b.name)} · recibe los pedidos pagados para cruzarlos con tus chats y anuncios.</p></div><button type="button" class="icon-btn" id="snX" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b"><label class="f" for="snN">${kind === "custom" ? "Nombre de la tienda o sistema" : "Nombre para reconocerla"}</label>
+      <input id="snN" maxlength="60" placeholder="${kind === "custom" ? "Ej: Mi app de pedidos" : kind === "shopify" ? "Ej: Tienda principal" : "Ej: Tienda web"}" value="${kind === "custom" ? "" : esc(ui.t)}" required>
+      <div class="help">${kind === "custom" ? "Es el nombre que verás en tus ventas, en Anuncios y en los chats («Pagado · este nombre»)." : "Aparece en tus ventas y en los chats."}</div>
+      <div class="small" id="snOut" style="margin-top:8px"></div></div>
+    <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="snC">Cancelar</button><button class="btn primary" id="snS">Continuar</button></div></div></form>`;
+  dlg.showModal();
+  $("snX").onclick = $("snC").onclick = () => dlg.close();
+  $("snF").onsubmit = async (e) => { e.preventDefault(); $("snS").disabled = true;
+    try { const r = await api("/api/stores", { method: "POST", body: { brand: b.id, kind, name: $("snN").value } }); dlg.close(); go(`integraciones/tienda/${r.store.id}`); }
+    catch (er) { $("snOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; $("snS").disabled = false; } };
+}
+const copyBtn = (id, label = "Copiar") => `<button type="button" class="btn small" data-copy="${id}">${label}</button>`;
+async function renderStoreConn(id) {
+  shell({ back: ["integraciones", "Integraciones"], title: "Tienda online", sub: "" });
+  const box = $("tabBody");
+  box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  let d; try { d = await api(`/api/stores/${id}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  const st = d.store, ui = STORE_UI[st.kind] || STORE_UI.custom, T = can("tienda"), o = st.opts;
+  const head = document.querySelector(".page-head");
+  if (head) head.querySelector(".page-title").innerHTML = `<span class="row" style="gap:12px;flex-wrap:nowrap"><span class="logo-t" style="background:${ui.bg};width:44px;height:44px">${ui.icon}</span>${esc(st.name)}</span>`;
+  if (head && head.querySelector(".page-sub")) head.querySelector(".page-sub").textContent = `${st.kind === "custom" ? "Otra tienda" : ui.t} · recibe tus pedidos pagados para cruzarlos con tus chats y tus anuncios.`;
+  const sw = (k, on, label, desc, code) => `<div class="evt"><div style="flex:1;min-width:0"><b>${label}</b>${code ? ` <span class="tg">${code}</span>` : ""}<div class="small muted">${desc}</div></div><input type="checkbox" class="switch" data-opt="${k}" ${on ? "checked" : ""} ${T ? "" : "disabled"}></div>`;
+  const secretBlock = st.kind === "shopify"
+    ? `<label class="f" for="scS">Clave con la que Shopify firma los avisos</label><div class="row" style="flex-wrap:nowrap;gap:8px"><input id="scS" type="password" autocomplete="off" placeholder="${st.has_secret ? "Guardada · escribe para cambiarla" : "Pega aquí la clave que te muestra Shopify"}" ${T ? "" : "disabled"}>${T ? `<button type="button" class="btn small" id="scSave">Guardar</button>` : ""}</div>
+       <div class="help">En Shopify, debajo de la lista de webhooks, dice «Tus webhooks se firmarán con…». Copia esa clave.</div>`
+    : `<label class="f">Clave secreta (para firmar los avisos)</label><div class="code"><span id="scSec">${esc(st.secret)}</span><span class="row" style="gap:6px">${T ? copyBtn("scSec") + `<button type="button" class="btn small" id="scRegen" title="Crear una clave nueva">Cambiar</button>` : ""}</span></div>
+       <div class="help">Así sabemos que el aviso viene de tu tienda y no de otra persona.</div>`;
+  const steps = st.kind === "shopify" ? `<ol class="steps-ol">
+      <li>En tu Shopify: <b>Configuración → Notificaciones → Webhooks</b> y toca <b>Crear webhook</b>.</li>
+      <li>Evento: <b>Pago de pedido</b> (Order payment). Formato: <b>JSON</b>. URL: el enlace de arriba. Versión: la más reciente. Guarda.</li>
+      <li>Crea otro igual con el evento <b>Cancelación de pedido</b> (Order cancellation).</li>
+      <li>Copia la clave que Shopify muestra debajo de la lista y pégala aquí.</li></ol>`
+    : st.kind === "woo" ? `<ol class="steps-ol">
+      <li>En WordPress: <b>WooCommerce → Ajustes → Avanzado → Webhooks</b> y toca <b>Añadir webhook</b>.</li>
+      <li>Nombre: «Autorespuestas». Estado: <b>Activo</b>. Tema: <b>Pedido actualizado</b>.</li>
+      <li>URL de entrega: el enlace de arriba. Secreto: la clave de arriba. Versión de la API: <b>v3</b>. Guarda.</li>
+      <li>Cuando un pedido pasa a <b>Procesando</b> o <b>Completado</b> cuenta como pagado; <b>Cancelado</b> o <b>Reembolsado</b> se resta.</li></ol>`
+    : `<ol class="steps-ol">
+      <li>En tu sistema, busca la sección de <b>Webhooks</b> y pega el enlace de arriba como «Endpoint URL».</li>
+      <li>Activa los eventos <b>order.paid</b> (pedido pagado), <b>payment.created</b> (pago recibido) y <b>order.cancelled</b>.</li>
+      <li>Firma cada aviso con la clave secreta (detalles abajo, en «Formato del aviso»).</li></ol>
+      <details class="fmt"><summary>Formato del aviso (para quien programa tu sistema)</summary>
+      <p class="small">POST con <code>Content-Type: application/json</code> y el encabezado <code>X-Signature: sha256=&lt;HMAC-SHA256 en hexadecimal del cuerpo, con la clave secreta&gt;</code>.</p>
+      <pre>${esc(JSON.stringify({ id: "evt_8f2c1a", event: "order.paid", created_at: "2026-10-21T14:05:00Z", store: st.name, ref: "c-8841abcd", order: { id: "1043", total: 10, currency: "USD", status: "paid", payment_method: "pago_movil", items: [{ name: "Producto", qty: 1, price: 10 }] }, customer: { name: "María González", phone: "+584141234567", instagram: "maria.rizos", email: null } }, null, 2))}</pre>
+      <p class="small"><code>event</code>: order.paid | payment.created | order.cancelled · <code>ref</code>: el parámetro <code>?ref=</code> con el que el cliente llegó desde el botón de pago (o null) · <code>payment_method</code>: pago_movil, zelle, spidi, transferencia, efectivo, binance, tarjeta u otro.</p></details>`;
+  box.innerHTML = `
+    <div class="row" style="justify-content:flex-end;margin:-6px 0 10px;gap:10px"><span class="small muted">${st.active ? "Activa" : "Apagada"}</span><input type="checkbox" class="switch" id="scOn" ${st.active ? "checked" : ""} ${T ? "" : "disabled"}></div>
+    <div class="grid2" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start;margin-top:0">
+      <div>
+        <div class="card" style="margin-top:0"><h2 style="font-size:16px;margin:0">1 · Pega este enlace en ${st.kind === "custom" ? "tu sistema" : esc(ui.t)}</h2><p class="muted small" style="margin:4px 0 10px">Es único de esta conexión.</p>
+          <div class="code"><span id="scUrl" class="ell">${esc(st.url)}</span>${copyBtn("scUrl")}</div>
+          ${secretBlock}
+          <div style="margin-top:14px">${steps}</div></div>
+        <div class="card"><h2 style="font-size:16px;margin:0">2 · Qué hacemos con cada aviso</h2>
+          ${sw("paid", o.paid, "Pedido pagado", "Se cuenta como venta y se busca de qué chat y de qué anuncio vino.", st.kind === "custom" ? "order.paid · payment.created" : "")}
+          ${sw("cancelled", o.cancelled, "Pedido cancelado o devuelto", "Se resta de las ventas del anuncio.", st.kind === "custom" ? "order.cancelled" : "")}
+          ${sw("notify_customer", o.notify_customer, "Confirmarle el pago al cliente por DM", "Le enviamos el mensaje de «Pago recibido» si te escribió en las últimas 24 horas. Lo editas en Asistentes → Vendedor → Botón de pago.")}</div>
+        ${T ? `<div class="card"><h2 style="font-size:16px;margin:0">Ajustes</h2><label class="f" for="scName">Nombre</label><div class="row" style="flex-wrap:nowrap;gap:8px"><input id="scName" maxlength="60" value="${esc(st.name)}"><button type="button" class="btn small" id="scNameSave">Guardar</button></div>
+          <div class="row" style="justify-content:space-between;margin-top:16px"><span class="small muted">Este mes: <b style="color:var(--ink)">${nf(d.month.n)} venta${d.month.n === 1 ? "" : "s"} · ${money(d.month.total)}</b></span><button type="button" class="btn small danger" id="scDel">Desconectar</button></div></div>` : ""}
+      </div>
+      <div>
+        <div class="card" style="margin-top:0"><div class="card-h"><div><h2>Últimos avisos</h2><p>Lo que llegó de ${esc(st.name)}</p></div>${T ? `<button class="btn small" id="scTest">Probar</button>` : ""}</div>
+          ${d.log.length ? `<table class="slog"><tbody>${d.log.map((x) => `<tr><td><span class="pill ${x.code < 300 ? "ok" : "bad"}">${x.code}</span></td><td><b>${esc(x.event || "")}</b><div class="small muted">${esc(x.summary || "")}</div></td><td class="small muted" style="white-space:nowrap;text-align:right">${esc(agoText(x.at))}</td></tr>`).join("")}</tbody></table>`
+            : `<p class="muted small">Todavía no llega ningún aviso. Cuando tu tienda marque un pedido como pagado, aparece aquí.</p>`}</div>
+        <div class="card"><h2 style="font-size:16px;margin:0">¿Cómo sabemos de qué anuncio vino?</h2><p class="muted small" style="margin:4px 0 0">Buscamos el chat del cliente, en este orden:</p>
+          <ol class="small" style="margin:10px 0 0;padding-left:18px;line-height:1.7">
+            <li><b>La referencia del botón de pago</b> (<code>?ref=</code>): la más segura.</li>
+            <li><b>El @usuario de Instagram</b> del pedido.</li>
+            <li><b>El teléfono</b>, si el cliente lo escribió en el chat.</li></ol>
+          <div class="info small" style="margin-top:12px">Si nada coincide, la venta cuenta como <b>«sin anuncio»</b>: no inventamos. Si ya la habías marcado como pagada en el chat, se une en una sola venta.</div></div>
+      </div>
+    </div>`;
+  const put = async (bd, msg) => { try { await api(`/api/stores/${st.id}`, { method: "PUT", body: bd }); if (msg) toast(msg); renderStoreConn(st.id); } catch (e) { toast(e.message); } };
+  box.querySelectorAll("[data-copy]").forEach((x) => (x.onclick = () => { const t = $(x.dataset.copy).textContent; navigator.clipboard?.writeText(t).then(() => toast("Copiado"), () => toast(t, 8000)); }));
+  if ($("scOn")) $("scOn").onchange = (e) => put({ active: e.target.checked }, e.target.checked ? "Conexión activada" : "Conexión apagada");
+  box.querySelectorAll("[data-opt]").forEach((x) => (x.onchange = () => put({ opts: { [x.dataset.opt]: x.checked } }, "Guardado")));
+  if ($("scSave")) $("scSave").onclick = () => { const v = $("scS").value.trim(); if (v) put({ secret: v }, "Clave guardada"); };
+  if ($("scRegen")) $("scRegen").onclick = () => { if (confirm("¿Crear una clave nueva? La anterior deja de funcionar: tendrás que pegar la nueva en tu tienda.")) put({ regenerate: true }, "Clave nueva creada"); };
+  if ($("scNameSave")) $("scNameSave").onclick = () => put({ name: $("scName").value }, "Nombre guardado");
+  if ($("scTest")) $("scTest").onclick = async () => { try { await api(`/api/stores/${st.id}/test`, { method: "POST" }); toast("Prueba registrada ✓"); renderStoreConn(st.id); } catch (e) { toast(e.message); } };
+  if ($("scDel")) $("scDel").onclick = async () => { if (!confirm(`¿Desconectar ${st.name}? Sus ventas ya registradas se conservan.`)) return; try { await api(`/api/stores/${st.id}`, { method: "DELETE" }); toast("Tienda desconectada"); go("integraciones"); } catch (e) { toast(e.message); } };
+}
+
 function openAdsConnect(b) {
   const dlg = $("tplDlg");
   dlg.innerHTML = `<form id="adF"><div class="modal-h"><div><h2>Cuenta de anuncios · ${esc(b.name)}</h2><p>Solo lectura: vemos gasto y resultados, nunca cambiamos tus anuncios.</p></div><button type="button" class="icon-btn" id="adX" aria-label="Cerrar">${ICON.x}</button></div>
@@ -4230,9 +4410,12 @@ function openAdsConnect(b) {
 }
 
 /* ================= ANUNCIOS ================= */
-const ADS_PERIOD = { days: 7 };
+const ADS_PERIOD = { days: 7, only: false, act: "" };
+const AD_ST = { active: ["ok", "Activo"], paused: ["gray", "Pausado"], review: ["warn", "En revisión"], rejected: ["bad", "Rechazado"], issues: ["warn", "Con problemas"], billing: ["bad", "Falta el pago en Meta"], other: ["gray", "Sin publicar"] };
+const budgetTxt = (bd, $$) => { if (!bd) return ""; const v = bd.daily != null ? `${$$(bd.daily)}/día` : bd.lifetime != null ? `${$$(bd.lifetime)} en total` : ""; return v ? `${v}${bd.level === "campaign" ? " (compartido en la campaña)" : ""}` : ""; };
 const dec = (n) => Number(n || 0).toLocaleString("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-async function renderAds(force) {
+let renderAdsCached = null;
+async function renderAds(force, cached) {
   const b = curBrand();
   shell({ title: `Anuncios${b && b.ads.pro ? ' <span class="probadge">PRO</span>' : ""}`, sub: "Lo que gastas en Meta y cuántas conversaciones te trae, explicado en palabras simples.",
     head: b && b.ads.connected ? `<nav class="seg">${[7, 14, 30].map((d) => `<button data-ad="${d}" class="${ADS_PERIOD.days === d ? "on" : ""}">${d} días</button>`).join("")}</nav><button class="btn small" id="adR">${ICON.refresh} Actualizar</button>` : "" });
@@ -4249,16 +4432,42 @@ async function renderAds(force) {
   $("adR").onclick = () => renderAds(true);
   box.innerHTML = `<div class="card"><div class="empty">Cargando los datos de Meta…</div></div>`;
   const to = new Date(Date.now() - 864e5).toISOString().slice(0, 10), from = new Date(Date.now() - ADS_PERIOD.days * 864e5).toISOString().slice(0, 10);
-  let r; try { r = await api(`/api/ads?brand=${encodeURIComponent(b.id)}&from=${from}&to=${to}${force ? "&force=1" : ""}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  let r = cached; if (!r) try { r = await api(`/api/ads?brand=${encodeURIComponent(b.id)}&from=${from}&to=${to}${force ? "&force=1" : ""}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
   if (!$("tabBody") || curBrand() !== b) return;
   const t = r.totals, p = r.prev, $$ = (n) => money(n);
   const delta = (cur, prev, lowerBetter) => { if (prev == null || !prev || cur == null) return ""; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return ""; const good = lowerBetter ? d < 0 : d > 0; return `<span class="delta ${good ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${Math.abs(Math.round(d))}%</span>`; };
   const LT = { g: ["g", "🟢 Bien"], y: ["y", "🟡 Atención"], r: ["r", "🔴 Mejorar"] };
   const sem = (k, title, val, ex) => { const l = r.lights && r.lights[k]; return `<div class="sm ${l || ""}"><div class="tp">${title}${l ? `<span class="lt ${LT[l][0]}">${LT[l][1]}</span>` : ""}</div><div class="vv">${val}</div><div class="ex">${ex}</div></div>`; };
   const R = r.rules;
+  const L = r.live, SL = r.sales || { has: false };
+  const alertOf = (a) => a.st === "rejected" || (a.dx && a.dx.light === "r") || (a.action && (a.action.k === "off" || a.action.k === "fix"));
+  const actCount = (k) => r.ads.filter((a) => a.action && a.action.k === k).length;
+  let list = ADS_PERIOD.only ? r.ads.filter((a) => a.st === "active") : r.ads;
+  if (ADS_PERIOD.act === "alert") list = list.filter(alertOf); else if (ADS_PERIOD.act) list = list.filter((a) => a.action && a.action.k === ADS_PERIOD.act);
+  const spark = (pts, col) => { if (!pts || pts.length < 2 || !pts.some((v) => v)) return `<span class="small muted">—</span>`; const w = 76, h = 26, mx = Math.max(...pts), mn = Math.min(...pts); const xy = pts.map((v, i) => [(i / (pts.length - 1)) * w, h - 3 - ((v - mn) / (mx - mn || 1)) * (h - 6)]);
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="Tendencia de conversaciones"><polyline points="${xy.map((p) => p.join(",")).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/><circle cx="${xy[xy.length - 1][0]}" cy="${xy[xy.length - 1][1]}" r="2.6" fill="${col}"/></svg>`; };
+  const ACOL = { up: "#16a34a", keep: "#6b7280", cut: "#d97706", off: "#dc2626", fix: "#dc2626", wait: "#9ca3af" };
+  const bTxt = (bd) => (bd ? (bd.to === bd.from ? `${$$(bd.from)}/día` : `${$$(bd.from)} → ${bd.to ? $$(bd.to) + "/día" : "$0"}`) : "");
+  const srcChips = SL.has ? [...(SL.sources || []).map((x) => `<span class="src"><i style="background:${(STORE_UI[x.kind] || STORE_UI.custom).bg}">${x.kind === "custom" ? "↔" : (STORE_UI[x.kind] || {}).t?.[0] || "T"}</i>${esc(x.name)}</span>`), SL.chat ? `<span class="src"><i style="background:var(--accent)">✓</i>Pagos marcados en el chat</span>` : ""].join("") : "";
   box.innerHTML = `
+    ${L ? `<div class="card live-ads"><div class="card-h"><div><h2>Ahora mismo</h2><p>Actualizado ${new Date(L.at).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}</p></div></div>
+      ${L.account_status && L.account_status !== 1 ? `<div class="alert" style="margin-bottom:12px">La cuenta publicitaria tiene un problema en Meta (está desactivada o le falta un pago). Revísala en el Administrador de anuncios.</div>` : ""}
+      <div class="kpis" style="margin:0">
+        <div class="kpi"><div class="l">Anuncios activos</div><div class="v">${nf(L.active)} <span class="muted" style="font-size:15px;font-weight:600">de ${nf(L.total)}</span></div><div class="s">${L.review ? `${nf(L.review)} en revisión` : L.active ? "publicándose ahora" : "ninguno se está mostrando"}</div></div>
+        <div class="kpi"><div class="l">Presupuesto diario</div><div class="v">${$$(L.daily_budget)}</div><div class="s">${L.lifetime_budget ? `+ ${$$(L.lifetime_budget)} en presupuestos totales` : "suma de lo activo"}</div></div>
+        <div class="kpi"><div class="l">Gastado hoy</div><div class="v">${$$(L.today_spend)}</div><div class="s">${L.daily_budget ? `${Math.min(100, Math.round((L.today_spend / L.daily_budget) * 100))}% del presupuesto del día` : "hasta este momento"}</div></div>
+      </div></div>` : ""}
+    <div class="card srcbar"><div class="row" style="gap:8px;flex-wrap:wrap;min-width:0">${SL.has ? `<span class="small muted">Ventas de:</span>${srcChips}` : `<span class="small">Para ver <b>cuánto vendió de verdad cada anuncio</b>, conecta tu tienda en <a href="#integraciones">Integraciones</a> o marca los pagos en <a href="#conversaciones">Conversaciones</a>.</span>`}</div>
+      <div class="row" style="gap:10px;flex:none"><span class="small muted">${L ? "Cruzado " + esc(agoText(L.at)) : ""}</span><button class="btn small primary" id="adCross">${ICON.refresh} Cruzar con ventas</button></div></div>
     ${r.pro ? `<div class="ai-sum" id="adSum"><h2>${NI.brain.replace("<svg", '<svg width="18" height="18"')} Resumen ${ADS_PERIOD.days === 7 ? "de la semana" : `de ${ADS_PERIOD.days} días`}</h2><div id="adSumT" class="muted" style="margin-top:8px">Escribiendo el resumen…</div></div>` : ""}
-    <div class="kpis">
+    ${SL.has ? `<div class="kpis">
+      <div class="kpi"><div class="l">Invertido</div><div class="v">${$$(t.spend)}</div><div class="s">${delta(t.spend, p && p.spend, true)} vs. periodo anterior</div></div>
+      <div class="kpi"><div class="l">Vendido por anuncios</div><div class="v">${$$(SL.sold)}</div><div class="s">${nf(SL.orders)} pedido${SL.orders === 1 ? "" : "s"}</div></div>
+      <div class="kpi"><div class="l">Por cada $1, vendes</div><div class="v">${SL.roas != null ? $$(SL.roas) : "—"}</div><div class="s">real${t.roas != null ? " · Meta dice " + $$(t.roas) : ""}</div></div>
+      <div class="kpi"><div class="l">Ganancia</div><div class="v">${SL.profit != null ? $$(SL.profit) : "—"}</div><div class="s">${SL.margin != null ? `con tu margen de ${SL.margin}% · ` : ""}${can("tienda") ? `<button class="linkbtn" id="adMargin" style="color:var(--accent);font-weight:600;margin:0">${SL.margin != null ? "cambiar" : "pon tu margen"}</button>` : ""}</div></div>
+      <div class="kpi"><div class="l">Ventas sin anuncio</div><div class="v">${$$(SL.no_ad)}</div><div class="s">${nf(SL.no_ad_n)} · orgánico y clientes fijos</div></div>
+    </div>` : ""}
+    <div class="kpis" ${SL.has ? 'style="display:none"' : ""}>
       <div class="kpi"><div class="l">Gastado</div><div class="v">${$$(t.spend)}</div><div class="s">${delta(t.spend, p && p.spend, true)} vs. periodo anterior</div></div>
       <div class="kpi"><div class="l">Conversaciones</div><div class="v">${nf(t.chats)}</div><div class="s">${delta(t.chats, p && p.chats)}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada chat</div><div class="v">${t.cost_chat != null ? $$(t.cost_chat) : "—"}</div><div class="s">${delta(t.cost_chat, p && p.cost_chat, true)}</div></div>
@@ -4269,13 +4478,19 @@ async function renderAds(force) {
       ${sem("cost_chat", "Cuánto te cuesta que te escriban", t.cost_chat != null ? $$(t.cost_chat) : "—", `Por cada persona que te escribe. Menos de $${R.cpc_good} es bueno para tu negocio.`)}
       ${sem("ctr", "De cada 100 que lo ven, cuántos lo tocan", dec(t.ctr), `Más de ${R.ctr_good} es bueno.`)}
       ${sem("frequency", "Veces que la misma persona lo vio", dec(t.frequency), `Pasando de ${R.freq_warn} la gente se cansa y toca renovar.`)}
-      ${sem("roas", "Por cada $1 que pones, vendes", t.roas != null ? $$(t.roas) : "—", t.roas != null ? `Lo ideal es $${R.roas_good} o más.` : "Aparece cuando Meta registra compras.")}
+      ${SL.has ? sem("roas", "Por cada $1 que pones, vendes (real)", SL.roas != null ? $$(SL.roas) : "—", `Según las ventas de tu tienda. Lo ideal es $${R.roas_good} o más.`)
+        : sem("roas", "Por cada $1 que pones, vendes", t.roas != null ? $$(t.roas) : "—", t.roas != null ? `Lo ideal es $${R.roas_good} o más.` : "Aparece cuando Meta registra compras.")}
     </div>` : ""}
-    <div class="card"><div class="card-h"><div><h2>${r.pro ? "Diagnóstico por anuncio" : "Tus anuncios"}</h2><p>${r.pro ? "Lo que recomendamos cambiar en cada uno." : "Ordenados por gasto."}</p></div></div>
-      ${r.ads.length ? r.ads.map((a) => `<div class="dg"><span class="th" style="${a.thumb ? `background-image:url('${esc(a.thumb)}')` : ""}"></span><div style="min-width:0">
-        <div class="hd"><b>${esc(a.name)}</b>${a.dx ? `<span class="lt ${a.dx.light || "y"}" ${a.dx.light ? "" : 'style="background:#f3f4f6;color:var(--muted)"'}>${a.dx.light ? LT[a.dx.light][1].split(" ")[0] + " " : ""}${esc(a.dx.tag)}</span>` : a.status === "DISAPPROVED" ? `<span class="pill bad">Rechazado</span>` : ""}</div>
+    <div class="card"><div class="card-h"><div><h2>${r.pro ? "Diagnóstico por anuncio" : "Tus anuncios"}</h2><p>${r.pro ? "Lo que recomendamos cambiar en cada uno." : "Ordenados por gasto."}</p></div>
+      ${L ? `<nav class="seg"><button data-only="0" class="${ADS_PERIOD.only ? "" : "on"}">Todos</button><button data-only="1" class="${ADS_PERIOD.only ? "on" : ""}">Solo activos</button></nav>` : ""}</div>
+      <div class="chips"><button class="chip ${!ADS_PERIOD.act ? "on" : ""}" data-act="">TODOS <b>${r.ads.length}</b></button>${[["up", "SUBIR"], ["keep", "MANTENER"], ["cut", "RECORTAR"], ["off", "APAGAR"], ["wait", "ESPERAR"]].map(([k, l]) => actCount(k) ? `<button class="chip ${ADS_PERIOD.act === k ? "on" : ""}" data-act="${k}">${l} <b>${actCount(k)}</b></button>` : "").join("")}${r.ads.filter(alertOf).length ? `<button class="chip ${ADS_PERIOD.act === "alert" ? "on" : ""}" data-act="alert">⚠ CON ALERTA <b>${r.ads.filter(alertOf).length}</b></button>` : ""}</div>
+      ${list.length ? list.map((a) => `<div class="dg" style="${a.action ? `border-left:4px solid ${ACOL[a.action.k]};padding-left:12px` : ""}"><span class="th" style="${a.thumb ? `background-image:url('${esc(a.thumb)}')` : ""}"></span><div style="min-width:0">
+        <div class="hd"><b>${esc(a.name)}</b>${a.st && AD_ST[a.st] && a.st !== "rejected" ? `<span class="pill ${AD_ST[a.st][0]}">${AD_ST[a.st][1]}</span>` : ""}${a.dx ? `<span class="lt ${a.dx.light || "y"}" ${a.dx.light ? "" : 'style="background:#f3f4f6;color:var(--muted)"'}>${a.dx.light ? LT[a.dx.light][1].split(" ")[0] + " " : ""}${esc(a.dx.tag)}</span>` : a.status === "DISAPPROVED" ? `<span class="pill bad">Rechazado</span>` : ""}</div>
+        ${a.campaign || a.budget ? `<div class="small muted" style="margin:2px 0 4px">${esc(a.campaign || "")}${a.budget && budgetTxt(a.budget, $$) ? ` · Presupuesto <b style="color:var(--ink)">${budgetTxt(a.budget, $$)}</b>` : ""}${a.today ? ` · Hoy ${$$(a.today)}` : ""}</div>` : ""}
+        <div class="row" style="justify-content:space-between;gap:10px;align-items:center">${SL.has ? `<div class="mm salesl"><span>Vendió <b>${$$(a.sales.total)}</b> · ${nf(a.sales.n)} pedido${a.sales.n === 1 ? "" : "s"}</span><span>Por cada $1 <b>${a.roas_real != null && a.sales.n ? $$(a.roas_real) : "—"}</b></span>${a.m.roas != null ? `<span class="muted">Meta dice ${$$(a.m.roas)}</span>` : ""}</div>` : "<span></span>"}<span title="Conversaciones por día">${spark(a.trend, a.action ? ACOL[a.action.k] : "#6b7280")}</span></div>
         <div class="mm"><span>Gastado <b>${$$(a.m.spend)}</b></span><span>Chats <b>${nf(a.m.chats)}</b></span><span>Costo por chat <b>${a.m.cost_chat != null ? $$(a.m.cost_chat) : "—"}</b></span><span>Lo tocan <b>${dec(a.m.ctr)}</b> de 100</span><span>Lo vio <b>${dec(a.m.frequency)}</b> veces</span><span>Llegaron al bot <b>${nf(a.bot_chats)}</b></span></div>
-        ${a.dx ? `<div class="rec"><b class="t">👉 ${esc(a.dx.act)}</b>${esc(a.dx.why)}</div>` : ""}</div></div>`).join("") : `<div class="empty">No hubo anuncios con gasto en este periodo.</div>`}
+        ${a.action && (SL.has || r.pro) ? `<div class="rec"><span class="act ${a.action.k}">${a.action.label}</span>${a.action.budget && bTxt(a.action.budget) ? ` <b style="margin-left:4px">${bTxt(a.action.budget)}</b>` : ""}<div style="margin-top:5px">${esc(a.action.why)}</div></div>`
+          : a.dx ? `<div class="rec"><b class="t">👉 ${esc(a.dx.act)}</b>${esc(a.dx.why)}</div>` : ""}</div></div>`).join("") : `<div class="empty">${ADS_PERIOD.act ? "Ningún anuncio con esa acción." : ADS_PERIOD.only ? "No hay anuncios activos ahora." : "No hubo anuncios con gasto en este periodo."}</div>`}
       ${!r.pro ? `<div class="info" style="margin-top:12px">Con el <b>Asesor de anuncios</b> cada anuncio trae semáforo y una recomendación de qué cambiar, y te llega un resumen cada lunes.${isMaestro() ? ' Actívalo en Integraciones → Meta Ads.' : ""}</div>` : ""}</div>
     <div class="grid2">
       <div class="card"><div class="card-h"><div><h2>Del anuncio a la venta</h2></div></div>
@@ -4284,7 +4499,19 @@ async function renderAds(force) {
         ${r.asks.length ? r.asks.map((a) => `<div class="hbar wide"><span class="small">${esc(a.label)}</span><span class="track"><span class="fill" style="display:block;width:${a.pct}%"></span></span><span class="n">${a.pct}%</span></div>`).join("") + (r.asks[0] && /cuesta/.test(r.asks[0].label) && r.asks[0].pct > 40 ? `<div class="info small" style="margin-top:12px">💡 Muchos preguntan el precio: ponlo en el anuncio y te escribirá gente más lista para comprar.</div>` : "") : `<p class="muted">Todavía no hay chats que lleguen marcados desde un anuncio.</p>`}</div>
     </div>
     <p class="help" style="margin-top:14px">Las recomendaciones son orientativas, según los criterios de tu agencia y los datos de Meta. No modificamos tus anuncios: los cambios los haces tú en el Administrador de anuncios.</p>`;
-  if (r.pro) api("/api/ads/summary", { method: "POST", body: { brand: b.id, from, to } }).then((x) => { const el = $("adSumT"); if (el) { el.classList.remove("muted"); el.innerHTML = `<ul>${x.text.split("\n").filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^[-•*]\s*/, ""))}</li>`).join("")}</ul>`; } })
+  box.querySelectorAll("[data-only]").forEach((x) => (x.onclick = () => { ADS_PERIOD.only = x.dataset.only === "1"; renderAdsCached = r; renderAds(false, r); }));
+  box.querySelectorAll("[data-act]").forEach((x) => (x.onclick = () => { ADS_PERIOD.act = x.dataset.act; renderAdsCached = r; renderAds(false, r); }));
+  if ($("adCross")) $("adCross").onclick = () => renderAds(true);
+  if ($("adMargin")) $("adMargin").onclick = () => {
+    const dlg = $("tplDlg");
+    dlg.innerHTML = `<form id="mgF"><div class="modal-h"><div><h2>Margen de ganancia</h2><p>Qué parte de cada venta te queda después de pagar el producto y el envío.</p></div><button type="button" class="icon-btn" id="mgX">${ICON.x}</button></div>
+      <div class="modal-b"><label class="f" for="mgV">Margen (%)</label><input id="mgV" inputmode="numeric" value="${SL.margin ?? ""}" placeholder="Ej: 60"><div class="help">Si vendes a $10 y el producto te cuesta $4, tu margen es 60%. La ganancia = ventas × margen − lo invertido en anuncios.</div><div class="small" id="mgOut"></div></div>
+      <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="mgC">Cancelar</button><button class="btn primary">Guardar</button></div></div></form>`;
+    dlg.showModal(); $("mgX").onclick = $("mgC").onclick = () => dlg.close();
+    $("mgF").onsubmit = async (e) => { e.preventDefault(); try { await api(`/api/ads/${b.id}`, { method: "PUT", body: { margin: $("mgV").value } }); dlg.close(); await loadData(); renderAds(true); } catch (er) { $("mgOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; } };
+  };
+  if (r.pro && cached && renderAdsCached && renderAdsCached.sumHtml) { const el = $("adSumT"); if (el) { el.classList.remove("muted"); el.innerHTML = renderAdsCached.sumHtml; } }
+  if (r.pro && !cached) api("/api/ads/summary", { method: "POST", body: { brand: b.id, from, to } }).then((x) => { const el = $("adSumT"); if (el) { el.classList.remove("muted"); r.sumHtml = el.innerHTML = `<ul>${x.text.split("\n").filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^[-•*]\s*/, ""))}</li>`).join("")}</ul>`; } })
     .catch((e) => { const el = $("adSumT"); if (el) el.textContent = e.message; });
 }
 
