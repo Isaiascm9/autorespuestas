@@ -86,6 +86,16 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, brand_id TEXT NOT NULL, at TEXT NOT NULL, amount REAL NOT NULL,
     method TEXT, months INTEGER NOT NULL DEFAULT 1, note TEXT, by TEXT)`,
   `CREATE INDEX IF NOT EXISTS payments_brand ON payments (brand_id, id DESC)`,
+  `CREATE TABLE IF NOT EXISTS sales (id INTEGER PRIMARY KEY AUTOINCREMENT, brand_id TEXT NOT NULL, account_id TEXT, user_id TEXT, ad_id TEXT,
+    amount REAL NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'USD', method TEXT, source TEXT NOT NULL, store_id TEXT, order_id TEXT, ref TEXT,
+    status TEXT NOT NULL DEFAULT 'paid', note TEXT, customer TEXT, by TEXT, at TEXT NOT NULL, updated_at TEXT)`,
+  `CREATE INDEX IF NOT EXISTS sales_brand_at ON sales (brand_id, at)`,
+  `CREATE INDEX IF NOT EXISTS sales_contact ON sales (account_id, user_id)`,
+  `CREATE INDEX IF NOT EXISTS sales_order ON sales (store_id, order_id)`,
+  `CREATE TABLE IF NOT EXISTS stores (id TEXT PRIMARY KEY, brand_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, secret TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1, opts TEXT NOT NULL DEFAULT '{}', created_at TEXT, last_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS store_log (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT NOT NULL, at TEXT NOT NULL, code INTEGER, event TEXT, summary TEXT)`,
+  `CREATE INDEX IF NOT EXISTS store_log_store ON store_log (store_id, id DESC)`,
 ];
 
 // Columnas que pueden faltar si la base se creó con una versión anterior
@@ -103,6 +113,7 @@ const COLUMNS = {
     brand_id: "TEXT", platform: "TEXT", paused_at: "TEXT", pause_reason: "TEXT", name: "TEXT", name_checked: "INTEGER NOT NULL DEFAULT 0",
     last_dm_at: "TEXT", last_bot_at: "TEXT", followup_at: "TEXT", off_hours_at: "TEXT",
     closed_at: "TEXT", assigned_to: "TEXT", ad_id: "TEXT", ad_title: "TEXT", unread: "INTEGER NOT NULL DEFAULT 0", tags: "TEXT NOT NULL DEFAULT '[]'", notes: "TEXT NOT NULL DEFAULT '[]'",
+    ref: "TEXT", pay_state: "TEXT", pay_amount: "REAL", pay_at: "TEXT",
   },
   messages: { source: "TEXT", mid: "TEXT", user_name: "TEXT" },
   push_subs: { user_id: "TEXT" },
@@ -123,6 +134,7 @@ function ensureSchema(env) {
       await env.DB.batch([
         env.DB.prepare("CREATE INDEX IF NOT EXISTS messages_mid ON messages (mid)"),
         env.DB.prepare("CREATE INDEX IF NOT EXISTS contacts_paused ON contacts (paused, brand_id)"),
+        env.DB.prepare("CREATE INDEX IF NOT EXISTS contacts_ref ON contacts (ref)"),
       ]);
       // Chats y registros viejos sin tienda: se les asigna la tienda de su cuenta
       await env.DB.batch([
@@ -476,7 +488,7 @@ function parseBrand(b) {
 
 const DAYS = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
 const REASONS = { pago: "Pago por verificar", reclamo: "Reclamo", persona: "Quiere hablar con una persona", mayor: "Compra al mayor", otro: "Por atender" };
-const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false, billing: true, ads: true, system: true };
+const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false, billing: true, ads: true, system: true, sales: true };
 
 /** Deja las opciones de una tienda completas y válidas (lo que no venga queda con su valor de fábrica). */
 function cleanOpts(o = {}) {
@@ -502,6 +514,8 @@ function cleanOpts(o = {}) {
     ignore_users: str(o.ignore_users, 5000),
     pause_on_human: bool(o.pause_on_human),
     ai_use_name: bool(o.ai_use_name),
+    link_ref: o.link_ref !== false,
+    pay_thanks: str(o.pay_thanks, 600) || "¡Recibimos tu pago! 🤎 Ya estamos preparando tu pedido. Cualquier cosa, aquí estamos.",
     link_buttons: (Array.isArray(o.link_buttons) ? o.link_buttons : []).slice(0, 10)
       .map((x) => ({ title: str(x && x.title, 20).trim(), url: str(x && x.url, 1000).trim(), when: str(x && x.when, 400).trim() }))
       .filter((x) => x.title && /^https?:\/\/\S+\.\S+/i.test(x.url)),
@@ -581,7 +595,7 @@ function brandOut(b, accounts = [], u = null) {
     test_mode: !!b.test_mode, test_users: b.test_users || "", ai_fallback: b.ai_fallback || "",
     accounts: accounts.filter((a) => a.brand_id === b.id).map(accountOut),
     bill_state: billState(b), ...(u && u.role === "maestro" ? { billing: b.bill } : {}),
-    ads: { connected: !!(b.ads && b.ads.account && b.ads.token), account: (b.ads && b.ads.account) || "", advisor: !!(b.ads && b.ads.advisor), pro: adsPro(b), error: (b.ads && b.ads.error) || "" },
+    ads: { connected: !!(b.ads && b.ads.account && b.ads.token), account: (b.ads && b.ads.account) || "", advisor: !!(b.ads && b.ads.advisor), pro: adsPro(b), error: (b.ads && b.ads.error) || "", margin: b.ads && b.ads.margin != null ? b.ads.margin : null },
   };
 }
 
@@ -718,6 +732,193 @@ async function sendRuleDM(env, acc, to, text, rule, source) {
   await setContact(env, acc.id, to, { last_bot_at: nowIso() });
   return warns;
 }
+/* ---------- ventas: referencia del cliente, estados de pago y registro ---------- */
+/** Referencia fija de un cliente (va en el link de pago como ?ref=) para saber de qué chat y anuncio vino el pago. */
+async function contactRef(env, accId, userId, contact) {
+  if (contact && contact.ref) return contact.ref;
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(`${accId}:${userId}`)));
+  const ref = "c-" + [...h.slice(0, 5)].map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 8);
+  await setContact(env, accId, userId, { ref });
+  return ref;
+}
+const withRef = (url, ref) => { try { const u = new URL(url); u.searchParams.set("ref", ref); return u.toString(); } catch { return url; } };
+const amountFrom = (t) => { const m = String(t || "").replace(/\s/g, "").match(/(\d+(?:[.,]\d{1,2})?)/); return m ? parseFloat(m[1].replace(",", ".")) : null; };
+const PAY_WORDS = /comprobante|capture|captura|ya pagu|ya te pagu|ya transfer|te transfer|listo el pago|pago listo|ya pag[oó]|hice el pago|realic[eé] el pago|referencia/i;
+const SALE_METHODS = ["pago_movil", "zelle", "spidi", "efectivo", "tarjeta", "transferencia", "binance", "otro"];
+
+/**
+ * Registra o actualiza una venta. Une la venta de la tienda con la marcada en el chat (mismo cliente, monto parecido, 4 días)
+ * para no contarla dos veces. Devuelve la venta.
+ */
+async function recordSale(env, x) {
+  const at = x.at || nowIso();
+  let row = null;
+  if (x.store_id && x.order_id) row = await env.DB.prepare("SELECT * FROM sales WHERE store_id = ? AND order_id = ?").bind(x.store_id, String(x.order_id)).first();
+  if (!row && x.source === "store" && x.user_id) {
+    row = await env.DB.prepare(`SELECT * FROM sales WHERE account_id = ? AND user_id = ? AND source = 'chat' AND order_id IS NULL AND status = 'paid' AND at >= ?
+      AND ABS(amount - ?) <= MAX(1, amount * 0.1) ORDER BY id DESC LIMIT 1`).bind(x.account_id, x.user_id, new Date(Date.now() - 4 * 864e5).toISOString(), x.amount || 0).first();
+  }
+  const f = { brand_id: x.brand_id, account_id: x.account_id || null, user_id: x.user_id || null, ad_id: x.ad_id || null, amount: Math.round((Number(x.amount) || 0) * 100) / 100,
+    currency: x.currency || "USD", method: x.method || null, source: x.source, store_id: x.store_id || null, order_id: x.order_id ? String(x.order_id) : null, ref: x.ref || null,
+    status: x.status || "paid", note: x.note || null, customer: x.customer ? JSON.stringify(x.customer) : null, by: x.by || null };
+  if (row) {
+    // La tienda manda: completa lo que falte y queda como confirmada por la tienda
+    const upd = { ...f, account_id: f.account_id || row.account_id, user_id: f.user_id || row.user_id, ad_id: f.ad_id || row.ad_id, note: f.note || row.note,
+      method: f.method || row.method, amount: f.amount || row.amount, updated_at: nowIso() };
+    const keys = Object.keys(upd);
+    await env.DB.prepare(`UPDATE sales SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => upd[k]), row.id).run();
+    return { ...row, ...upd, merged: row.source !== f.source };
+  }
+  const keys = Object.keys(f);
+  const r = await env.DB.prepare(`INSERT INTO sales (${keys.join(", ")}, at) VALUES (${keys.map(() => "?").join(", ")}, ?)`).bind(...keys.map((k) => f[k]), at).run();
+  return { ...f, id: r.meta && r.meta.last_row_id, at };
+}
+const caracasToday = () => new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
+const caracasDayStartIso = (d) => new Date(Date.parse(`${d || caracasToday()}T00:00:00-04:00`)).toISOString();
+const saleOut = (x) => ({ id: x.id, at: x.at, amount: x.amount, currency: x.currency, method: x.method, source: x.source, status: x.status, order_id: x.order_id,
+  store: x.store_name || null, note: x.note, ad_id: x.ad_id, by: x.by, customer: parseJson(x.customer, null) });
+async function contactSales(env, accId, userId) {
+  const { results } = await env.DB.prepare("SELECT s.*, st.name AS store_name FROM sales s LEFT JOIN stores st ON st.id = s.store_id WHERE s.account_id = ? AND s.user_id = ? ORDER BY s.at DESC LIMIT 30")
+    .bind(String(accId), String(userId)).all();
+  return results;
+}
+/** Estado de pago del cliente según sus ventas (después de registrar o borrar una). */
+async function refreshPayState(env, accId, userId) {
+  const last = await env.DB.prepare("SELECT at FROM sales WHERE account_id = ? AND user_id = ? AND status = 'paid' ORDER BY at DESC LIMIT 1").bind(String(accId), String(userId)).first();
+  const c = await getContact(env, accId, userId);
+  if (!c) return;
+  if (last) await setContact(env, accId, userId, { pay_state: "paid", pay_at: last.at });
+  else if (c.pay_state === "paid") await setContact(env, accId, userId, { pay_state: null, pay_at: null });
+}
+
+
+/* ================= tiendas online (webhooks de pedidos) ================= */
+const STORE_KINDS = { shopify: "Shopify", woo: "WooCommerce", custom: "Otra tienda" };
+const storeOpts = (o = {}) => ({ notify_customer: o.notify_customer !== false, paid: o.paid !== false, cancelled: o.cancelled !== false });
+function storeOut(st, origin, full) {
+  const o = storeOpts(parseJson(st.opts, {}));
+  return { id: st.id, brand_id: st.brand_id, kind: st.kind, kind_name: STORE_KINDS[st.kind] || st.kind, name: st.name, active: !!st.active, opts: o,
+    url: `${origin}/hook/tienda/${st.id}`, has_secret: !!st.secret, secret: full ? st.secret : st.secret ? "••••" + st.secret.slice(-4) : "", last_at: st.last_at, created_at: st.created_at };
+}
+const b64ToHex = (b) => { try { return [...atob(b)].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join(""); } catch { return ""; } };
+const digits = (t) => String(t || "").replace(/\D/g, "");
+const qsParam = (u, k) => { try { return new URL(String(u), "https://x.x").searchParams.get(k); } catch { return null; } };
+const methodOf = (t) => { const x = String(t || "").toLowerCase(); return /m[oó]vil/.test(x) ? "pago_movil" : /zelle/.test(x) ? "zelle" : /spidi/.test(x) ? "spidi" : /binance|usdt/.test(x) ? "binance" : /efectivo|cash|cod|contra/.test(x) ? "efectivo" : /transfer|bacs/.test(x) ? "transferencia" : /tarjeta|card|stripe|shopify_payments|paypal|mercado/.test(x) ? "tarjeta" : x ? "otro" : null; };
+
+/** Lleva el pedido de cada plataforma a un formato común. */
+function normalizeOrder(kind, headers, d) {
+  if (kind === "shopify") {
+    const topic = headers.get("x-shopify-topic") || "";
+    const fin = d.financial_status;
+    const event = topic === "orders/cancelled" || d.cancelled_at || fin === "refunded" || fin === "voided" ? "cancelled"
+      : topic === "orders/paid" || fin === "paid" ? "paid" : "ignore";
+    const na = (d.note_attributes || []).find((x) => /^ref$/i.test(x.name));
+    const cu = d.customer || {}, ba = d.billing_address || d.shipping_address || {};
+    return { evt: headers.get("x-shopify-webhook-id") || `${d.id}:${topic}:${fin}`, event, order_id: d.name || String(d.id), total: Number(d.current_total_price || d.total_price || 0),
+      currency: d.currency, method: methodOf((d.payment_gateway_names || []).join(" ") || d.gateway), ref: (na && na.value) || qsParam(d.landing_site, "ref"),
+      customer: { name: [cu.first_name || ba.first_name, cu.last_name || ba.last_name].filter(Boolean).join(" ") || null, phone: d.phone || cu.phone || ba.phone || null, email: d.email || cu.email || null, instagram: null } };
+  }
+  if (kind === "woo") {
+    const st = d.status;
+    const event = ["processing", "completed"].includes(st) ? "paid" : ["cancelled", "refunded"].includes(st) ? "cancelled" : "ignore";
+    const meta = (d.meta_data || []).find((x) => /^_?ref$/i.test(x.key));
+    const ig = (d.meta_data || []).find((x) => /instagram/i.test(x.key));
+    const bi = d.billing || {};
+    return { evt: `${d.id}:${st}`, event, order_id: d.number || String(d.id), total: Number(d.total || 0), currency: d.currency, method: methodOf(d.payment_method_title || d.payment_method),
+      ref: meta && meta.value, customer: { name: [bi.first_name, bi.last_name].filter(Boolean).join(" ") || null, phone: bi.phone || null, email: bi.email || null, instagram: ig ? String(ig.value) : null } };
+  }
+  // Otra tienda: formato propio de Autorespuestas
+  const o = d.order || {}, cu = d.customer || {};
+  const e = String(d.event || "");
+  const event = e === "order.paid" || e === "payment.created" ? (o.status && !["paid", "completed"].includes(o.status) && e === "order.paid" ? "ignore" : "paid") : e === "order.cancelled" ? "cancelled" : e === "test" ? "test" : "ignore";
+  return { evt: d.id || `${o.id}:${e}`, event, order_id: o.id != null ? String(o.id) : null, total: Number(o.total || 0), currency: o.currency, method: SALE_METHODS.includes(o.payment_method) ? o.payment_method : methodOf(o.payment_method),
+    ref: d.ref || null, customer: { name: cu.name || null, phone: cu.phone || null, email: cu.email || null, instagram: cu.instagram ? String(cu.instagram).replace(/^@/, "") : null } };
+}
+
+/** Busca de qué chat viene la venta: referencia del link, @usuario o teléfono escrito en el chat. */
+async function matchContact(env, brandId, n) {
+  if (n.ref) {
+    const c = await env.DB.prepare("SELECT account_id, user_id, ad_id, username, last_dm_at, name FROM contacts WHERE ref = ? AND brand_id = ?").bind(String(n.ref), brandId).first();
+    if (c) return { ...c, by: "ref" };
+  }
+  const ig = n.customer && n.customer.instagram && String(n.customer.instagram).replace(/^@/, "").toLowerCase().trim();
+  if (ig) {
+    const c = await env.DB.prepare("SELECT account_id, user_id, ad_id, username, last_dm_at, name FROM contacts WHERE brand_id = ? AND LOWER(username) = ? ORDER BY last_at DESC LIMIT 1").bind(brandId, ig).first();
+    if (c) return { ...c, by: "usuario" };
+  }
+  const ph = digits(n.customer && n.customer.phone).slice(-7);
+  if (ph.length === 7) {
+    const c = await env.DB.prepare(`SELECT c.account_id, c.user_id, c.ad_id, c.username, c.last_dm_at, c.name FROM messages m JOIN contacts c ON c.account_id = m.account_id AND c.user_id = m.user_id
+      WHERE c.brand_id = ? AND m.role = 'user' AND m.at >= ? AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(m.content, '-', ''), ' ', ''), '.', ''), '(', ''), ')', '') LIKE ?
+      ORDER BY m.id DESC LIMIT 1`).bind(brandId, new Date(Date.now() - 60 * 864e5).toISOString(), `%${ph}%`).first();
+    if (c) return { ...c, by: "teléfono" };
+  }
+  return null;
+}
+async function storeLog(env, storeId, code, event, summary) {
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO store_log (store_id, at, code, event, summary) VALUES (?, ?, ?, ?, ?)").bind(storeId, nowIso(), code, event, String(summary || "").slice(0, 300)),
+    env.DB.prepare("DELETE FROM store_log WHERE store_id = ? AND id NOT IN (SELECT id FROM store_log WHERE store_id = ? ORDER BY id DESC LIMIT 60)").bind(storeId, storeId),
+  ]);
+}
+const EVT_LABEL = { paid: "Pedido pagado", cancelled: "Pedido cancelado", ignore: "Aviso ignorado", test: "Prueba", ping: "Prueba de conexión" };
+
+async function storeHook(req, env, id) {
+  if (req.method !== "POST") return new Response("Usa POST", { status: 405 });
+  const st = await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(id).first();
+  if (!st) return json({ error: "Tienda no encontrada" }, 404);
+  const raw = await req.text();
+  // WooCommerce manda un "ping" sin firma al crear el webhook
+  if (st.kind === "woo" && /^webhook_id=\d+/.test(raw)) { await storeLog(env, st.id, 200, EVT_LABEL.ping, "WooCommerce confirmó el enlace"); return json({ ok: true }); }
+  if (!st.active) { await storeLog(env, st.id, 410, "Desactivada", "La conexión está apagada en el panel"); return json({ error: "Conexión desactivada" }, 410); }
+  if (!st.secret) { await storeLog(env, st.id, 401, "Falta la clave", "Pega la clave secreta en el panel"); return json({ error: "Falta la clave secreta" }, 401); }
+  const mine = await hmacHex(st.secret, raw);
+  const sig = st.kind === "shopify" ? b64ToHex(req.headers.get("x-shopify-hmac-sha256") || "") : st.kind === "woo" ? b64ToHex(req.headers.get("x-wc-webhook-signature") || "")
+    : String(req.headers.get("x-signature") || "").replace(/^sha256=/i, "").toLowerCase();
+  if (!sig || sig !== mine) { await storeLog(env, st.id, 401, "Firma inválida", "Revisa la clave secreta"); return json({ error: "Firma inválida" }, 401); }
+  let d; try { d = JSON.parse(raw); } catch { await storeLog(env, st.id, 400, "Formato inválido", "El cuerpo no es JSON"); return json({ error: "JSON inválido" }, 400); }
+  const res = await processStoreOrder(env, st, normalizeOrder(st.kind, req.headers, d));
+  return json(res.body, res.code);
+}
+
+async function processStoreOrder(env, st, n, isTest) {
+  const o = storeOpts(parseJson(st.opts, {}));
+  await env.DB.prepare("UPDATE stores SET last_at = ? WHERE id = ?").bind(nowIso(), st.id).run();
+  if (n.event === "test" || isTest) { await storeLog(env, st.id, 200, EVT_LABEL.test, "La conexión funciona ✓"); return { code: 200, body: { ok: true, test: true } }; }
+  if (n.event === "ignore" || (n.event === "paid" && !o.paid) || (n.event === "cancelled" && !o.cancelled)) {
+    await storeLog(env, st.id, 200, EVT_LABEL.ignore, `${n.order_id ? "#" + n.order_id + " · " : ""}no es un pago ni una cancelación`); return { code: 200, body: { ok: true, ignored: true } };
+  }
+  if (!(await firstTime(env, `st:${st.id}:${n.evt}`))) return { code: 200, body: { ok: true, duplicate: true } };
+  const brand = await getBrand(env, st.brand_id);
+  const who = n.customer.instagram ? "@" + n.customer.instagram : n.customer.name || n.customer.phone || "cliente";
+  if (n.event === "cancelled") {
+    const row = n.order_id ? await env.DB.prepare("SELECT * FROM sales WHERE store_id = ? AND order_id = ?").bind(st.id, n.order_id).first() : null;
+    if (row) {
+      await env.DB.prepare("UPDATE sales SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(nowIso(), row.id).run();
+      if (row.account_id && row.user_id) await refreshPayState(env, row.account_id, row.user_id);
+    }
+    await storeLog(env, st.id, 200, EVT_LABEL.cancelled, `#${n.order_id} · ${who}${row ? " · se restó de tus ventas" : " · no estaba registrado"}`);
+    return { code: 200, body: { ok: true } };
+  }
+  const c = await matchContact(env, st.brand_id, n);
+  const sale = await recordSale(env, { brand_id: st.brand_id, account_id: c ? String(c.account_id) : null, user_id: c ? c.user_id : null, ad_id: c ? c.ad_id : null,
+    amount: n.total, currency: n.currency || "USD", method: n.method, source: "store", store_id: st.id, order_id: n.order_id, ref: n.ref, customer: n.customer, by: st.name });
+  let thanked = false;
+  if (c) {
+    await refreshPayState(env, c.account_id, c.user_id);
+    const open = c.last_dm_at && Date.now() - Date.parse(c.last_dm_at) < 24 * 3600e3;
+    if (o.notify_customer && open && !sale.merged && brand) {
+      const acc = await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(String(c.account_id)).first();
+      if (acc) { try { await sendAndSave(env, acc, c.user_id, fillVars(brand.opts.pay_thanks, { name: firstName(c.name), username: c.username }), "pago", st.name); thanked = true; } catch (e) { console.log("No se pudo avisar el pago", errText(e)); } }
+    }
+  }
+  const amountTxt = `${n.currency && n.currency !== "USD" ? n.currency + " " : "$"}${fx(n.total, 2)}`;
+  await storeLog(env, st.id, 200, EVT_LABEL.paid, `#${n.order_id} · ${amountTxt} · ${who}${c ? ` · cruzado por ${{ ref: "la referencia del botón", usuario: "el @usuario", "teléfono": "el teléfono" }[c.by] || c.by}${c.ad_id ? " con su anuncio" : ""}${thanked ? " · se le confirmó por DM" : ""}` : " · sin chat (venta sin anuncio)"}`);
+  if (brand) await notifyAll(env, { title: `${brand.name} · Venta ${amountTxt}`, body: `${st.name}: pedido #${n.order_id} de ${who}${c && c.ad_id ? " (vino de un anuncio)" : ""}`, url: "/#conversaciones", tag: `sale:${st.id}:${n.order_id}` },
+    { brandId: brand.id, event: "sales" });
+  return { code: 200, body: { ok: true, matched: !!c } };
+}
+
 /* ---------- enlaces de la IA como botón (ej. link de pago) ---------- */
 const normUrl = (u) => String(u || "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[\/?#]+$/, "").toLowerCase();
 /**
@@ -747,9 +948,15 @@ function extractLinkButtons(text, list) {
   return { text: out, buttons: found.slice(0, 3) };
 }
 /** Envía la respuesta de la IA con los enlaces como botones. Si Meta rechaza la plantilla, manda el texto original con el enlace. */
-async function sendWithLinkButtons(env, acc, to, original, lb, source) {
+async function sendWithLinkButtons(env, acc, to, original, lb, source, brand) {
   const P = PLATFORM[acc.platform];
-  const btns = lb.buttons.map((b) => ({ type: "web_url", url: b.url, title: b.title }));
+  const o = (brand && brand.opts) || {};
+  const ref = o.link_ref !== false ? await contactRef(env, acc.id, to, await getContact(env, acc.id, to)) : null;
+  const btns = lb.buttons.map((b) => ({ type: "web_url", url: ref ? withRef(b.url, ref) : b.url, title: b.title }));
+  // El cliente recibió un link de pago: queda pendiente de pagar (si no tiene un pago reciente)
+  const cur = await getContact(env, acc.id, to);
+  const amt = lb.buttons.map((b) => amountFrom(b.title) ?? amountFrom(b.when)).find((v) => v != null) ?? amountFrom(lb.text);
+  if (!cur || cur.pay_state !== "paid" || !cur.pay_at || Date.now() - Date.parse(cur.pay_at) > 864e5) await setContact(env, acc.id, to, { pay_state: "link", pay_amount: amt, pay_at: nowIso() });
   const tpl = (t) => ({ attachment: { type: "template", payload: { template_type: "button", text: t, buttons: btns } } });
   let r;
   try {
@@ -887,6 +1094,10 @@ async function handleDM(env, acc, ev, cfg) {
   const history = useAI ? await getHistory(env, acc.id, from) : [];
   await saveMessage(env, acc.id, from, "user", inText, { source: "cliente" });
   await upsertContact(env, { acc, userId: from, username, name: prof.name, text: inText, channel: "dm", nameChecked: prof.checked });
+  // Pago probable: tenía un link de pago y manda foto o dice que pagó
+  if (contact && contact.pay_state === "link" && (atts.some((a) => a.type === "image") || PAY_WORDS.test(text))) {
+    await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso() });
+  }
   const ref = ev.referral || msg.referral;
   const adRef = ref && ref.ad_id ? { id: String(ref.ad_id), title: String((ref.ads_context_data && ref.ads_context_data.ad_title) || ref.ad_title || "").slice(0, 200) } : null;
   if (adRef) await setContact(env, acc.id, from, { ad_id: adRef.id, ad_title: adRef.title || null });
@@ -963,7 +1174,7 @@ async function handleDM(env, acc, ev, cfg) {
     try {
       const lb = !richRule && kind === "ai" ? extractLinkButtons(reply, (brand.opts || {}).link_buttons) : null;
       if (richRule) errors.push(...(await sendRuleDM(env, acc, from, reply, richRule, "regla")));
-      else if (lb) errors.push(...(await sendWithLinkButtons(env, acc, from, reply, lb, "ia")));
+      else if (lb) errors.push(...(await sendWithLinkButtons(env, acc, from, reply, lb, "ia", brand)));
       else await sendAndSave(env, acc, from, reply, kind === "ai" ? "ia" : kind);
       sent = true;
     } catch (e) { errors.push("Envío: " + errText(e)); }
@@ -971,6 +1182,10 @@ async function handleDM(env, acc, ev, cfg) {
   if (sent && kind === "default") await setContact(env, acc.id, from, { last_default_at: nowIso() });
   if (sent && markOff) await setContact(env, acc.id, from, { off_hours_at: nowIso() });
   if (kind === "handoff" && sent) await pauseContact(env, acc.id, from, reason);
+  if (kind === "handoff" && reason === "pago") {
+    const c2 = await getContact(env, acc.id, from);
+    if (c2 && c2.pay_state !== "paid") await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso() });
+  }
 
   const whoTxt = whoLabel(acc.platform, username);
   if (kind === "handoff") {
@@ -1728,12 +1943,23 @@ async function api(req, env, url) {
   /* ----- anuncios ----- */
   let am = p.match(/^\/api\/ads\/([\w-]+)$/);
   if (am && m === "PUT") {
-    need(u, "maestro");
     const brand = await getBrand(env, am[1]);
     if (!brand) return json({ error: "Tienda no encontrada" }, 404);
     const b = await body();
     let ads = { ...(brand.ads || {}) };
-    if (b.disconnect) ads = {};
+    if ("margin" in b) {
+      // El margen de ganancia lo puede poner quien maneja la tienda
+      needBrand(u, brand.id); need(u, "tienda");
+      const mg = b.margin === null || b.margin === "" ? null : Math.round(Number(String(b.margin).replace(",", ".")));
+      if (mg != null && !(mg >= 1 && mg <= 95)) return json({ error: "El margen va de 1 a 95 %" }, 400);
+      ads.margin = mg;
+      if (Object.keys(b).length === 1) {
+        await env.DB.prepare("UPDATE brands SET ads = ? WHERE id = ?").bind(JSON.stringify(ads), brand.id).run();
+        return json({ ok: true, margin: mg });
+      }
+    }
+    need(u, "maestro");
+    if (b.disconnect) ads = { margin: ads.margin };
     else {
       if ("advisor" in b) ads.advisor = !!b.advisor;
       if (b.account !== undefined || b.token) {
@@ -2078,16 +2304,71 @@ async function api(req, env, url) {
     return json({ ok: true });
   }
 
+
+  /* ----- tiendas online ----- */
+  if (p === "/api/stores" && m === "GET") {
+    const brand = url.searchParams.get("brand");
+    if (!brand) return json([]);
+    needBrand(u, brand);
+    const { results } = await env.DB.prepare("SELECT * FROM stores WHERE brand_id = ? ORDER BY created_at").bind(brand).all();
+    return json(results.map((x) => storeOut(x, url.origin, false)));
+  }
+  if (p === "/api/stores" && m === "POST") {
+    need(u, "tienda");
+    const b = await body();
+    needBrand(u, b.brand);
+    if (!STORE_KINDS[b.kind]) return json({ error: "Elige el tipo de tienda" }, 400);
+    const name = String(b.name || "").trim().slice(0, 60) || STORE_KINDS[b.kind];
+    const id = randomToken(12);
+    const secret = b.kind === "shopify" ? String(b.secret || "").trim().slice(0, 200) : "whsec_" + randomToken(16);
+    await env.DB.prepare("INSERT INTO stores (id, brand_id, kind, name, secret, active, opts, created_at) VALUES (?, ?, ?, ?, ?, 1, '{}', ?)").bind(id, b.brand, b.kind, name, secret, nowIso()).run();
+    await audit(env, u, "Conectó una tienda online", `${STORE_KINDS[b.kind]} · ${name}`, b.brand);
+    return json({ store: storeOut(await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(id).first(), url.origin, true) });
+  }
+  mm = p.match(/^\/api\/stores\/([a-f0-9]+)(\/test|\/log)?$/);
+  if (mm) {
+    const st = await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(mm[1]).first();
+    if (!st) return json({ error: "Esta conexión no existe" }, 404);
+    needBrand(u, st.brand_id);
+    if (!mm[2] && m === "GET") {
+      const { results } = await env.DB.prepare("SELECT at, code, event, summary FROM store_log WHERE store_id = ? ORDER BY id DESC LIMIT 20").bind(st.id).all();
+      const month = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM sales WHERE store_id = ? AND status = 'paid' AND at >= ?").bind(st.id, caracasDayStartIso(caracasToday().slice(0, 8) + "01")).first();
+      return json({ store: storeOut(st, url.origin, can(u, "tienda")), log: results, month });
+    }
+    need(u, "tienda");
+    if (!mm[2] && m === "PUT") {
+      const b = await body(), set = {};
+      if (typeof b.name === "string" && b.name.trim()) set.name = b.name.trim().slice(0, 60);
+      if (typeof b.active === "boolean") set.active = b.active ? 1 : 0;
+      if (typeof b.secret === "string" && st.kind === "shopify") set.secret = b.secret.trim().slice(0, 200);
+      if (b.regenerate && st.kind !== "shopify") set.secret = "whsec_" + randomToken(16);
+      if (b.opts) set.opts = JSON.stringify(storeOpts({ ...parseJson(st.opts, {}), ...b.opts }));
+      const keys = Object.keys(set);
+      if (keys.length) await env.DB.prepare(`UPDATE stores SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => set[k]), st.id).run();
+      return json({ store: storeOut(await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true) });
+    }
+    if (!mm[2] && m === "DELETE") {
+      await env.DB.batch([env.DB.prepare("DELETE FROM stores WHERE id = ?").bind(st.id), env.DB.prepare("DELETE FROM store_log WHERE store_id = ?").bind(st.id)]);
+      await audit(env, u, "Desconectó una tienda online", st.name, st.brand_id);
+      return json({ ok: true });
+    }
+    if (mm[2] === "/test" && m === "POST") {
+      await processStoreOrder(env, st, { event: "test" }, true);
+      return json({ ok: true });
+    }
+  }
+
   /* ----- conversaciones ----- */
   if (p === "/api/conversations" && m === "GET") {
     need(u, "conversaciones");
     const w = brandWhere(u, url.searchParams.get("brand"), "c.brand_id");
     const f = url.searchParams.get("filter"), q = String(url.searchParams.get("q") || "").trim();
     let sql = `SELECT c.account_id, c.user_id, c.brand_id, c.platform, c.username, c.name, c.last_message, c.last_channel, c.last_at, c.messages, c.paused, c.pause_reason,
-      c.last_dm_at, c.closed_at, c.assigned_to, c.unread, c.tags, b.name AS brand FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE 1 = 1${w.sql}`;
+      c.last_dm_at, c.closed_at, c.assigned_to, c.unread, c.tags, c.pay_state, c.pay_amount, c.pay_at, b.name AS brand FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE 1 = 1${w.sql}`;
     const binds = [...w.binds];
     const FILTERS = { pending: " AND c.paused = 1 AND c.closed_at IS NULL", dm: " AND c.last_dm_at IS NOT NULL", open: " AND c.closed_at IS NULL", closed: " AND c.closed_at IS NOT NULL",
-      unread: " AND c.unread > 0", unassigned: " AND c.assigned_to IS NULL AND c.closed_at IS NULL" };
+      unread: " AND c.unread > 0", unassigned: " AND c.assigned_to IS NULL AND c.closed_at IS NULL", topay: " AND c.pay_state = 'probable'" };
+    if (f === "paidtoday") { sql += " AND c.pay_state = 'paid' AND c.pay_at >= ?"; binds.push(caracasDayStartIso()); }
     if (FILTERS[f]) sql += FILTERS[f];
     if (f === "mine") { sql += " AND c.assigned_to = ?"; binds.push(u.id); }
     const reason = url.searchParams.get("reason");
@@ -2100,6 +2381,18 @@ async function api(req, env, url) {
     const { results } = await env.DB.prepare(sql + " ORDER BY c.last_at DESC LIMIT 60").bind(...binds).all();
     return json(results.map((r) => ({ ...r, tags: parseJson(r.tags, []) })));
   }
+  mm = p.match(/^\/api\/sales\/(\d+)$/);
+  if (mm && m === "DELETE") {
+    need(u, "conversaciones");
+    const sale = await env.DB.prepare("SELECT * FROM sales WHERE id = ?").bind(+mm[1]).first();
+    if (!sale) return json({ error: "Esta venta no existe" }, 404);
+    needBrand(u, sale.brand_id);
+    if (sale.source !== "chat") return json({ error: "Esta venta viene de la tienda. Si se canceló, cancélala allá y se descuenta sola." }, 400);
+    await env.DB.prepare("DELETE FROM sales WHERE id = ?").bind(sale.id).run();
+    if (sale.account_id && sale.user_id) await refreshPayState(env, sale.account_id, sale.user_id);
+    await audit(env, u, "Quitó un pago marcado", String(sale.amount), sale.brand_id);
+    return json({ ok: true });
+  }
   if (p === "/api/conversations/counts" && m === "GET") {
     need(u, "conversaciones");
     const w = brandWhere(u, url.searchParams.get("brand"), "brand_id");
@@ -2111,12 +2404,14 @@ async function api(req, env, url) {
         SUM(CASE WHEN assigned_to = ? THEN 1 ELSE 0 END) AS mine,
         SUM(CASE WHEN assigned_to IS NULL AND closed_at IS NULL THEN 1 ELSE 0 END) AS unassigned,
         SUM(CASE WHEN platform = 'instagram' THEN 1 ELSE 0 END) AS instagram,
-        SUM(CASE WHEN platform = 'facebook' THEN 1 ELSE 0 END) AS facebook
-      FROM contacts WHERE 1 = 1${w.sql}`).bind(u.id, ...w.binds).first();
+        SUM(CASE WHEN platform = 'facebook' THEN 1 ELSE 0 END) AS facebook,
+        SUM(CASE WHEN pay_state = 'probable' THEN 1 ELSE 0 END) AS topay,
+        SUM(CASE WHEN pay_state = 'paid' AND pay_at >= ? THEN 1 ELSE 0 END) AS paidtoday
+      FROM contacts WHERE 1 = 1${w.sql}`).bind(u.id, caracasDayStartIso(), ...w.binds).first();
     const { results } = await env.DB.prepare(`SELECT pause_reason AS r, COUNT(*) AS n FROM contacts WHERE paused = 1 AND closed_at IS NULL${w.sql} GROUP BY pause_reason`).bind(...w.binds).all();
     return json({ ...Object.fromEntries(Object.entries(r || {}).map(([k, v]) => [k, v || 0])), reasons: Object.fromEntries(results.map((x) => [x.r || "pausado", x.n])) });
   }
-  mm = p.match(/^\/api\/conversations\/(\d+)\/([\w.-]+)(\/send|\/ignore|\/meta)?$/);
+  mm = p.match(/^\/api\/conversations\/(\d+)\/([\w.-]+)(\/send|\/ignore|\/meta|\/paid)?$/);
   if (mm) {
     need(u, "conversaciones");
     const acc = await accountFor(env, u, mm[1]);
@@ -2135,7 +2430,26 @@ async function api(req, env, url) {
         messages: results.reverse(), templates: brand ? brand.opts.templates : [],
         ignored: brand ? inList(brand.opts.ignore_users, userId, contact.username) : false,
         window_open: !!contact.last_dm_at && Date.now() - Date.parse(contact.last_dm_at) < 24 * 3600 * 1000,
+        sales: (await contactSales(env, acc.id, userId)).map(saleOut), pay_thanks: brand ? brand.opts.pay_thanks : "",
       });
+    }
+    if (mm[3] === "/paid" && m === "POST") {
+      const b = await body();
+      const amount = Math.round(Number(String(b.amount ?? "").replace(",", ".")) * 100) / 100;
+      if (!(amount > 0) || amount > 1e7) return json({ error: "Escribe el monto" }, 400);
+      const method = SALE_METHODS.includes(b.method) ? b.method : "otro";
+      const brand = acc.brand_id ? await getBrand(env, acc.brand_id) : null;
+      const sale = await recordSale(env, { brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: b.ad_id === "" ? null : (b.ad_id || contact.ad_id || null),
+        amount, currency: /^[A-Z]{3}$/.test(b.currency || "") ? b.currency : "USD", method, source: "chat", ref: contact.ref || null, note: String(b.note || "").slice(0, 300) || null, by: u.name });
+      await refreshPayState(env, acc.id, userId);
+      let warn = null;
+      if (b.notify && brand) {
+        const open = contact.last_dm_at && Date.now() - Date.parse(contact.last_dm_at) < 24 * 3600e3;
+        if (!open) warn = "No se le avisó al cliente: pasaron más de 24 horas desde su último mensaje (regla de Meta).";
+        else { try { await sendAndSave(env, acc, userId, fillVars(brand.opts.pay_thanks, { name: firstName(contact.name), username: contact.username }), "humano", u.name); } catch (e) { warn = "No se pudo avisar al cliente: " + errText(e); } }
+      }
+      await audit(env, u, "Marcó un pago", `${whoLabel(acc.platform, contact.username, userId)} · ${amount}`, acc.brand_id);
+      return json({ ok: true, sale: saleOut(sale), warn });
     }
     if (!mm[3] && m === "DELETE") {
       if (!can(u, "tienda") && !can(u, "pausar")) need(u, "tienda");
@@ -3141,6 +3455,7 @@ function lightOf(rules, k, v) {
 function diagnose(ad, rules, best) {
   if (ad.status === "DISAPPROVED") return { light: "r", tag: "Rechazado por Meta", act: "Corrige y vuelve a enviarlo", why: ad.review ? `Meta lo rechazó: ${ad.review}` : "Meta lo rechazó. Revisa el motivo en el Administrador de anuncios, corrige el texto o la imagen y vuelve a enviarlo." };
   const m = ad.m;
+  if (ad.nospend) return { light: null, tag: "Aún sin gasto", act: ad.st === "review" ? "Espera la aprobación de Meta" : "Espera unos días", why: ad.st === "review" ? "Meta lo está revisando. Cuando lo apruebe empieza a mostrarse." : "Está activo pero en este periodo todavía no ha gastado. Si sigue así, revisa el presupuesto y el público." };
   if (m.impressions < 300) return { light: null, tag: "Pocos datos", act: "Espera unos días", why: "Todavía lo vio muy poca gente para saber si funciona." };
   if (m.frequency >= rules.freq_bad || (m.frequency >= rules.freq_warn && m.ctr < rules.ctr_good)) return { light: "y", tag: "Se está cansando", act: "Prepara uno nuevo", why: `La misma persona ya lo vio ${fx(m.frequency, 1)} veces. Cuando pasa de ${rules.freq_warn}, la gente deja de tocarlo. Haz una versión nueva con otra foto o video.` };
   if (m.ctr < rules.ctr_bad) return { light: "r", tag: "No engancha", act: "Cambia la imagen o el inicio", why: `De cada 100 que lo ven, solo ${fx(m.ctr, 1)} lo tocan. Prueba otra foto, o cambia los primeros 3 segundos del video.` };
@@ -3148,6 +3463,35 @@ function diagnose(ad, rules, best) {
   if (m.cost_chat != null && m.cost_chat > rules.cpc_bad) return { light: "r", tag: "Chats caros", act: "Revisa el público", why: `Cada conversación cuesta $${fx(m.cost_chat, 2)}. Prueba un público más amplio o pon el precio en el anuncio para atraer gente lista para comprar.` };
   if (best && ad.id === best.id && m.cost_chat != null && m.cost_chat <= rules.cpc_good) return { light: "g", tag: "Tu mejor anuncio", act: "Súbele el presupuesto", why: `Te escriben a $${fx(m.cost_chat, 2)} por conversación. Súbele un 20% cada 3 días mientras el costo se mantenga.` };
   return { light: "g", tag: "Va bien", act: "Déjalo correr", why: "Sus números están dentro de lo normal para tu negocio." };
+}
+/**
+ * Una sola acción por anuncio: subir, mantener, recortar, apagar o esperar, con el presupuesto sugerido.
+ * Con ventas reales decide por lo que vendió de verdad; sin ellas, por el diagnóstico de Meta.
+ */
+function adAction(a, rules, hasSales, dx, best) {
+  const st = a.st || (a.status === "DISAPPROVED" ? "rejected" : a.status === "ACTIVE" || !a.status ? "active" : "other");
+  if (st === "rejected") return { k: "fix", label: "CORREGIR", why: "Meta lo rechazó. Corrige el texto o la imagen y vuelve a enviarlo." };
+  if (st === "paused" || st === "other") return null;
+  if (st === "review" || a.nospend) return { k: "wait", label: "ESPERAR", why: st === "review" ? "Meta lo está revisando. Cuando empiece a gastar, en unos días te decimos qué hacer." : "Está activo pero aún no gasta. Espera unos días." };
+  const m = a.m, bd = a.budget && a.budget.level === "adset" && a.budget.daily ? a.budget.daily : null;
+  const r2 = (v) => Math.max(1, Math.round(v * 2) / 2);
+  const to = (f) => (bd ? { from: bd, to: f === 0 ? 0 : r2(bd * f) } : null);
+  const shared = a.budget && a.budget.level === "campaign" ? " (el presupuesto es de la campaña: cámbialo allá)" : "";
+  if (m.spend < 5 || m.impressions < 300) return { k: "wait", label: "ESPERAR", why: "Todavía lo vio muy poca gente para decidir. Déjalo correr unos días." };
+  if (hasSales) {
+    const rr = a.roas_real || 0, sales = a.sales || { n: 0, total: 0 };
+    const minSpend = Math.max(10, (bd || 0) * 3);
+    if (!sales.n && m.spend >= minSpend) return { k: "off", label: "APAGAR", budget: to(0), why: `Gastó $${fx(m.spend, 2)} y no trajo ninguna venta en tu tienda.${m.chats ? ` Te escribieron ${m.chats} personas pero nadie compró.` : ""} Apágalo y pasa ese dinero a tu mejor anuncio.` };
+    if (sales.n && rr >= rules.roas_good * 1.5) return { k: "up", label: "SUBIR", budget: to(1.2), why: `Vende $${fx(rr, 2)} por cada $1 en ventas reales. Súbele 20%${shared} y revisa en 3 días que se mantenga.` };
+    if (sales.n && rr < 1) return { k: "cut", label: "RECORTAR", budget: to(0.5), why: `Vendió $${fx(sales.total, 2)} y gastó $${fx(m.spend, 2)}: pierdes dinero. Bájale a la mitad${shared} mientras pruebas otro anuncio.` };
+    if (dx && dx.tag === "Se está cansando" && rr < rules.roas_good) return { k: "cut", label: "RECORTAR", budget: to(0.5), why: `${dx.why} En tu tienda vende $${fx(rr, 2)} por cada $1.` };
+    return { k: "keep", label: "MANTENER", budget: bd ? { from: bd, to: bd } : null, why: sales.n ? `Vende $${fx(rr, 2)} por cada $1. Déjalo correr; si llega a $${fx(rules.roas_good * 1.5, 1)}, súbelo.` : "Todavía no trae ventas, pero aún gastó poco. Dale unos días más." };
+  }
+  if (!dx) return { k: "keep", label: "MANTENER", why: "Sus números están dentro de lo normal." };
+  if (best && a.id === best.id && dx.light === "g") return { k: "up", label: "SUBIR", budget: to(1.2), why: dx.why + shared };
+  if (dx.light === "r") return { k: "cut", label: "RECORTAR", budget: to(0.5), why: dx.why + shared };
+  if (dx.tag === "Se está cansando") return { k: "cut", label: "RECORTAR", budget: to(0.7), why: dx.why };
+  return { k: "keep", label: "MANTENER", budget: bd ? { from: bd, to: bd } : null, why: dx.why };
 }
 async function adsFetch(env, brand, from, to, force) {
   const ads = brand.ads || {};
@@ -3159,21 +3503,72 @@ async function adsFetch(env, brand, from, to, force) {
   const days = daysBetween(from, to), pFrom = addDays(from, -days), pTo = addDays(from, -1);
   const ptr = encodeURIComponent(JSON.stringify({ since: pFrom, until: pTo }));
   const F = "ad_id,ad_name,adset_name,campaign_name,spend,impressions,reach,frequency,clicks,inline_link_clicks,actions,action_values";
-  const [cur, prev, list] = await Promise.all([
+  const [cur, prev, list, daily] = await Promise.all([
     fb(env, ads.token, `/${act}/insights?level=ad&fields=${F}&time_range=${tr}&limit=200`),
     fb(env, ads.token, `/${act}/insights?level=account&fields=${F}&time_range=${ptr}`),
     fb(env, ads.token, `/${act}/ads?fields=id,name,effective_status,ad_review_feedback,creative{thumbnail_url}&limit=200`).catch(() => ({ data: [] })),
+    fb(env, ads.token, `/${act}/insights?level=ad&fields=ad_id,spend,actions&time_increment=1&time_range=${tr}&limit=1000`).catch(() => ({ data: [] })),
   ]);
+  // Tendencia: conversaciones por día de cada anuncio
+  const dates = datesOf(from, to), trend = {};
+  for (const r of daily.data || []) {
+    const i = dates.indexOf(r.date_start); if (i < 0) continue;
+    (trend[r.ad_id] ||= dates.map(() => 0))[i] += adsMetrics(r).chats || 0;
+  }
   const meta = Object.fromEntries((list.data || []).map((a) => [a.id, a]));
   const out = { from, to, prev_from: pFrom, prev_to: pTo, ads: (cur.data || []).map((r) => {
     const a = meta[r.ad_id] || {};
     const fb0 = a.ad_review_feedback && (a.ad_review_feedback.global || a.ad_review_feedback);
-    return { id: r.ad_id, name: r.ad_name, adset: r.adset_name, campaign: r.campaign_name, status: a.effective_status || "", thumb: a.creative && a.creative.thumbnail_url,
+    return { id: r.ad_id, name: r.ad_name, adset: r.adset_name, campaign: r.campaign_name, status: a.effective_status || "", thumb: a.creative && a.creative.thumbnail_url, trend: trend[r.ad_id] || null,
       review: fb0 && typeof fb0 === "object" ? Object.values(fb0).join(" · ").slice(0, 200) : "", m: adsMetrics(r) };
   }), prev: (prev.data || [])[0] ? adsMetrics(prev.data[0]) : null };
   for (const a of Object.values(meta)) if (a.effective_status === "DISAPPROVED" && !out.ads.find((x) => x.id === a.id)) out.ads.push({ id: a.id, name: a.name, status: "DISAPPROVED", thumb: a.creative && a.creative.thumbnail_url, review: "", m: adsMetrics({}) });
   await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(key, JSON.stringify(out), nowIso()).run();
   return out;
+}
+/* Estado actual de la cuenta: qué está activo, presupuesto diario y gasto de hoy (caché de 10 minutos). */
+const ZERO_DEC = ["CLP", "COP", "CRC", "HUF", "ISK", "IDR", "JPY", "KRW", "PYG", "TWD", "VND"];
+const AD_STATUS = { ACTIVE: "active", PAUSED: "paused", CAMPAIGN_PAUSED: "paused", ADSET_PAUSED: "paused", PENDING_REVIEW: "review", IN_PROCESS: "review",
+  PREAPPROVED: "review", DISAPPROVED: "rejected", WITH_ISSUES: "issues", PENDING_BILLING_INFO: "billing", ARCHIVED: "off", DELETED: "off" };
+async function adsLive(env, brand, force) {
+  const ads = brand.ads || {};
+  const key = `adslive:${brand.id}`;
+  if (!force) { const c = await env.DB.prepare("SELECT value, at FROM cache WHERE key = ?").bind(key).first(); if (c && Date.now() - Date.parse(c.at) < 600e3) return JSON.parse(c.value); }
+  const act = ads.account.startsWith("act_") ? ads.account : "act_" + ads.account;
+  const all = async (path) => { const out = []; let url = path; for (let i = 0; i < 5 && url; i++) { const r = await fb(env, ads.token, url); out.push(...(r.data || [])); url = r.paging && r.paging.next ? r.paging.next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+/, "") : null; } return out; };
+  const [acc, list, sets, camps, today, todayAds] = await Promise.all([
+    fb(env, ads.token, `/${act}?fields=currency,account_status`).catch(() => ({})),
+    all(`/${act}/ads?fields=id,name,effective_status,adset_id,campaign_id,adset{name},campaign{name},creative{thumbnail_url}&limit=200`).catch(() => []),
+    all(`/${act}/adsets?fields=id,name,daily_budget,lifetime_budget,effective_status,campaign_id&limit=200`).catch(() => []),
+    all(`/${act}/campaigns?fields=id,name,daily_budget,lifetime_budget,effective_status&limit=200`).catch(() => []),
+    fb(env, ads.token, `/${act}/insights?date_preset=today&fields=spend`).catch(() => ({ data: [] })),
+    fb(env, ads.token, `/${act}/insights?date_preset=today&level=ad&fields=ad_id,spend&limit=200`).catch(() => ({ data: [] })),
+  ]);
+  const div = ZERO_DEC.includes(acc.currency) ? 1 : 100;
+  const money = (v) => (v != null && v !== "" ? Number(v) / div : null);
+  const S = Object.fromEntries(sets.map((x) => [x.id, x])), C = Object.fromEntries(camps.map((x) => [x.id, x]));
+  const todayBy = Object.fromEntries((todayAds.data || []).map((x) => [x.ad_id, Number(x.spend || 0)]));
+  const out = {};
+  for (const a of list) {
+    const st = AD_STATUS[a.effective_status] || "other";
+    if (st === "off") continue;
+    const set = S[a.adset_id] || {}, camp = C[a.campaign_id] || {};
+    const cbo = camp.daily_budget || camp.lifetime_budget;
+    out[a.id] = { id: a.id, name: a.name, st, raw: a.effective_status, adset: (a.adset && a.adset.name) || set.name || "", campaign: (a.campaign && a.campaign.name) || camp.name || "",
+      thumb: a.creative && a.creative.thumbnail_url, today: todayBy[a.id] || 0,
+      budget: cbo ? { level: "campaign", daily: money(camp.daily_budget), lifetime: money(camp.lifetime_budget) } : { level: "adset", daily: money(set.daily_budget), lifetime: money(set.lifetime_budget) } };
+  }
+  // Presupuesto diario total: solo lo que está activo (conjuntos o campañas con presupuesto propio)
+  let daily = 0, lifetime = 0;
+  for (const c of camps) if (c.effective_status === "ACTIVE" && (c.daily_budget || c.lifetime_budget)) { daily += money(c.daily_budget) || 0; lifetime += money(c.lifetime_budget) || 0; }
+  for (const x of sets) { const c = C[x.campaign_id] || {}; if (x.effective_status === "ACTIVE" && !(c.daily_budget || c.lifetime_budget)) { daily += money(x.daily_budget) || 0; lifetime += money(x.lifetime_budget) || 0; } }
+  const vals = Object.values(out);
+  const res = { at: nowIso(), currency: acc.currency || "USD", account_status: acc.account_status || null, ads: out,
+    active: vals.filter((x) => x.st === "active").length, total: vals.length, review: vals.filter((x) => x.st === "review").length,
+    daily_budget: Math.round(daily * 100) / 100, lifetime_budget: Math.round(lifetime * 100) / 100,
+    today_spend: Number(((today.data || [])[0] || {}).spend || 0) };
+  await env.DB.prepare("INSERT INTO cache (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(key, JSON.stringify(res), nowIso()).run();
+  return res;
 }
 const sumM = (list) => {
   const t = list.reduce((a, x) => { for (const k of ["spend", "impressions", "reach", "clicks", "chats", "buys", "revenue"]) a[k] += x.m[k] || 0; return a; }, { spend: 0, impressions: 0, reach: 0, clicks: 0, chats: 0, buys: 0, revenue: 0 });
@@ -3183,7 +3578,14 @@ const sumM = (list) => {
 };
 const adsPro = (brand) => (brand.bill && /pro/i.test(brand.bill.plan || "")) || !!(brand.ads && brand.ads.advisor);
 async function adsReport(env, brand, from, to, force) {
-  const d = await adsFetch(env, brand, from, to, force);
+  const [d, live] = await Promise.all([adsFetch(env, brand, from, to, force), adsLive(env, brand, force).catch(() => null)]);
+  if (live) {
+    // Estado y presupuesto de cada anuncio; los activos que aún no gastan también aparecen
+    for (const a of d.ads) { const l = live.ads[a.id]; if (l) Object.assign(a, { st: l.st, budget: l.budget, today: l.today, adset: a.adset || l.adset, campaign: a.campaign || l.campaign }); }
+    for (const l of Object.values(live.ads)) if (!d.ads.find((a) => a.id === l.id) && ["active", "review", "issues", "billing"].includes(l.st))
+      d.ads.push({ id: l.id, name: l.name, adset: l.adset, campaign: l.campaign, status: l.raw, st: l.st, budget: l.budget, today: l.today, thumb: l.thumb, review: "", m: adsMetrics({}), nospend: true });
+    d.ads = d.ads.filter((a) => !(live.ads[a.id] === undefined && a.status && AD_STATUS[a.status] === "off"));
+  }
   const rules = await adsRules(env);
   const tot = sumM(d.ads);
   const withChats = d.ads.filter((a) => a.m.cost_chat != null && a.m.impressions >= 300).sort((a, b) => a.m.cost_chat - b.m.cost_chat);
@@ -3197,10 +3599,31 @@ async function adsReport(env, brand, from, to, force) {
   const totalAsks = firsts.length;
   const pro = adsPro(brand);
   const L = (k, v) => lightOf(rules, k, v);
-  const ads = d.ads.map((a) => ({ ...a, bot_chats: cs.filter((c) => c.ad_id === a.id).length, bot_pay: cs.filter((c) => c.ad_id === a.id && c.pause_reason === "pago").length,
-    ...(pro ? { dx: diagnose(a, rules, best) } : {}) })).sort((a, b) => b.m.spend - a.m.spend);
+  // Ventas reales (tienda conectada o pagos marcados en el chat)
+  const sFrom = caracasDayStartIso(from), sTo = new Date(Date.parse(`${to}T23:59:59.999-04:00`)).toISOString();
+  const { results: sRows } = await env.DB.prepare("SELECT ad_id, COUNT(*) AS n, SUM(amount) AS total FROM sales WHERE brand_id = ? AND status = 'paid' AND at >= ? AND at <= ? GROUP BY ad_id").bind(brand.id, sFrom, sTo).all();
+  const salesBy = Object.fromEntries(sRows.filter((x) => x.ad_id).map((x) => [x.ad_id, { n: x.n, total: Math.round(x.total * 100) / 100 }]));
+  const noAd = sRows.find((x) => !x.ad_id) || { n: 0, total: 0 };
+  const { results: stList } = await env.DB.prepare("SELECT name, kind FROM stores WHERE brand_id = ? AND active = 1").bind(brand.id).all();
+  const chatSales = await env.DB.prepare("SELECT COUNT(*) AS n FROM sales WHERE brand_id = ? AND source = 'chat'").bind(brand.id).first();
+  const hasSales = stList.length > 0 || (chatSales && chatSales.n > 0);
+  const margin = brand.ads && brand.ads.margin != null ? brand.ads.margin : null;
+  const ads = d.ads.map((a) => {
+    const sales = salesBy[a.id] || { n: 0, total: 0 };
+    const x = { ...a, bot_chats: cs.filter((c) => c.ad_id === a.id).length, bot_pay: cs.filter((c) => c.ad_id === a.id && c.pause_reason === "pago").length, sales,
+      roas_real: hasSales && a.m.spend > 0 ? Math.round((sales.total / a.m.spend) * 100) / 100 : null };
+    const dx = diagnose(a, rules, best);
+    if (pro) x.dx = dx;
+    x.action = adAction(x, rules, hasSales, dx, best);
+    return x;
+  }).sort((a, b) => b.m.spend - a.m.spend);
+  const soldAds = Object.values(salesBy).reduce((t, x) => t + x.total, 0), ordersAds = Object.values(salesBy).reduce((t, x) => t + x.n, 0);
   return { from, to, prev: d.prev, prev_from: d.prev_from, prev_to: d.prev_to, totals: tot, pro, rules, ads,
-    lights: pro ? { cost_chat: L("cost_chat", tot.cost_chat), ctr: L("ctr", tot.ctr), frequency: L("frequency", tot.frequency), roas: L("roas", tot.roas) } : null,
+    sales: { has: hasSales, sources: stList.map((x) => ({ name: x.name, kind: x.kind })), chat: !!(chatSales && chatSales.n), sold: Math.round(soldAds * 100) / 100, orders: ordersAds,
+      no_ad: Math.round((noAd.total || 0) * 100) / 100, no_ad_n: noAd.n || 0, roas: tot.spend > 0 && hasSales ? Math.round((soldAds / tot.spend) * 100) / 100 : null,
+      margin, profit: margin != null && hasSales ? Math.round((soldAds * margin / 100 - tot.spend) * 100) / 100 : null },
+    live: live ? { at: live.at, currency: live.currency, account_status: live.account_status, active: live.active, total: live.total, review: live.review, daily_budget: live.daily_budget, lifetime_budget: live.lifetime_budget, today_spend: live.today_spend } : null,
+    lights: pro ? { cost_chat: L("cost_chat", tot.cost_chat), ctr: L("ctr", tot.ctr), frequency: L("frequency", tot.frequency), roas: L("roas", hasSales && tot.spend > 0 ? soldAds / tot.spend : tot.roas) } : null,
     funnel: { reach: tot.reach, clicks: tot.clicks, chats: tot.chats, bot_chats: cs.length, handoff_pay: cs.filter((c) => c.pause_reason === "pago").length },
     asks: asks.map(([l, n]) => ({ label: l, pct: totalAsks ? Math.round((n / totalAsks) * 100) : 0 })) };
 }
@@ -3208,11 +3631,12 @@ async function adsSummaryAI(env, brand, rep, cfg) {
   const key = await deepseekKey(env, brand, cfg);
   if (!key) throw httpError(400, "Falta la clave de la IA");
   const t = rep.totals, p = rep.prev;
-  const lines = rep.ads.slice(0, 8).map((a) => `- ${a.name}: gasto $${a.m.spend.toFixed(2)}, chats ${a.m.chats}, costo/chat ${a.m.cost_chat != null ? "$" + a.m.cost_chat.toFixed(2) : "—"}, CTR ${a.m.ctr.toFixed(2)}%, frecuencia ${a.m.frequency.toFixed(1)}${a.dx ? `, diagnóstico: ${a.dx.tag} (${a.dx.act})` : ""}`).join("\n");
+  const S2 = rep.sales || {};
+  const lines = rep.ads.slice(0, 8).map((a) => `- ${a.name}: gasto $${a.m.spend.toFixed(2)}, chats ${a.m.chats}, costo/chat ${a.m.cost_chat != null ? "$" + a.m.cost_chat.toFixed(2) : "—"}, CTR ${a.m.ctr.toFixed(2)}%, frecuencia ${a.m.frequency.toFixed(1)}${S2.has ? `, ventas reales $${(a.sales && a.sales.total || 0).toFixed(2)} (${a.sales ? a.sales.n : 0} pedidos)` : ""}${a.action ? `, acción: ${a.action.label}` : a.dx ? `, diagnóstico: ${a.dx.tag} (${a.dx.act})` : ""}`).join("\n");
   const text = await deepseekChat(env, key, "deepseek-flash", [
     { role: "system", content: "Eres el asesor de anuncios de una pequeña tienda en Venezuela. Escribe en español, tuteando, frases cortas y sin tecnicismos (no digas CTR, CPM ni ROAS: tradúcelos). Da 3 o 4 viñetas que empiecen con '- ': qué pasó, cuál anuncio funciona, qué cambiar esta semana. Usa solo los números dados; no inventes." },
     { role: "user", content: `Periodo ${rep.from} a ${rep.to}. Gasto $${t.spend.toFixed(2)}, conversaciones ${t.chats}, costo por conversación ${t.cost_chat != null ? "$" + t.cost_chat.toFixed(2) : "—"}${p ? `; periodo anterior: gasto $${p.spend.toFixed(2)}, conversaciones ${p.chats}, costo por conversación ${p.cost_chat != null ? "$" + p.cost_chat.toFixed(2) : "—"}` : ""}.
-Lo que más preguntan quienes llegan por anuncios: ${rep.asks.map((a) => `${a.label} ${a.pct}%`).join(", ") || "sin datos"}.
+${S2.has ? `Ventas reales en su tienda que vinieron de anuncios: $${(S2.sold || 0).toFixed(2)} en ${S2.orders} pedidos (por cada $1 invertido vende $${S2.roas != null ? S2.roas.toFixed(2) : "—"}; Meta dice $${t.roas != null ? t.roas.toFixed(2) : "—"}). Prioriza las ventas reales sobre lo que dice Meta.\n` : ""}Lo que más preguntan quienes llegan por anuncios: ${rep.asks.map((a) => `${a.label} ${a.pct}%`).join(", ") || "sin datos"}.
 Anuncios:\n${lines}` },
   ], 500, false, 20000, brand.id);
   return text.replace(/\*\*/g, "").trim();
@@ -3407,12 +3831,17 @@ export default {
     if (env.SITE_HOST && env.ASSETS && url.hostname === env.SITE_HOST && url.pathname === "/") {
       return env.ASSETS.fetch(new Request(new URL("/web/", url), req));
     }
-    const needsDb = url.pathname === "/webhook" || url.pathname.startsWith("/auth/") || url.pathname.startsWith("/api/");
+    const needsDb = url.pathname === "/webhook" || url.pathname.startsWith("/hook/") || url.pathname.startsWith("/auth/") || url.pathname.startsWith("/api/");
     if (needsDb) {
       try { await ensureSchema(env); }
       catch (e) { console.error(e); return json({ error: "No se pudo preparar la base de datos: " + errText(e) }, 500); }
     }
     if (url.pathname === "/webhook") return webhook(req, env, ctx, url);
+    const hm = url.pathname.match(/^\/hook\/tienda\/([a-f0-9]{16,64})$/);
+    if (hm) {
+      try { return await storeHook(req, env, hm[1]); }
+      catch (e) { console.error(e); return json({ error: errText(e) }, e.status || 500); }
+    }
     if (url.pathname === "/auth/instagram/callback") return oauthCallback(env, url, "instagram");
     if (url.pathname === "/auth/facebook/callback") return oauthCallback(env, url, "facebook");
     if (url.pathname.startsWith("/api/")) {
