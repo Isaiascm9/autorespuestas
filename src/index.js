@@ -3526,7 +3526,7 @@ function adAction(a, rules, hasSales, dx, best) {
     const rr = a.roas_real || 0, sales = a.sales || { n: 0, total: 0 };
     const minSpend = Math.max(10, (bd || 0) * 3);
     if (!sales.n && m.spend >= minSpend) return { k: "off", label: "APAGAR", budget: to(0), rule: `Regla: gastó más de $${fx(minSpend, 0)} sin ninguna venta`, why: `Gastó $${fx(m.spend, 2)} y no trajo ninguna venta en tu tienda.${m.chats ? ` Te escribieron ${m.chats} personas pero nadie compró.` : ""} Apágalo y pasa ese dinero a tu mejor anuncio.` };
-    if (sales.n && a.ppo != null && a.cpo > a.ppo) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: "Regla: el pedido cuesta más de lo que deja", why: `Cada pedido te cuesta $${fx(a.cpo, 2)} en anuncios y te deja $${fx(a.ppo, 2)} de ganancia: pierdes en cada venta. Bájale a la mitad${shared} y prueba otro anuncio.` };
+    if (sales.n && a.ppo != null && a.cpo > a.ppo) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: "Regla: el pedido cuesta más de lo que deja", why: `Cada pedido te deja $${fx(a.ppo, 2)} antes del anuncio, pero el anuncio cuesta $${fx(a.cpo, 2)} por pedido: pierdes $${fx(a.cpo - a.ppo, 2)} en cada venta. Bájale a la mitad${shared} y prueba otro anuncio.` };
     if (sales.n && rr >= rules.roas_good * 1.5 && (a.ppo == null || a.cpo <= a.ppo * 0.6)) return { k: "up", label: "SUBIR", budget: to(1.2), rule: `Regla: vende más de $${fx(rules.roas_good * 1.5, 1)} por cada $1 y le sobra margen`, why: `Vende $${fx(rr, 2)} por cada $1 en ventas reales${a.cpo != null ? ` y cada pedido te cuesta $${fx(a.cpo, 2)}` : ""}. Súbele 20%${shared} y revisa en 3 días que se mantenga.` };
     if (sales.n && rr < 1) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: "Regla: vende menos de lo que gasta", why: `Vendió $${fx(sales.total, 2)} y gastó $${fx(m.spend, 2)}: pierdes dinero. Bájale a la mitad${shared} mientras pruebas otro anuncio.` };
     if (dx && dx.tag === "Se está cansando" && rr < rules.roas_good) return { k: "cut", label: "RECORTAR", budget: to(0.5), rule: `Regla: la misma persona lo vio más de ${rules.freq_warn} veces y vende menos de lo ideal`, why: `${dx.why} En tu tienda vende $${fx(rr, 2)} por cada $1.` };
@@ -3668,7 +3668,8 @@ async function adsReport(env, brand, from, to, force, pf, pt) {
       conv: hasSales && (a.m.chats || a.bot_chats) ? Math.round((sales.n / Math.max(a.m.chats || 0, cs.filter((c) => c.ad_id === a.id).length)) * 1000) / 10 : null,
       prev: (() => { const pm = a.pm, ps = prevSalesBy[a.id] || { n: 0, total: 0 }; if (!pm) return null;
         return { spend: pm.spend, cpc: pm.clicks ? pm.spend / pm.clicks : null, roas_real: hasSales && pm.spend > 0 ? ps.total / pm.spend : null, cpo: hasSales && ps.n ? pm.spend / ps.n : null }; })(),
-      ppo: hasSales && sales.n && margin != null ? Math.round((sales.total / sales.n) * margin) / 100 : null };
+      ppo: hasSales && sales.n && margin != null ? Math.round((sales.total / sales.n) * margin) / 100 : null,
+      net_po: hasSales && sales.n && margin != null ? Math.round(((sales.total / sales.n) * margin / 100 - a.m.spend / sales.n) * 100) / 100 : null };
     const dx = diagnose(a, rules, best);
     if (pro) x.dx = dx;
     x.action = adAction(x, rules, hasSales, dx, best);
@@ -3684,6 +3685,7 @@ async function adsReport(env, brand, from, to, force, pf, pt) {
       cpo: hasSales && ordersAds ? Math.round((tot.spend / ordersAds) * 100) / 100 : null,
       ppo: hasSales && ordersAds && margin != null ? Math.round((soldAds / ordersAds) * margin) / 100 : null,
       ticket: ordersAds ? Math.round((soldAds / ordersAds) * 100) / 100 : null,
+      net_po: hasSales && ordersAds && margin != null ? Math.round(((soldAds / ordersAds) * margin / 100 - tot.spend / ordersAds) * 100) / 100 : null,
       prev: { sold: soldPrev, orders: ordersPrev, cpo: ordersPrev && pSpend ? pSpend / ordersPrev : null, roas: pSpend ? soldPrev / pSpend : null } },
     cpc: tot.clicks ? Math.round((tot.spend / tot.clicks) * 100) / 100 : null, cpc_prev: d.prev && d.prev.clicks ? d.prev.spend / d.prev.clicks : null,
     computed_at: d.computed_at,
@@ -3722,11 +3724,11 @@ function adsContext(rep) {
   const t = rep.totals, p = rep.prev, S2 = rep.sales || {};
   const f2 = (v) => (v == null ? "—" : "$" + Number(v).toFixed(2));
   const lines = rep.ads.slice(0, 15).map((a) => `- ${a.name} [${a.st || a.status || ""}]: gasto ${f2(a.m.spend)} (antes ${f2(a.prev && a.prev.spend)}), chats ${a.m.chats}, costo/chat ${f2(a.m.cost_chat)}, CPC ${f2(a.cpc)} (antes ${f2(a.prev && a.prev.cpc)}), frecuencia ${a.m.frequency.toFixed(1)}, CTR ${a.m.ctr.toFixed(2)}%`
-    + (S2.has ? `, ventas reales ${f2(a.sales && a.sales.total)} en ${a.sales ? a.sales.n : 0} pedidos, por cada $1 ${a.roas_real != null ? a.roas_real.toFixed(2) : "—"} (antes ${a.prev && a.prev.roas_real != null ? a.prev.roas_real.toFixed(2) : "—"}), costo por pedido ${f2(a.cpo)}, compran ${a.conv != null ? a.conv + "%" : "—"} de los que escriben` : "")
+    + (S2.has ? `, ventas reales ${f2(a.sales && a.sales.total)} en ${a.sales ? a.sales.n : 0} pedidos, por cada $1 ${a.roas_real != null ? a.roas_real.toFixed(2) : "—"} (antes ${a.prev && a.prev.roas_real != null ? a.prev.roas_real.toFixed(2) : "—"}), costo por pedido ${f2(a.cpo)}, ganancia por pedido después del anuncio ${f2(a.net_po)}, compran ${a.conv != null ? a.conv + "%" : "—"} de los que escriben` : "")
     + (a.budget && a.budget.daily ? `, presupuesto ${f2(a.budget.daily)}/día` : "") + (a.action ? `, recomendación: ${a.action.label} (${a.action.why})` : ""));
   return `Periodo ${rep.from} a ${rep.to}, comparado con ${rep.prev_from} a ${rep.prev_to}.
 Total: gasto ${f2(t.spend)} (antes ${f2(p && p.spend)}), conversaciones ${t.chats} (antes ${p ? p.chats : "—"}), costo por chat ${f2(t.cost_chat)}, CPC ${f2(rep.cpc)}.
-${S2.has ? `Ventas reales por anuncios ${f2(S2.sold)} en ${S2.orders} pedidos (antes ${f2(S2.prev && S2.prev.sold)} en ${S2.prev ? S2.prev.orders : "—"}); por cada $1 vende ${S2.roas != null ? S2.roas.toFixed(2) : "—"}; costo por pedido ${f2(S2.cpo)}; ${S2.margin != null ? `margen ${S2.margin}%, ganancia ${f2(S2.profit)}` : "sin margen cargado"}; ventas sin anuncio ${f2(S2.no_ad)}.` : "No hay ventas reales conectadas; solo datos de Meta."}
+${S2.has ? `Ventas reales por anuncios ${f2(S2.sold)} en ${S2.orders} pedidos (antes ${f2(S2.prev && S2.prev.sold)} en ${S2.prev ? S2.prev.orders : "—"}); por cada $1 vende ${S2.roas != null ? S2.roas.toFixed(2) : "—"}; costo por pedido ${f2(S2.cpo)}; ganancia por pedido después del anuncio ${f2(S2.net_po)}; ${S2.margin != null ? `margen ${S2.margin}%, ganancia ${f2(S2.profit)}` : "sin margen cargado"}; ventas sin anuncio ${f2(S2.no_ad)}.` : "No hay ventas reales conectadas; solo datos de Meta."}
 ${rep.live ? `Ahora: ${rep.live.active} anuncios activos, presupuesto diario ${f2(rep.live.daily_budget)}, gastado hoy ${f2(rep.live.today_spend)}.` : ""}
 Anuncios:
 ${lines}`;
