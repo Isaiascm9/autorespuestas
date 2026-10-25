@@ -96,6 +96,8 @@ const SCHEMA = [
     active INTEGER NOT NULL DEFAULT 1, opts TEXT NOT NULL DEFAULT '{}', created_at TEXT, last_at TEXT)`,
   `CREATE TABLE IF NOT EXISTS store_log (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT NOT NULL, at TEXT NOT NULL, code INTEGER, event TEXT, summary TEXT)`,
   `CREATE INDEX IF NOT EXISTS store_log_store ON store_log (store_id, id DESC)`,
+  `CREATE TABLE IF NOT EXISTS trash (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, label TEXT NOT NULL, brand_id TEXT, by_id TEXT, by_name TEXT, at TEXT NOT NULL, parts INTEGER NOT NULL DEFAULT 1)`,
+  `CREATE TABLE IF NOT EXISTS trash_parts (trash_id INTEGER NOT NULL, seq INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (trash_id, seq))`,
 ];
 
 // Columnas que pueden faltar si la base se creó con una versión anterior
@@ -2203,9 +2205,13 @@ async function api(req, env, url) {
   const pm = p.match(/^\/api\/payments\/(\d+)$/);
   if (pm && m === "DELETE") {
     need(u, "maestro");
+    const pay = await env.DB.prepare("SELECT * FROM payments WHERE id = ?").bind(pm[1]).first();
+    if (!pay) return json({ error: "Ese pago ya no existe" }, 404);
+    const pb = await getBrand(env, pay.brand_id);
+    const tid = await toTrash(env, u, "payment", `$${pay.amount}${pb ? " · " + pb.name : ""}`, pay.brand_id, [["payments", "id = ?", [pay.id]]]);
     await env.DB.prepare("DELETE FROM payments WHERE id = ?").bind(pm[1]).run();
     await audit(env, u, "Borró un pago registrado", "#" + pm[1]);
-    return json({ ok: true });
+    return json({ ok: true, trash_id: tid });
   }
   if (p === "/api/ai-prices" && m === "PUT") {
     need(u, "maestro");
@@ -2262,8 +2268,11 @@ async function api(req, env, url) {
   }
   if (leadM && m === "DELETE") {
     need(u, "maestro");
+    const ld = await env.DB.prepare("SELECT name, business FROM leads WHERE id = ?").bind(leadM[1]).first();
+    if (!ld) return json({ error: "Esa solicitud ya no existe" }, 404);
+    const tid = await toTrash(env, u, "lead", `${ld.name}${ld.business ? " · " + ld.business : ""}`, null, [["leads", "id = ?", [+leadM[1]]]]);
     await env.DB.prepare("DELETE FROM leads WHERE id = ?").bind(leadM[1]).run();
-    return json({ ok: true });
+    return json({ ok: true, trash_id: tid });
   }
   /* ----- plantillas de prompt (las edita la cuenta maestra; las usan quienes editan prompts) ----- */
   if (p === "/api/templates" && m === "GET") {
@@ -2366,6 +2375,34 @@ async function api(req, env, url) {
     return json({ devices: r ? r.n : 0 });
   }
 
+  /* ----- papelera ----- */
+  if (p === "/api/trash" && m === "GET") {
+    if (u.role !== "maestro") need(u, "equipo");
+    const { results } = await env.DB.prepare("SELECT id, kind, label, brand_id, by_name, at FROM trash ORDER BY id DESC LIMIT 200").all();
+    // El cliente solo ve a la gente que quitó de su tienda
+    const list = u.role === "maestro" ? results : results.filter((x) => x.kind === "user" && x.brand_id && canBrand(u, x.brand_id));
+    return json({ days: TRASH_DAYS, kinds: TRASH_KINDS, list: list.map((x) => ({ ...x, until: new Date(Date.parse(x.at) + TRASH_DAYS * DAY).toISOString() })) });
+  }
+  let trm = p.match(/^\/api\/trash\/(\d+)(\/restore)?$/);
+  if (trm) {
+    const t = await env.DB.prepare("SELECT * FROM trash WHERE id = ?").bind(+trm[1]).first();
+    if (!t) return json({ error: "Ya no está en la papelera" }, 404);
+    if (u.role !== "maestro" && !(t.kind === "user" && t.brand_id && canBrand(u, t.brand_id) && can(u, "equipo"))) return json({ error: "No puedes tocar esto" }, 403);
+    if (trm[2] && m === "POST") {
+      if (t.kind === "user" && u.role !== "maestro") { const lim = await teamLimitError(env, "cliente", [t.brand_id], null); if (lim) return json({ error: lim.replace(/ de .+? permite/, " permite").replace("Para agregar otra, cambia de plan.", "Mejora tu plan para restaurarla.") }, 409); }
+      await restoreTrash(env, t.id);
+      await audit(env, u, "Restauró de la papelera", `${TRASH_KINDS[t.kind] || t.kind}: ${t.label}`, t.brand_id);
+      if (t.kind === "brand" || t.kind === "account") await loadPlans(env, true);
+      return json({ ok: true, kind: t.kind });
+    }
+    if (!trm[2] && m === "DELETE") {
+      need(u, "maestro");
+      await env.DB.batch([env.DB.prepare("DELETE FROM trash WHERE id = ?").bind(t.id), env.DB.prepare("DELETE FROM trash_parts WHERE trash_id = ?").bind(t.id)]);
+      await audit(env, u, "Borró definitivamente", `${TRASH_KINDS[t.kind] || t.kind}: ${t.label}`, t.brand_id);
+      return json({ ok: true });
+    }
+  }
+
   /* ----- mi equipo: el dueño de la tienda maneja a su gente (dentro del límite del plan) ----- */
   if (p === "/api/myteam" && m === "GET") {
     need(u, "equipo"); const id = url.searchParams.get("brand"); needBrand(u, id);
@@ -2412,9 +2449,10 @@ async function api(req, env, url) {
       return json({ ok: true });
     }
     if (m === "DELETE") {
+      const tid = await toTrash(env, u, "user", x.name, x.brands[0], [["users", "id = ?", [x.id]]]);
       await env.DB.batch([env.DB.prepare("DELETE FROM users WHERE id = ?").bind(x.id), env.DB.prepare("DELETE FROM push_subs WHERE user_id = ?").bind(x.id)]);
       await audit(env, u, "Quitó a alguien de su equipo", x.name, x.brands[0]);
-      return json({ ok: true });
+      return json({ ok: true, trash_id: tid });
     }
   }
 
@@ -2458,12 +2496,13 @@ async function api(req, env, url) {
       return json({ user: userOut(await loadUser(env, cfg, existing.id)) });
     }
     if (!mm[2] && m === "DELETE") {
+      const tid = await toTrash(env, u, "user", existing.name, existing.brands[0] && existing.brands[0] !== "*" ? existing.brands[0] : null, [["users", "id = ?", [existing.id]]]);
       await env.DB.batch([
         env.DB.prepare("DELETE FROM users WHERE id = ?").bind(existing.id),
         env.DB.prepare("DELETE FROM push_subs WHERE user_id = ?").bind(existing.id),
       ]);
       await audit(env, u, "Eliminó un usuario", existing.name);
-      return json({ ok: true });
+      return json({ ok: true, trash_id: tid });
     }
   }
   if (p === "/api/audit" && m === "GET") {
@@ -2568,9 +2607,10 @@ async function api(req, env, url) {
       return json({ store: storeOut(await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true) });
     }
     if (!mm[2] && m === "DELETE") {
+      const tid = await toTrash(env, u, "store", st.name, st.brand_id, [["stores", "id = ?", [st.id]], ["store_log", "store_id = ?", [st.id]]]);
       await env.DB.batch([env.DB.prepare("DELETE FROM stores WHERE id = ?").bind(st.id), env.DB.prepare("DELETE FROM store_log WHERE store_id = ?").bind(st.id)]);
       await audit(env, u, "Desconectó una tienda online", st.name, st.brand_id);
-      return json({ ok: true });
+      return json({ ok: true, trash_id: tid });
     }
     if (mm[2] === "/test" && m === "POST") {
       await processStoreOrder(env, st, { event: "test" }, true);
@@ -2608,10 +2648,11 @@ async function api(req, env, url) {
     if (!sale) return json({ error: "Esta venta no existe" }, 404);
     needBrand(u, sale.brand_id);
     if (sale.source !== "chat") return json({ error: "Esta venta viene de la tienda. Si se canceló, cancélala allá y se descuenta sola." }, 400);
+    const tid = await toTrash(env, u, "sale", `${sale.currency === "VES" ? "Bs " : "$"}${sale.amount}${sale.customer ? " · " + sale.customer : ""}`, sale.brand_id, [["sales", "id = ?", [sale.id]]]);
     await env.DB.prepare("DELETE FROM sales WHERE id = ?").bind(sale.id).run();
     if (sale.account_id && sale.user_id) await refreshPayState(env, sale.account_id, sale.user_id);
     await audit(env, u, "Quitó un pago marcado", String(sale.amount), sale.brand_id);
-    return json({ ok: true });
+    return json({ ok: true, trash_id: tid });
   }
   if (p === "/api/conversations/counts" && m === "GET") {
     need(u, "conversaciones");
@@ -2884,6 +2925,7 @@ async function api(req, env, url) {
       return json({ account: accountOut(await getAccount(env, acc.id)) });
     }
     if (!mm[2] && m === "DELETE") {
+      const tid = await toTrash(env, u, "account", acc.name || acc.id, acc.brand_id, [["accounts", "id = ?", [acc.id]], ["contacts", "account_id = ?", [acc.id]], ["messages", "account_id = ?", [acc.id]], ["account_daily", "account_id = ?", [acc.id]]]);
       await env.DB.batch([
         env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(acc.id),
         env.DB.prepare("DELETE FROM contacts WHERE account_id = ?").bind(acc.id),
@@ -2891,7 +2933,7 @@ async function api(req, env, url) {
         env.DB.prepare("DELETE FROM account_daily WHERE account_id = ?").bind(acc.id),
       ]);
       await audit(env, u, "Quitó una cuenta", acc.name, acc.brand_id);
-      return json({ ok: true });
+      return json({ ok: true, trash_id: tid });
     }
   }
 
@@ -2957,6 +2999,9 @@ async function api(req, env, url) {
 
   if (!sub && m === "DELETE") {
     need(u, "maestro");
+    const accIds = (await env.DB.prepare("SELECT id FROM accounts WHERE brand_id = ?").bind(id).all()).results.map((x) => x.id);
+    const tid = await toTrash(env, u, "brand", brand.name, id, [["brands", "id = ?", [id]], ["contacts", "brand_id = ?", [id]], ["logs", "brand_id = ?", [id]], ["catalog", "brand_id = ?", [id]]],
+      accIds.map((a) => ["UPDATE accounts SET brand_id = ? WHERE id = ? AND brand_id IS NULL", [id, a]]));
     await env.DB.batch([
       env.DB.prepare("DELETE FROM brands WHERE id = ?").bind(id),
       env.DB.prepare("UPDATE accounts SET brand_id = NULL WHERE brand_id = ?").bind(id),
@@ -2965,7 +3010,7 @@ async function api(req, env, url) {
       env.DB.prepare("DELETE FROM catalog WHERE brand_id = ?").bind(id),
     ]);
     await audit(env, u, "Eliminó una tienda", brand.name, id);
-    return json({ ok: true });
+    return json({ ok: true, trash_id: tid });
   }
 
   if (sub === "/media" && m === "GET") {
@@ -3455,6 +3500,7 @@ async function dailyTasks(env) {
 
 async function cron(env) {
   await ensureSchema(env);
+  try { await purgeTrash(env); } catch (e) { console.log("Papelera", errText(e)); }
   try { await autoResumeAll(env); } catch (e) { console.log("Reanudar", errText(e)); }
   try { await runFollowUps(env); } catch (e) { console.log("Seguimientos", errText(e)); }
   // Lo diario, una vez al día a partir de las 9:00 a. m. de Caracas
@@ -3919,6 +3965,47 @@ Anuncios:\n${lines}` },
   return text.replace(/\*\*/g, "").trim();
 }
 
+
+/* ================= papelera: lo borrado se guarda 5 días y se puede restaurar ================= */
+const TRASH_DAYS = 5;
+const TRASH_KINDS = { user: "Usuario", brand: "Tienda", lead: "Solicitud de la página de venta", sale: "Pago marcado", payment: "Pago registrado", account: "Cuenta conectada", store: "Tienda online conectada" };
+/** Guarda una copia de las filas antes de borrarlas. specs: [[tabla, where, binds]]; after: SQL para dejar todo como estaba al restaurar. */
+async function toTrash(env, u, kind, label, brandId, specs, after = []) {
+  const tables = {};
+  for (const [t, where, binds] of specs) tables[t] = (await env.DB.prepare(`SELECT * FROM ${t} WHERE ${where}`).bind(...binds).all()).results;
+  const txt = JSON.stringify({ tables, after }), size = 700000, parts = Math.max(1, Math.ceil(txt.length / size));
+  const r = await env.DB.prepare("INSERT INTO trash (kind, label, brand_id, by_id, by_name, at, parts) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(kind, String(label).slice(0, 160), brandId || null, u ? u.id : null, u ? u.name : null, nowIso(), parts).run();
+  const id = r.meta.last_row_id;
+  for (let i = 0; i < parts; i++) await env.DB.prepare("INSERT INTO trash_parts (trash_id, seq, data) VALUES (?, ?, ?)").bind(id, i, txt.slice(i * size, (i + 1) * size)).run();
+  return id;
+}
+async function restoreTrash(env, id) {
+  const t = await env.DB.prepare("SELECT * FROM trash WHERE id = ?").bind(id).first();
+  if (!t) throw httpError(404, "Ya no está en la papelera");
+  const { results } = await env.DB.prepare("SELECT data FROM trash_parts WHERE trash_id = ? ORDER BY seq").bind(id).all();
+  const { tables, after } = JSON.parse(results.map((x) => x.data).join(""));
+  if (t.kind === "user") {
+    for (const row of tables.users || []) {
+      const dup = row.login && (await env.DB.prepare("SELECT name FROM users WHERE login = ? AND id != ?").bind(row.login, row.id).first());
+      if (dup) throw httpError(409, `Ya existe otro usuario con el correo ${row.login} (${dup.name}). Bórralo o cámbiale el correo y vuelve a restaurar.`);
+    }
+  }
+  const stmts = [];
+  for (const [table, rows] of Object.entries(tables)) for (const row of rows) {
+    const cols = Object.keys(row);
+    stmts.push(env.DB.prepare(`INSERT OR REPLACE INTO ${table} (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`).bind(...cols.map((c) => row[c])));
+  }
+  for (const [sql, binds] of after || []) stmts.push(env.DB.prepare(sql).bind(...binds));
+  for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
+  if (t.kind === "sale") for (const x of tables.sales || []) if (x.account_id && x.user_id) await refreshPayState(env, x.account_id, x.user_id);
+  await env.DB.batch([env.DB.prepare("DELETE FROM trash WHERE id = ?").bind(id), env.DB.prepare("DELETE FROM trash_parts WHERE trash_id = ?").bind(id)]);
+  return t;
+}
+async function purgeTrash(env) {
+  const before = new Date(Date.now() - TRASH_DAYS * DAY).toISOString();
+  const { results } = await env.DB.prepare("SELECT id FROM trash WHERE at < ?").bind(before).all();
+  for (const r of results) await env.DB.batch([env.DB.prepare("DELETE FROM trash WHERE id = ?").bind(r.id), env.DB.prepare("DELETE FROM trash_parts WHERE trash_id = ?").bind(r.id)]);
+}
 
 /** Límite simple de uso (n veces por ventana de segundos) guardado en la tabla cache. */
 async function rateOk(env, k, n, secs) {
