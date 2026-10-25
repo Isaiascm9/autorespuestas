@@ -2139,8 +2139,14 @@ async function api(req, env, url) {
       const { results } = await env.DB.prepare("SELECT id, billing FROM brands").all();
       for (const x of results) { const bl = parseJson(x.billing, {}); if (bl.plan === r.from) { bl.plan = String(r.to).slice(0, 40); await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify(bl), x.id).run(); } }
     }
+    const before = await loadPlans(env, true);
     site.plans = plans;
     await setSetting(env, "site_content", JSON.stringify(site));
+    const { results: allB } = await env.DB.prepare("SELECT id, billing FROM brands").all();
+    for (const x of allB) {
+      const pn = parseJson(x.billing, {}).plan, o = before.find((q) => q.name === pn) || before.find((q) => renames.some((r) => r.to === pn && r.from === q.name)), n2 = plans.find((q) => q.name === pn);
+      if (o && n2) await syncClientPerms(env, x.id, o.perms, n2.perms);
+    }
     await audit(env, u, "Editó los planes", plans.map((x) => x.name).join(", "));
     return json({ plans: await loadPlans(env, true) });
   }
@@ -2166,7 +2172,9 @@ async function api(req, env, url) {
     const brand = await getBrand(env, bm[1]);
     if (!brand) return json({ error: "Tienda no encontrada" }, 404);
     if (!bm[2] && m === "PUT") {
+      const oldPlan = planOf(brand);
       const x = cleanBilling({ ...brand.bill, ...(await body()), warned: "" });
+      if (x.plan !== brand.bill.plan) await syncClientPerms(env, brand.id, planPerms(oldPlan), planPerms((PLANS_NOW || DEFAULT_PLANS).find((q) => q.name === x.plan) || null));
       await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify(x), brand.id).run();
       await audit(env, u, "Cambió el plan o cobro", `${x.plan || "sin plan"} · ${x.status}`, brand.id);
       return json({ billing: x, state: billState({ bill: x }) });
@@ -2418,7 +2426,8 @@ async function api(req, env, url) {
   }
   if (p === "/api/users" && m === "POST") {
     const b = await body();
-    const f = await cleanUserInput(env, { name: b.name, login: b.login, role: b.role, perms: b.perms ?? ROLE_PRESETS[b.role === "cliente" ? "cliente" : "equipo"], brands: b.brands || [], notify: b.notify || {} });
+    const defPerms = b.role === "cliente" && (b.brands || [])[0] ? planPerms(planOf(await getBrand(env, String(b.brands[0])))) : ROLE_PRESETS[b.role === "cliente" ? "cliente" : "equipo"];
+    const f = await cleanUserInput(env, { name: b.name, login: b.login, role: b.role, perms: b.perms ?? defPerms, brands: b.brands || [], notify: b.notify || {} });
     if (!f.name || !f.login) return json({ error: "Escribe el nombre y el usuario o correo" }, 400);
     const lim = !b.force && (await teamLimitError(env, f.role, parseJson(f.brands, []), null));
     if (lim) return json({ error: lim, limit: true }, 409);
@@ -4087,9 +4096,9 @@ const FEATURES = [
 const FEAT_KEYS = FEATURES.map((f) => f[0]);
 const incOf = (keys) => Object.fromEntries(FEAT_KEYS.map((k) => [k, keys.includes(k)]));
 const DEFAULT_PLANS = [
-  { name: "Emprende", ai: "text", price: 25, replies: 1500, users: 2, brands: 1, desc: "Para empezar a vender por Instagram", popular: false, inc: incOf(["paylink", "ads"]) },
-  { name: "Crece", ai: "vision", price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads"]) },
-  { name: "Pro", ai: "pro", price: 99, replies: 15000, users: 10, brands: 3, desc: "Para marcas que invierten en anuncios", popular: false, inc: incOf(FEAT_KEYS) },
+  { name: "Emprende", ai: "text", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo"], price: 25, replies: 1500, users: 2, brands: 1, desc: "Para empezar a vender por Instagram", popular: false, inc: incOf(["paylink", "ads"]) },
+  { name: "Crece", ai: "vision", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar"], price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads"]) },
+  { name: "Pro", ai: "pro", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar", "prompts", "tienda"], price: 99, replies: 15000, users: 10, brands: 3, desc: "Para marcas que invierten en anuncios", popular: false, inc: incOf(FEAT_KEYS) },
 ];
 /** La lista de la página de venta sale de lo marcado en cada plan. */
 function planLines(plans, i) {
@@ -4110,7 +4119,9 @@ function cleanPlan(p, i) {
   const ai = AI_LEVELS[p.ai] ? p.ai : inc.pro_model ? "pro" : inc.vision ? "vision" : (d.ai || "text");
   inc.vision = ai !== "text"; inc.pro_model = ai === "pro";
   return { name: String(p.name || "").trim().slice(0, 40), desc: String(p.desc || "").trim().slice(0, 90), price: Math.max(0, Math.round(Number(p.price) * 100) / 100 || 0),
-    popular: !!p.popular, replies: int(p.replies, d.replies) || d.replies, users: int(p.users, d.users) || d.users, brands: int(p.brands, d.brands) || 1, ai, inc };
+    popular: !!p.popular, replies: int(p.replies, d.replies) || d.replies, users: int(p.users, d.users) || d.users, brands: int(p.brands, d.brands) || 1, ai, inc,
+    // Lo que puede hacer el dueño de la tienda con este plan (sin Anuncios en el plan, no hay permiso de anuncios)
+    perms: (Array.isArray(p.perms) ? p.perms : d.perms || LEVELS.dueno).filter((k) => PERMS[k] && (k !== "anuncios" || inc.ads)) };
 }
 async function billingPlans(env) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
@@ -4157,6 +4168,27 @@ async function plansMigrate(env) {
       await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify({ ...b.bill, extras }), b.id).run();
   }
   await setSetting(env, "plans_v2", "1");
+}
+/** Permisos del dueño según el plan de la tienda (sin plan: los de siempre). */
+const planPerms = (plan) => (plan ? plan.perms : LEVELS.dueno);
+/** Al cambiar el plan (o lo que incluye), la gente de la tienda se actualiza sola.
+ *  Dueño: lo del plan nuevo + lo que le diste aparte − lo que le quitaste a mano. «Todo lo de la tienda»: lo del plan nuevo sin manejar el equipo. «Ver y responder»: igual. */
+async function syncClientPerms(env, brandId, oldP, newP) {
+  const same = (a, b) => a.length === b.length && a.every((k) => b.includes(k));
+  if (same(oldP, newP)) return 0;
+  const { results } = await env.DB.prepare("SELECT id, perms, brands FROM users WHERE role = 'cliente'").all();
+  let n = 0;
+  for (const r of results) {
+    if (!parseJson(r.brands, []).map(String).includes(String(brandId))) continue;
+    const cur = parseJson(r.perms, []);
+    let next = null;
+    if (cur.includes("equipo")) {
+      const extra = cur.filter((k) => !oldP.includes(k)), removed = oldP.filter((k) => !cur.includes(k));
+      next = [...new Set([...newP.filter((k) => !removed.includes(k)), ...extra])];
+    } else if (same(cur, oldP.filter((k) => k !== "equipo"))) next = newP.filter((k) => k !== "equipo");
+    if (next && !same(next, cur)) { await env.DB.prepare("UPDATE users SET perms = ? WHERE id = ?").bind(JSON.stringify(next), r.id).run(); n++; }
+  }
+  return n;
 }
 /** Límites de personas y de tiendas al dar acceso a un usuario cliente. Devuelve el aviso o null. */
 async function teamLimitError(env, role, brandIds, userId) {
