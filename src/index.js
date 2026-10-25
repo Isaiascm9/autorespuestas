@@ -1046,15 +1046,35 @@ function handoffText(brand, out, off, who) {
 
 /** deepseek-flash mira la foto y devuelve qué es. No guarda la imagen. */
 const IMG_TYPES = ["comprobante", "producto", "cabello", "captura", "otro", "inapropiada", "documento", "ilegible"];
+/** Reconoce el formato por los primeros bytes (el tipo que dice el servidor no siempre es real). */
+function sniffImage(b) {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "image/gif";
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "image/webp";
+  return null;
+}
 async function readImage(env, brand, cfg, url, text) {
   const key = await deepseekKey(env, brand, cfg);
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`no se pudo descargar la foto (HTTP ${res.status})`);
-  let type = (res.headers.get("content-type") || "").split(";")[0].trim();
-  const buf = new Uint8Array(await res.arrayBuffer());
-  if (buf.length > 5 * 1024 * 1024) throw new Error("la foto pesa más de 5 MB");
-  if (!/^image\/(jpeg|png|gif|webp)$/.test(type)) type = buf[0] === 0x89 ? "image/png" : buf[0] === 0x47 ? "image/gif" : buf[0] === 0x52 ? "image/webp" : "image/jpeg";
-  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  // Bajamos la foto como lo haría un navegador. Si no llega una imagen válida (JPG, PNG, WebP o GIF),
+  // pedimos a Cloudflare que la convierta a JPG y, como último recurso, le pasamos el enlace directo a la IA.
+  const UA = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", Accept: "image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8" };
+  let img = null, why = "";
+  for (const opts of [{ headers: UA }, { headers: UA, cf: { image: { format: "jpeg", fit: "scale-down", width: 1600 } } }]) {
+    try {
+      const res = await fetch(url, { ...opts, redirect: "follow", signal: AbortSignal.timeout(8000) });
+      if (!res.ok) { why = `HTTP ${res.status}`; continue; }
+      const buf = new Uint8Array(await res.arrayBuffer()), mime = sniffImage(buf);
+      if (buf.length > 5 * 1024 * 1024) { why = "pesa más de 5 MB"; continue; }
+      if (mime) { img = { mime, buf }; break; }
+      why = `llegó ${(res.headers.get("content-type") || "sin tipo").split(";")[0]} (${buf.length} bytes, empieza con «${[...buf.slice(0, 12)].map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : ".")).join("")}»)`;
+    } catch (e) { why = errText(e); }
+  }
+  let imageUrl;
+  if (img) { let bin = ""; for (let i = 0; i < img.buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, img.buf.subarray(i, i + 0x8000)); imageUrl = `data:${img.mime};base64,${btoa(bin)}`; }
+  else if (/^https:\/\//.test(url)) imageUrl = url; // que la IA la descargue ella misma
+  else throw new Error(`no se pudo descargar la foto: ${why}`);
   const out = await deepseekChat(env, key, "deepseek-flash", [
     { role: "system", content: `Miras fotos que un cliente envía por chat a la tienda «${brand.name}». Responde SOLO un JSON: {"tipo": "comprobante|producto|cabello|captura|otro|inapropiada|documento|ilegible", "descripcion": "...", "monto": número o null, "moneda": "USD|VES|..." o null, "referencia": "..." o null}.
 - comprobante: captura o foto de un pago o transferencia (Pago Móvil, Zelle, Binance, banco). Lee el monto, la moneda y el número de referencia.
@@ -1065,8 +1085,8 @@ async function readImage(env, brand, cfg, url, text) {
 - documento: cédula, pasaporte, tarjeta bancaria u otro documento personal. En este caso NO copies nombres ni números.
 - ilegible: no se entiende o está muy borrosa.
 "descripcion": una o dos frases en español de lo que se ve (colores, producto, texto visible útil). No diagnostiques enfermedades. No copies números de documentos ni de tarjetas.` },
-    { role: "user", content: [{ type: "text", text: text ? `El cliente escribió junto a la foto: «${String(text).slice(0, 300)}»` : "El cliente envió esta foto sin texto." }, { type: "image_url", image_url: { url: `data:${type};base64,${btoa(bin)}` } }] },
-  ], 300, true, 15000, brand.id);
+    { role: "user", content: [{ type: "text", text: text ? `El cliente escribió junto a la foto: «${String(text).slice(0, 300)}»` : "El cliente envió esta foto sin texto." }, { type: "image_url", image_url: { url: imageUrl } }] },
+  ], 300, true, 15000, brand.id).catch((e) => { throw new Error(img ? errText(e) : `la foto no llegó como imagen (${why}) y la IA tampoco pudo abrirla con el enlace: ${errText(e)}`); });
   const j = parseJson(out, {}) || {};
   const tipo = IMG_TYPES.includes(j.tipo) ? j.tipo : "otro";
   const monto = Number(j.monto) > 0 ? Math.round(Number(j.monto) * 100) / 100 : null;
