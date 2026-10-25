@@ -235,9 +235,15 @@ dialog::backdrop{background:rgba(17,24,39,.45)}
 .pl-t .hint{display:block;font-size:11.5px;color:var(--muted)}
 .pl-name{font-weight:800;font-size:16px;text-align:center;padding:5px 6px}.pl-price{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px;color:var(--muted);margin-top:6px}.pl-price input{width:76px;text-align:center;padding:4px 6px}
 .pl-cnt{font-size:11px;color:var(--muted);margin-top:4px}.pl-act{display:flex;justify-content:center;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--muted);margin-top:4px}
-.pl-num{width:96px;text-align:center;padding:5px 6px;font-weight:700}.pl-desc{font-size:12.5px;padding:5px 6px}.pl-ck{width:20px;height:20px;accent-color:var(--accent)}
+.pl-num{width:96px;text-align:center;padding:5px 6px;font-weight:700}.pl-ai{width:auto;font-size:12.5px;padding:5px 8px;font-weight:600}.pl-desc{font-size:12.5px;padding:5px 6px}.pl-ck{width:20px;height:20px;accent-color:var(--accent)}
 .pb-x{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.pb-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}.pb-row:last-child{border-bottom:0}
 .btn.pulse{box-shadow:0 0 0 3px #c9cbeb}
+.utypes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}.uty{border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;text-align:left;background:var(--card);cursor:pointer;font-size:12.5px;color:var(--muted)}.uty b{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}.uty.on{border-color:var(--accent);background:var(--accent-soft)}
+.uchips{display:flex;gap:6px;flex-wrap:wrap}.uchip{border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;background:var(--card);cursor:pointer}.uchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ulv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ul{border:1.5px solid var(--line);border-radius:12px;padding:10px 11px;text-align:left;background:var(--card);cursor:pointer;font-size:12px;color:var(--muted)}.ul b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:3px}.ul.on{border-color:var(--accent);background:var(--accent-soft)}
+.det{border:1px dashed var(--line2);border-radius:10px;padding:9px 12px;margin-top:12px}.det summary{cursor:pointer;font-size:13.5px}.det[open] summary{margin-bottom:8px}
+@media (max-width:560px){.utypes,.ulv{grid-template-columns:1fr}}
+.mt-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}.mt-row:last-child{border-bottom:0}.mt-av{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
 .lknote{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px}.lknote svg{flex:none;margin-top:2px}
 .adhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dl-wrap{position:relative}.dl-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:45;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 28px rgba(17,24,39,.14);padding:6px;min-width:150px;display:flex;flex-direction:column}
@@ -1261,7 +1267,7 @@ const anyCan = (list) => list.some((p) => can(p));
 const VIEW_OK = {
   inicio: () => true, conversaciones: () => can("conversaciones"), asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
   metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
-  equipo: () => isMaestro(), planes: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
+  equipo: () => isMaestro() || can("equipo"), planes: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
 };
 const viewOk = (v) => !!(VIEW_OK[v] && VIEW_OK[v]());
 const defaultRoute = () => "inicio";
@@ -1330,7 +1336,7 @@ function renderNav() {
       + item("asistentes", NI.bot, "Asistentes") + item("catalogo", NI.bag, "Catálogo"))
     + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()))
     + group("Mi negocio", item("clientes", NI.money, "Clientes y cobros", S.leadsNew ? `<span class="cnt">${S.leadsNew}</span>` : ""))
-    + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, "Equipo") + item("planes", NI.tiers, "Planes")
+    + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, isMaestro() ? "Equipo" : "Mi equipo") + item("planes", NI.tiers, "Planes")
       + item("plan", NI.card, isMaestro() ? "Plan y uso" : "Mi plan", (() => { const b = curBrand(); return b && b.bill_state && b.bill_state.cls === "bad" ? flag : ""; })()) + item("configuracion", ICON.gear, "Configuración", isMaestro() && cfgIssue ? flag : "") + item("guia", NI.guide, "Guía", (() => { const b = curBrand(); if (!b) return ""; const g = guideFor(b); return `<span class="prog">${g.done}/${g.total}</span>`; })()) + item("ayuda", NI.help, "Ayuda"));
   drawStoreSwitch();
 }
@@ -1399,13 +1405,13 @@ function render() {
   S.view = view;
   if (S.brands.length && !brandById(S.selBrand)) S.selBrand = defaultBrand();
   renderNav();
-  $("crumb").textContent = VIEWS[view];
+  $("crumb").textContent = view === "equipo" && !isMaestro() ? "Mi equipo" : VIEWS[view];
   $("main").innerHTML = "";
   const r = rest || [];
   ({
     inicio: () => renderHome(), conversaciones: () => renderInbox(), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
     metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
-    equipo: () => renderUsers(), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
+    equipo: () => (isMaestro() ? renderUsers() : renderMyTeam()), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
   })[view]();
   closeGuidePanel(); drawGuideFab();
@@ -1597,6 +1603,9 @@ function renderStoreCfg(sections) {
       ${M ? `<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small" type="button" id="cSaveTpl" title="Guarda el prompt general, la base de conocimiento y los prompts de comentarios y DMs de esta tienda">Guardar esta tienda como plantilla</button></div>` : ""}
       <div class="box"><div class="box-h"><div><strong>La IA puede llamar al cliente por su nombre</strong><p>Usa el primer nombre de su perfil al saludar (si parece un nombre de persona).</p></div>${swHtml("cUseName", o.ai_use_name, !canT)}</div></div>
       <hr>
+      ${!M || b.ai_from !== "propia" ? `<div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}">${keyReady ? (b.ai_level === "text" ? "activo (texto)" : "activo (texto e imágenes)") : "sin clave"}</span></div>
+      <div class="box"><div class="small">Tu asistente usa: <b>${esc(b.ai_label || "")}</b> ${b.ai_from === "plan" ? `<span class="pill ok">incluido en tu plan</span>` : b.ai_from === "tienda" ? `<span class="pill ai">elegida para esta tienda</span>` : ""}</div>
+        <div class="help" style="margin:4px 0 0">${M ? (b.ai_from === "plan" ? `Viene del plan ${esc(b.plan)}. Para cambiarla, edita el plan o ponle otra a esta tienda en <a href="#planes/tiendas">Planes → Tiendas y su plan</a>.` : `La elegiste para esta tienda en <a href="#planes/tiendas">Planes → Tiendas y su plan</a>.`) : b.ai_level === "pro" ? "Es la IA más precisa: lee fotos y responde con más detalle." : `Para ${b.ai_level === "text" ? "que lea fotos o tener la IA más precisa" : "tener la IA más precisa"}, <a href="#plan">mejora tu plan</a>.`}</div></div>` : `
       <div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}" id="cAiPill">${keyReady ? (d.ai_vision ? "activo (texto e imágenes)" : "activo (texto)") : "sin clave"}</span></div>
       <label class="f" for="cModel">Modelo</label>
       <select id="cModel" ${roP}>
@@ -1604,7 +1613,7 @@ function renderStoreCfg(sections) {
         <option value="flash-img" ${d.ai_model !== "deepseek-v4-pro" && d.ai_vision ? "selected" : ""} ${hasF("vision") ? "" : "disabled"}>deepseek-flash · texto e imágenes${hasF("vision") ? "" : ` · plan ${esc(planFor("vision"))}`}</option>
         <option value="pro" ${d.ai_model === "deepseek-v4-pro" ? "selected" : ""} ${hasF("pro_model") ? "" : "disabled"}>deepseek-v4-pro · texto (las fotos las lee flash)${hasF("pro_model") ? "" : ` · plan ${esc(planFor("pro_model"))}`}</option>
       </select>${lockNote("vision", "Leer fotos")}${lockNote("pro_model", "Modelo deepseek-v4-pro")}
-      <div class="help" id="cModelHelp">${d.ai_model === "deepseek-v4-pro" ? "Más preciso, unas 4 veces más caro. Cuando llega una foto, flash la mira primero y pro responde." : d.ai_vision ? "Lee fotos: comprobantes, productos, cabello. Cada foto gasta un poco más (una llamada extra a la IA)." : "Las fotos no se leen: el bot sabe que llegó una foto y responde según el texto."}</div>
+      <div class="help" id="cModelHelp">${d.ai_model === "deepseek-v4-pro" ? "Más preciso, unas 4 veces más caro. Cuando llega una foto, flash la mira primero y pro responde." : d.ai_vision ? "Lee fotos: comprobantes, productos, cabello. Cada foto gasta un poco más (una llamada extra a la IA)." : "Las fotos no se leen: el bot sabe que llegó una foto y responde según el texto."}</div>`}
       ${M ? `<label class="f" for="cKey">API Key</label>
       <div class="row">
         <input id="cKey" class="grow" type="password" autocomplete="off" placeholder="${b.ai_key_tail ? `Propia de esta tienda · termina en …${esc(b.ai_key_tail)}` : "Vacío = usa la clave general de Configuración"}">
@@ -3338,7 +3347,8 @@ async function downloadAds(kind, btn) {
   const box = $("tabBody"); if (!box || !renderAdsCached) return;
   const label = btn.innerHTML; btn.disabled = true; btn.textContent = "Preparando…";
   try {
-    if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+    // html2canvas-pro entiende los colores modernos (oklab, oklch) que usan los navegadores nuevos
+    if (!window.html2canvas || !window.html2canvas.pro) { await loadScript("https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.12/dist/html2canvas-pro.min.js"); if (window.html2canvas) window.html2canvas.pro = true; }
     const b = curBrand(), r = renderAdsCached, AR = adsRangeState();
     // Copia limpia: con título y periodo, sin botones ni la caja de preguntas
     const wrap = document.createElement("div");
@@ -3351,7 +3361,7 @@ async function downloadAds(kind, btn) {
     cv.breaks = parts.map((x) => Math.round((x.getBoundingClientRect().top - top) * 2));
     wrap.remove();
     await saveCanvas(cv, kind, `anuncios-${normalize((b && b.name) || "tienda").replace(/[^a-z0-9]+/g, "-")}-${r.from}_a_${r.to}.${kind}`);
-  } catch (e) { toast(e.message || String(e), 6000); }
+  } catch (e) { console.error(e); document.querySelectorAll("body > div[style*='-10000px']").forEach((x) => x.remove()); toast("No se pudo preparar la descarga. Intenta de nuevo; si sigue fallando, avísanos.", 6000); }
   btn.disabled = false; btn.innerHTML = label;
 }
 
@@ -3384,14 +3394,14 @@ async function renderUsers() {
     <table><thead><tr><th>Nombre</th><th>Rol</th><th>Tiendas</th><th>Estado</th><th>Último acceso</th><th></th></tr></thead><tbody>
       <tr><td><strong>Tú (maestra)</strong><div class="small muted">Entras solo con tu contraseña</div></td><td><span class="pill ai">Maestro</span></td><td>Todas</td><td><span class="pill ok">Activo</span></td><td class="small">—</td><td></td></tr>
       ${list.map((x) => `<tr><td><strong>${esc(x.name)}</strong><div class="small muted">${esc(x.login || "")}</div></td>
-        <td><span class="pill ${x.role === "cliente" ? "comment" : "rule"}">${x.role === "cliente" ? "Cliente" : "Equipo"}</span></td><td class="small">${esc(stores(x))}</td><td>${status(x)}</td><td class="small">${esc(x.last_login ? fmt(x.last_login) : "Nunca")}</td>
+        <td><span class="pill ${x.role === "cliente" ? "comment" : "rule"}">${x.role === "cliente" ? (x.perms.includes("equipo") ? "Cliente · dueño" : "Cliente") : "Equipo"}</span>${x.role !== "cliente" ? (() => { const LV = S.session.levels || {}; const k = ["parcial", "medio", "completo"].find((q) => LV[q] && LV[q].length === x.perms.length && LV[q].every((p) => x.perms.includes(p))); return `<div class="small muted">${k ? { parcial: "Parcial", medio: "Medio", completo: "Completo" }[k] : "Personalizado"}</div>`; })() : ""}</td><td class="small">${esc(stores(x))}</td><td>${status(x)}</td><td class="small">${esc(x.last_login ? fmt(x.last_login) : "Nunca")}</td>
         <td style="white-space:nowrap;text-align:right"><button class="btn small" data-edit="${esc(x.id)}">Editar</button> <button class="btn small" data-link="${esc(x.id)}" title="Para que cree o cambie su contraseña">Enlace de acceso</button> <button class="icon-btn danger" data-del="${esc(x.id)}" aria-label="Eliminar">${ICON.trash}</button></td></tr>`).join("")}
     </tbody></table>
     ${!list.length ? `<div class="empty" style="padding:20px">Aún no hay más usuarios. Crea uno para tu equipo o para un cliente.</div>` : ""}</div>
     <div class="card"><h2 style="font-size:16px;margin:0">Qué puede ver cada rol</h2>
-      <p class="small muted">Son puntos de partida: al crear o editar un usuario marcas exactamente qué puede hacer.</p>
-      <div class="kv"><span><span class="pill rule">Equipo</span></span><span class="small">Todo dentro de sus tiendas, menos conectar cuentas, la configuración general y los usuarios.</span>
-      <span><span class="pill comment">Cliente</span></span><span class="small">Conversaciones, responder, pausar, actividad, resumen y estadísticas de su tienda. No toca prompts, reglas ni configuración.</span></div></div>`;
+      <p class="small muted">Son puntos de partida: al crear o editar un usuario puedes ajustar exactamente qué puede hacer.</p>
+      <div class="kv"><span><span class="pill rule">Tu equipo</span></span><span class="small"><b>Parcial</b>: ver y responder conversaciones. <b>Medio</b>: además reglas, catálogo, métricas y anuncios. <b>Completo</b>: todo dentro de sus tiendas, menos lo de la cuenta maestra.</span>
+      <span><span class="pill comment">Cliente</span></span><span class="small">Ve lo de su tienda y arma su propio equipo en «Mi equipo», hasta el límite de su plan. No ve a la cuenta maestra ni a tu equipo.</span></div></div>`;
   $("uBody").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => openUser(list.find((x) => x.id === b.dataset.edit))));
   $("uBody").querySelectorAll("[data-link]").forEach((b) => (b.onclick = async () => {
     try { const r = await api(`/api/users/${b.dataset.link}/invite`, { method: "POST" }); showInvite(list.find((x) => x.id === b.dataset.link).name, r.invite_url); } catch (e) { toast(e.message); }
@@ -3402,60 +3412,119 @@ async function renderUsers() {
     try { await api(`/api/users/${x.id}`, { method: "DELETE" }); toast("Usuario eliminado"); renderUsers(); } catch (e) { toast(e.message); }
   }));
 }
-function showInvite(name, link) {
+function showInvite(name, link, after = renderUsers) {
   const dlg = $("userDlg");
   dlg.innerHTML = `<div class="modal-h"><div><h2>Enlace para ${esc(name)}</h2><p>Envíaselo por WhatsApp o correo. Con él crea su contraseña. Vence en 7 días.</p></div><button class="icon-btn" id="uiClose" aria-label="Cerrar">${ICON.x}</button></div>
     <div class="modal-b"><button class="copy" data-copy="${esc(link)}" style="width:100%;padding:10px">${esc(link)}</button>
     <p class="help">Si lo pierde o se le olvida la contraseña, genera otro con «Enlace de acceso».</p></div>
     <div class="modal-f"><span></span><button class="btn primary" id="uiOk">Listo</button></div>`;
   bindCopy(dlg);
-  $("uiClose").onclick = $("uiOk").onclick = () => { dlg.close(); renderUsers(); };
+  $("uiClose").onclick = $("uiOk").onclick = () => { dlg.close(); after(); };
   if (!dlg.open) dlg.showModal();
 }
+/* ---------- Mi equipo (lo ve el dueño de la tienda) ---------- */
+async function renderMyTeam() {
+  const b = curBrand();
+  shell({ title: "Mi equipo", sub: "Las personas que atienden tu tienda.", head: `<button class="btn primary" id="mtNew">${ICON.plus} Agregar persona</button>` });
+  const box = $("tabBody"); box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  let r; try { r = await api(`/api/myteam?brand=${encodeURIComponent(b.id)}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("tabBody")) return;
+  const lim = r.plan && r.plan.users, full = lim && r.used >= lim;
+  const LVL = { responder: "Ver y responder", todo: "Todo lo de la tienda" };
+  box.innerHTML = `<div class="card">
+    ${lim ? `<div class="small">Personas en tu plan <b>${r.used} de ${lim}</b></div><div class="ubar" style="margin:6px 0 4px"><i style="width:${Math.min(100, (r.used / lim) * 100)}%;${full ? "background:#f59e0b" : ""}"></i></div>
+      ${full ? `<div class="warnbox" style="margin:10px 0 4px"><strong>Llegaste al límite de tu plan ${esc(r.plan.name)}</strong><div class="why">Tu plan permite ${lim} persona${lim === 1 ? "" : "s"}.${r.upgrade ? ` Con el plan ${esc(r.upgrade)} tienes más.` : ""} <a href="#plan">Mejorar mi plan</a></div></div>` : ""}` : ""}
+    ${r.list.map((x) => `<div class="mt-row"><span class="mt-av">${esc((x.name || "?").trim().charAt(0).toUpperCase())}</span>
+      <div class="grow"><b>${esc(x.name)}</b>${x.owner ? ` <span class="pill gray">Dueño</span>` : ""}${x.me ? ` <span class="pill ai">Tú</span>` : ""}${!x.active ? ` <span class="pill gray">Desactivado</span>` : x.pending ? ` <span class="pill warn">Invitación pendiente</span>` : ""}<div class="small muted">${esc(x.login || "")}${x.owner ? "" : " · " + LVL[x.level]}</div></div>
+      ${x.owner || x.me ? "" : `<select data-lv="${x.id}" style="width:auto">${Object.entries(LVL).map(([k, l]) => `<option value="${k}" ${x.level === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+        ${x.pending ? `<button class="btn small" data-link="${x.id}">Enlace</button>` : ""}<button class="icon-btn danger" data-del="${x.id}" aria-label="Quitar">${ICON.trash}</button>`}</div>`).join("")}
+  </div>
+  <p class="help">«Ver y responder»: conversaciones y pausar el bot. «Todo lo de la tienda»: lo mismo que puedes ver tú, menos manejar el equipo.</p>`;
+  $("mtNew").onclick = () => {
+    if (full) return toast(`Tu plan permite ${lim} personas. Mejora tu plan para agregar más.`, 6000);
+    const dlg = $("userDlg");
+    dlg.innerHTML = `<form id="mtF"><div class="modal-h"><div><h2>Agregar persona</h2><p>Le das un enlace para que cree su contraseña.</p></div><button type="button" class="icon-btn" id="mtX" aria-label="Cerrar">${ICON.x}</button></div>
+      <div class="modal-b"><label class="f" for="mtN">Nombre</label><input id="mtN" required placeholder="Ej: Ana Gómez">
+        <label class="f" for="mtL">Correo o usuario para entrar</label><input id="mtL" required placeholder="ana@correo.com" autocomplete="off">
+        <label class="f">Qué puede hacer</label><div class="ulv" style="grid-template-columns:1fr 1fr">${Object.entries(LVL).map(([k, l], i) => `<button type="button" class="ul ${i ? "" : "on"}" data-k="${k}"><b>${l}</b>${k === "todo" ? "Lo mismo que tú, menos el equipo" : "Conversaciones y pausar el bot"}</button>`).join("")}</div></div>
+      <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="mtC">Cancelar</button><button class="btn primary" id="mtS">Agregar</button></div></div></form>`;
+    dlg.showModal(); let level = "responder";
+    dlg.querySelectorAll("[data-k]").forEach((x) => (x.onclick = () => { level = x.dataset.k; dlg.querySelectorAll("[data-k]").forEach((y) => y.classList.toggle("on", y === x)); }));
+    $("mtX").onclick = $("mtC").onclick = () => dlg.close();
+    $("mtF").onsubmit = async (e) => { e.preventDefault(); $("mtS").disabled = true;
+      try { const x = await api("/api/myteam", { method: "POST", body: { brand: b.id, name: $("mtN").value, login: $("mtL").value, level } }); showInvite($("mtN").value, x.invite_url, renderMyTeam); }
+      catch (er) { toast(er.message, 6000); $("mtS").disabled = false; } };
+  };
+  box.querySelectorAll("[data-lv]").forEach((x) => (x.onchange = async () => { try { await api(`/api/myteam/${x.dataset.lv}`, { method: "PUT", body: { level: x.value } }); toast("Guardado"); renderMyTeam(); } catch (e) { toast(e.message); } }));
+  box.querySelectorAll("[data-link]").forEach((x) => (x.onclick = async () => { try { const y = await api(`/api/myteam/${x.dataset.link}/invite`, { method: "POST" }); showInvite(r.list.find((z) => z.id === x.dataset.link).name, y.invite_url, renderMyTeam); } catch (e) { toast(e.message); } }));
+  box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => { const z = r.list.find((q) => q.id === x.dataset.del); if (!confirm(`¿Quitar a ${z.name} de tu equipo? Ya no podrá entrar.`)) return; try { await api(`/api/myteam/${z.id}`, { method: "DELETE" }); toast("Listo"); renderMyTeam(); } catch (e) { toast(e.message); } }));
+}
+
 function openUser(x) {
-  const P = S.session.perm_labels, presets = S.session.role_presets;
-  const d = x ? JSON.parse(JSON.stringify(x)) : { name: "", login: "", role: "equipo", perms: presets.equipo.slice(), brands: [], notify: { handoff: true, ai_fail: true, mention: true, offensive: true }, active: true };
+  const P = S.session.perm_labels, LV = S.session.levels || {};
+  const d = x ? JSON.parse(JSON.stringify(x)) : { name: "", login: "", role: "cliente", perms: (LV.dueno || []).slice(), brands: [], notify: { handoff: true, ai_fail: true, mention: true, offensive: true }, active: true };
   const dlg = $("userDlg");
-  const all = d.brands.includes("*");
-  dlg.innerHTML = `
-    <div class="modal-h"><div><h2>${x ? "Editar " + esc(x.name) : "Nuevo usuario"}</h2><p>${x ? "Los cambios aplican de inmediato." : "Al crearlo te doy un enlace para que cree su contraseña."}</p></div><button class="icon-btn" id="uClose" aria-label="Cerrar">${ICON.x}</button></div>
+  const levelOf = (perms) => ["parcial", "medio", "completo"].find((k) => LV[k] && LV[k].length === perms.length && LV[k].every((p) => perms.includes(p))) || "";
+  let plans = null, brandPlan = {};
+  const draw = () => {
+    const cli = d.role === "cliente", all = d.brands.includes("*"), lvl = levelOf(d.perms), bid = d.brands[0] || "";
+    const b = brandById(bid);
+    dlg.innerHTML = `
+    <div class="modal-h"><div><h2>${x ? "Editar " + esc(x.name) : "Nuevo usuario"}</h2><p>${x ? "Los cambios aplican de inmediato." : "Quién va a entrar al panel. Al crearlo te doy un enlace para que cree su contraseña."}</p></div><button class="icon-btn" id="uClose" aria-label="Cerrar">${ICON.x}</button></div>
     <div class="modal-b">
-      <div class="grid2" style="gap:0 16px"><div><label class="f" for="uName">Nombre</label><input id="uName" value="${esc(d.name)}" placeholder="Ej: Ana (térea)"></div>
-        <div><label class="f" for="uLogin">Usuario o correo para entrar</label><input id="uLogin" value="${esc(d.login || "")}" placeholder="ana@correo.com" autocomplete="off"></div></div>
-      <label class="f" for="uRole">Rol</label>
-      <select id="uRole"><option value="equipo" ${d.role === "equipo" ? "selected" : ""}>Equipo — trabaja contigo</option><option value="cliente" ${d.role === "cliente" ? "selected" : ""}>Cliente — dueño de una tienda</option></select>
-      <div class="help">Al cambiar el rol se marcan sus permisos típicos; luego puedes ajustarlos.</div>
-      <label class="f">Tiendas que puede ver</label>
-      <label class="check"><input type="checkbox" id="uAll" ${all ? "checked" : ""}> Todas las tiendas (también las nuevas)</label>
-      <div class="checks ${all ? "hidden" : ""}" id="uBrands">${S.brands.map((b) => `<label class="check"><input type="checkbox" value="${esc(b.id)}" ${d.brands.includes(b.id) ? "checked" : ""}> ${esc(b.name)}</label>`).join("")}</div>
-      <label class="f">Qué puede hacer</label>
-      <div class="checks" id="uPerms">${Object.entries(P).map(([k, l]) => `<label class="check"><input type="checkbox" value="${k}" ${d.perms.includes(k) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
-      <label class="f">Notificaciones que recibe en su teléfono</label>
-      <div class="checks" id="uNotify">${Object.entries(NOTIFY_LABELS).map(([k, [l]]) => `<label class="check"><input type="checkbox" value="${k}" ${d.notify[k] !== false ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
-      <div class="help">Solo le llegan si activa las notificaciones en su teléfono y si la tienda tiene ese aviso encendido.</div>
+      <div class="utypes"><button type="button" class="uty ${cli ? "on" : ""}" data-role="cliente"><b>Cliente</b><span>Dueño de una tienda. Ve solo lo suyo.</span></button><button type="button" class="uty ${cli ? "" : "on"}" data-role="equipo"><b>Tu equipo</b><span>Trabaja contigo en varias tiendas.</span></button></div>
+      <div class="grid2" style="gap:0 16px"><div><label class="f" for="uName">Nombre</label><input id="uName" value="${esc(d.name)}" placeholder="${cli ? "Ej: Carla Ruiz" : "Ej: Luis Pérez"}"></div>
+        <div><label class="f" for="uLogin">Correo o usuario para entrar</label><input id="uLogin" value="${esc(d.login || "")}" placeholder="nombre@correo.com" autocomplete="off"></div></div>
+      ${cli ? `<div class="grid2" style="gap:0 16px"><div><label class="f" for="uStore">Tienda</label><select id="uStore"><option value="">Elige la tienda…</option>${S.brands.map((y) => `<option value="${esc(y.id)}" ${y.id === bid ? "selected" : ""}>${esc(y.name)}</option>`).join("")}</select></div>
+        <div><label class="f" for="uPlan">Plan de la tienda</label><select id="uPlan" ${bid ? "" : "disabled"}><option value="">Sin plan (todo incluido)</option>${(plans || []).map((p) => `<option value="${esc(p.name)}" ${(brandPlan[bid] ?? (b && b.plan)) === p.name ? "selected" : ""}>${esc(p.name)} · ${money(p.price)}/mes</option>`).join("")}</select>
+          <div class="help" id="uPlanHelp">${(() => { const p = (plans || []).find((q) => q.name === (brandPlan[bid] ?? (b && b.plan))); return p ? `${p.users} persona${p.users === 1 ? "" : "s"} · ${p.ai === "pro" ? "IA pro" : p.ai === "vision" ? "texto e imágenes" : "solo texto"}` : bid ? "Cambiarlo aquí cambia el plan de toda la tienda." : ""; })()}</div></div></div>
+        <details class="det" ${x ? "open" : ""}><summary><b>Darle más acceso</b> <span class="muted small">(por defecto ve lo de su tienda y maneja su equipo)</span></summary>
+          <div class="checks" id="uPerms">${Object.entries(P).map(([k, l]) => `<label class="check"><input type="checkbox" value="${k}" ${d.perms.includes(k) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div></details>`
+      : `<label class="f">Tiendas</label>
+        <div class="uchips" id="uBrands"><button type="button" class="uchip ${all ? "on" : ""}" data-all>Todas${all ? " ✓" : ""}</button>${S.brands.map((y) => `<button type="button" class="uchip ${!all && d.brands.includes(y.id) ? "on" : ""}" data-b="${esc(y.id)}">${esc(y.name)}${!all && d.brands.includes(y.id) ? " ✓" : ""}</button>`).join("")}</div>
+        <div class="help">«Todas» incluye las tiendas que agregues después.</div>
+        <label class="f">Nivel de acceso</label>
+        <div class="ulv">${[["parcial", "Parcial", "Ver y responder conversaciones"], ["medio", "Medio", "+ reglas, catálogo, métricas y anuncios"], ["completo", "Completo", "Todo, menos lo de la cuenta maestra"]].map(([k, t, p]) => `<button type="button" class="ul ${lvl === k ? "on" : ""}" data-lv="${k}"><b>${t}</b>${p}</button>`).join("")}</div>
+        <details class="det" ${lvl ? "" : "open"}><summary><b>Ajustar a mano</b>${lvl ? "" : ` <span class="muted small">(personalizado)</span>`}</summary>
+          <div class="checks" id="uPerms">${Object.entries(P).filter(([k]) => k !== "equipo").map(([k, l]) => `<label class="check"><input type="checkbox" value="${k}" ${d.perms.includes(k) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div></details>`}
+      <details class="det"><summary><b>Avisos que recibe en su teléfono</b></summary>
+        <div class="checks" id="uNotify">${Object.entries(NOTIFY_LABELS).map(([k, [l]]) => `<label class="check"><input type="checkbox" value="${k}" ${d.notify[k] !== false ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
+        <div class="help">Solo le llegan si activa las notificaciones en su teléfono y si la tienda tiene ese aviso encendido.</div></details>
       ${x ? `<div class="box"><div class="box-h"><div><strong>Acceso activo</strong><p>Si lo apagas, no puede entrar (sin borrar el usuario).</p></div><input type="checkbox" role="switch" class="switch" id="uActive" ${d.active ? "checked" : ""}></div></div>` : ""}
     </div>
-    <div class="modal-f"><span></span><div class="row"><button class="btn" id="uCancel">Cancelar</button><button class="btn primary" id="uSave">${x ? "Guardar" : "Crear y obtener enlace"}</button></div></div>`;
-  const checked = (id) => [...$(id).querySelectorAll("input:checked")].map((i) => i.value);
-  $("uRole").onchange = (e) => { const pr = presets[e.target.value]; $("uPerms").querySelectorAll("input").forEach((i) => (i.checked = pr.includes(i.value))); };
-  $("uAll").onchange = (e) => $("uBrands").classList.toggle("hidden", e.target.checked);
-  $("uClose").onclick = $("uCancel").onclick = () => dlg.close();
-  $("uSave").onclick = async () => {
-    const body = { name: $("uName").value.trim(), login: $("uLogin").value.trim(), role: $("uRole").value, perms: checked("uPerms"),
-      brands: $("uAll").checked ? ["*"] : checked("uBrands"), notify: Object.fromEntries(Object.keys(NOTIFY_LABELS).map((k) => [k, checked("uNotify").includes(k)])) };
-    if (x) body.active = $("uActive").checked;
-    if (!body.name || !body.login) return toast("Escribe el nombre y el usuario o correo");
-    if (!body.brands.length) return toast("Elige al menos una tienda");
-    const btn = $("uSave"); btn.disabled = true;
-    try {
-      // Si pasa el límite del plan, la cuenta maestra puede agregarlo igual
-      const send = (bd) => (x ? api(`/api/users/${x.id}`, { method: "PUT", body: bd }) : api("/api/users", { method: "POST", body: bd }));
-      let r; try { r = await send(body); } catch (er) { if (!er.limit || !confirm(er.message + "\n\n¿Agregarlo igual?")) throw er; r = await send({ ...body, force: true }); }
-      if (x) { dlg.close(); toast("Usuario guardado"); renderUsers(); }
-      else showInvite(r.user.name, r.invite_url);
-    } catch (e) { toast(e.message, 6000); btn.disabled = false; }
+    <div class="modal-f"><span></span><div class="row"><button class="btn" id="uCancel">Cancelar</button><button class="btn primary" id="uSave">${x ? "Guardar" : "Crear y copiar acceso"}</button></div></div>`;
+    const keep = () => { d.name = $("uName").value; d.login = $("uLogin").value; d.perms = [...$("uPerms").querySelectorAll("input:checked")].map((i) => i.value); d.notify = Object.fromEntries([...$("uNotify").querySelectorAll("input")].map((i) => [i.value, i.checked])); if (x) d.active = $("uActive").checked; };
+    dlg.querySelectorAll("[data-role]").forEach((bt) => (bt.onclick = () => { keep(); if (d.role === bt.dataset.role) return; d.role = bt.dataset.role; d.perms = (d.role === "cliente" ? LV.dueno : LV.medio).slice(); if (d.role === "cliente") d.brands = d.brands.filter((y) => y !== "*").slice(0, 1); draw(); }));
+    dlg.querySelectorAll("[data-lv]").forEach((bt) => (bt.onclick = () => { keep(); d.perms = LV[bt.dataset.lv].slice(); draw(); }));
+    if ($("uBrands")) {
+      $("uBrands").querySelector("[data-all]").onclick = () => { keep(); d.brands = d.brands.includes("*") ? [] : ["*"]; draw(); };
+      $("uBrands").querySelectorAll("[data-b]").forEach((bt) => (bt.onclick = () => { keep(); const id = bt.dataset.b; d.brands = d.brands.filter((y) => y !== "*"); d.brands = d.brands.includes(id) ? d.brands.filter((y) => y !== id) : [...d.brands, id]; draw(); }));
+    }
+    if ($("uStore")) $("uStore").onchange = (e) => { keep(); d.brands = e.target.value ? [e.target.value] : []; draw(); };
+    if ($("uPlan")) $("uPlan").onchange = (e) => { keep(); brandPlan[bid] = e.target.value; draw(); };
+    $("uClose").onclick = $("uCancel").onclick = () => dlg.close();
+    $("uSave").onclick = async () => {
+      keep();
+      const body = { name: d.name.trim(), login: d.login.trim(), role: d.role, perms: d.perms, brands: d.brands, notify: d.notify };
+      if (x) body.active = d.active;
+      if (!body.name || !body.login) return toast("Escribe el nombre y el correo o usuario");
+      if (!body.brands.length) return toast(d.role === "cliente" ? "Elige la tienda" : "Elige al menos una tienda");
+      const btn = $("uSave"); btn.disabled = true;
+      try {
+        // El plan elegido aquí es el de la tienda
+        const sb = brandById(bid);
+        if (d.role === "cliente" && bid && brandPlan[bid] !== undefined && brandPlan[bid] !== ((sb && sb.plan) || "")) await api(`/api/billing/${bid}`, { method: "PUT", body: { plan: brandPlan[bid] } });
+        // Si pasa el límite del plan, la cuenta maestra puede agregarlo igual
+        const send = (bd) => (x ? api(`/api/users/${x.id}`, { method: "PUT", body: bd }) : api("/api/users", { method: "POST", body: bd }));
+        let r; try { r = await send(body); } catch (er) { if (!er.limit || !confirm(er.message + "\n\n¿Agregarlo igual?")) throw er; r = await send({ ...body, force: true }); }
+        await loadData();
+        if (x) { dlg.close(); toast("Usuario guardado"); renderUsers(); }
+        else showInvite(r.user.name, r.invite_url);
+      } catch (e) { toast(e.message, 6000); btn.disabled = false; }
+    };
   };
-  dlg.showModal();
+  draw(); dlg.showModal();
+  api("/api/plans").then((r) => { plans = r.plans; if (dlg.open && $("uPlan")) { const sv = { name: $("uName").value, login: $("uLogin").value }; draw(); $("uName").value = sv.name; $("uLogin").value = sv.login; } }).catch(() => {});
 }
 
 
@@ -4311,6 +4380,7 @@ function drawPlanTable(r) {
       <tr><td>Tiendas por cliente</td>${cols((i) => num("brands", i))}</tr>
       <tr class="grp"><td colspan="${P.length + 1}">Bot</td></tr>
       <tr><td>Mensajes, comentarios e historias</td>${cols(() => `<input type="checkbox" class="pl-ck" checked disabled aria-label="Siempre incluido">`)}</tr>
+      <tr><td><b>IA</b><span class="hint">la decides tú; el cliente solo la ve</span></td>${cols((i) => `<select class="pl-ai" data-ai="${i}">${Object.entries({ text: "Solo texto", vision: "Texto e imágenes", pro: "Pro (+ fotos)" }).map(([k, l]) => `<option value="${k}" ${P[i].ai === k ? "selected" : ""}>${l}</option>`).join("")}</select>`)}</tr>
       ${grp("bot").map((f) => `<tr><td>${esc(f.label)}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
       <tr class="grp"><td colspan="${P.length + 1}">Ventas y reportes</td></tr>
       ${grp("ventas").map((f) => `<tr><td>${esc(f.label)}${f.k === "advisor" ? `<span class="hint">semáforo, recomendaciones, resumen y preguntas a la IA</span>` : ""}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
@@ -4319,6 +4389,7 @@ function drawPlanTable(r) {
     box.querySelectorAll("[data-k]").forEach((x) => (x.oninput = () => { const p = P[x.dataset.i]; p[x.dataset.k] = x.dataset.k === "price" ? Number(x.value) : x.value; ch(); }));
     box.querySelectorAll("[data-n]").forEach((x) => (x.oninput = () => { P[x.dataset.i][x.dataset.n] = Math.max(1, parseInt(x.value, 10) || 1); ch(); }));
     box.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { P[x.dataset.i].inc[x.dataset.f] = x.checked; ch(); }));
+    box.querySelectorAll("[data-ai]").forEach((x) => (x.onchange = () => { P[x.dataset.ai].ai = x.value; ch(); }));
     box.querySelectorAll("[data-pop]").forEach((x) => (x.onchange = () => { P.forEach((p, i) => (p.popular = i === +x.dataset.pop)); ch(); draw(); }));
     box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = () => {
       const p = P[+x.dataset.del], n = r.brands.filter((b) => b.plan === p._orig).length;
@@ -4330,7 +4401,7 @@ function drawPlanTable(r) {
     try { await api("/api/plans", { method: "PUT", body: { plans: P.map(({ _orig, features, ...p }) => p), renames: P.filter((p) => p._orig && p._orig !== p.name).map((p) => ({ from: p._orig, to: p.name })) } });
       setDirty(false); await loadData(); toast("Planes guardados"); renderPlanes("incluye"); } catch (e) { toast(e.message, 6000); }
   };
-  $("plNew").onclick = () => { if (P.length >= 6) return toast("Máximo 6 planes"); const last = P[P.length - 1] || {}; P.push({ name: "", desc: "", price: (last.price || 0) + 20, replies: last.replies || 1000, users: last.users || 2, brands: last.brands || 1, popular: false, inc: { ...(last.inc || {}) } }); ch(); draw(); };
+  $("plNew").onclick = () => { if (P.length >= 6) return toast("Máximo 6 planes"); const last = P[P.length - 1] || {}; P.push({ name: "", desc: "", price: (last.price || 0) + 20, replies: last.replies || 1000, users: last.users || 2, brands: last.brands || 1, popular: false, ai: last.ai || "text", inc: { ...(last.inc || {}) } }); ch(); draw(); };
   draw();
 }
 function drawPlanBrands(r) {
@@ -4345,6 +4416,8 @@ function drawPlanBrands(r) {
       <label class="row small" style="gap:8px;font-weight:600">Plan <select data-plan style="width:auto"><option value="">Sin plan (todo incluido)</option>${r.plans.map((x) => `<option ${x.name === b.plan ? "selected" : ""}>${esc(x.name)}</option>`).join("")}${b.plan && !p ? `<option selected>${esc(b.plan)} (ya no existe)</option>` : ""}</select></label></div>
       ${p ? `<div class="small" style="margin-top:10px">Respuestas este mes <b>${nf(b.usage)} de ${nf(lim)}</b>${rex ? ` <span class="muted">(incluye ${nf(rex)} extra)</span>` : ""}</div><div class="ubar" style="margin:6px 0"><i style="width:${pc}%;${pc >= 80 ? "background:#f59e0b" : ""}"></i></div>
         <div class="small">Equipo <b>${b.team} de ${p.users}</b></div>` : `<p class="small muted" style="margin:8px 0 0">Sin plan: no tiene límites y tiene todas las funciones.</p>`}
+      <div class="pb-row" style="border-top:1px solid var(--line);margin-top:10px"><span><b>IA de esta tienda</b><div class="small muted">Ahora usa: ${esc(r.ai_levels[b.ai_level] || "")}</div></span>
+        <select data-ai style="width:auto"><option value="">${p ? `Según el plan (${{ text: "solo texto", vision: "texto e imágenes", pro: "pro" }[p.ai]})` : "La que tenga configurada"}</option>${Object.entries({ text: "Solo texto", vision: "Texto e imágenes", pro: "Pro (+ fotos)" }).map(([k, l]) => `<option value="${k}" ${b.ai === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
       ${p ? `<div class="pb-x"><b>Extras para esta tienda</b> <span class="muted small">sin cambiarle el plan</span>
         ${missing.length ? missing.map((f) => { const v = ex[f.k], on = !!v && (v === "always" || v >= today);
           return `<div class="pb-row"><span>${esc(f.label)}${v && v !== "always" ? ` <span class="pill ${v >= today ? "warn" : "gray"}">${v >= today ? "hasta " + dShort(v) : "venció " + dShort(v)}</span>` : ""}</span>
@@ -4356,7 +4429,7 @@ function drawPlanBrands(r) {
   box.querySelectorAll("[data-x]").forEach((x) => (x.onchange = () => { const d = x.closest(".pb-row").querySelector("[data-until]"); d.style.display = x.checked ? "" : "none"; }));
   box.querySelectorAll(".pb").forEach((el) => {
     const b = r.brands.find((x) => x.id === el.dataset.b);
-    el.querySelector("[data-plan]").onchange = () => el.querySelector("[data-save]").classList.add("pulse");
+    el.querySelector("[data-plan]").onchange = el.querySelector("[data-ai]").onchange = () => el.querySelector("[data-save]").classList.add("pulse");
     el.querySelector("[data-save]").onclick = async () => {
       const plan = el.querySelector("[data-plan]").value.replace(/ \(ya no existe\)$/, "");
       const extras = {};
@@ -4365,7 +4438,7 @@ function drawPlanBrands(r) {
       for (const [k, v] of Object.entries(b.extras || {})) if (k !== "replies_extra" && !el.querySelector(`[data-x="${k}"]`) && !extras[k]) extras[k] = v;
       const n = el.querySelector("[data-rex]") ? parseInt(el.querySelector("[data-rex]").value, 10) || 0 : 0;
       if (n > 0) extras.replies_extra = { month: r.month, n };
-      try { await api(`/api/billing/${b.id}`, { method: "PUT", body: { plan, extras } }); await loadData(); toast(`${b.name} guardada`); renderPlanes("tiendas"); } catch (e) { toast(e.message, 6000); }
+      try { await api(`/api/billing/${b.id}`, { method: "PUT", body: { plan, extras, ai: el.querySelector("[data-ai]").value } }); await loadData(); toast(`${b.name} guardada`); renderPlanes("tiendas"); } catch (e) { toast(e.message, 6000); }
     };
   });
 }
