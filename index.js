@@ -1,5 +1,5 @@
 /**
- * Autorespuestas de Instagram y Facebook para varias tiendas.
+ * Feedback: respuestas automáticas de Instagram y Facebook para varias tiendas.
  * Cloudflare Worker + D1 + DeepSeek. Todo se configura desde el panel.
  *
  *  /webhook                 → recibe eventos de Instagram y Facebook y responde
@@ -304,7 +304,7 @@ const PLATFORM = {
 async function legalPage(url, env) {
   let site = {};
   try { const r = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first(); site = parseJson(r && r.value, {}); } catch {}
-  const brand = escHtml(site.brand || "Autorespuestas"), wa = String(site.whatsapp || "").replace(/[^\d+]/g, "");
+  const brand = escHtml(!site.brand || site.brand === "Autorespuestas" ? "Feedback" : site.brand), wa = String(site.whatsapp || "").replace(/[^\d+]/g, "");
   const contact = wa ? `por WhatsApp al <a href="https://wa.me/${wa.replace(/\D/g, "")}">${wa}</a>` : "por mensaje directo en nuestras cuentas";
   const kind = url.pathname === "/eliminar-datos" ? "del" : url.pathname === "/terminos" ? "terms" : "priv";
   const T = { del: "Eliminación de datos", terms: "Términos del servicio", priv: "Política de privacidad" }[kind];
@@ -330,7 +330,7 @@ async function legalPage(url, env) {
 <h2>Cuánto tiempo</h2><p>Los mensajes y registros se borran automáticamente a los 90 días. La tienda puede borrar los datos de un cliente en cualquier momento.</p>
 <h2>Tus derechos</h2><p>Puedes pedir ver o eliminar tus datos: <a href="/eliminar-datos">cómo eliminar tus datos</a>.</p>`;
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${T} · ${brand}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;line-height:1.65;color:#1f2937}h1{font-size:1.7rem}h2{font-size:1.1rem;margin-top:1.7em}a{color:#0e7c86}nav{display:flex;gap:16px;font-size:.92rem;margin-bottom:24px}</style></head><body>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;line-height:1.65;color:#1f2937}h1{font-size:1.7rem}h2{font-size:1.1rem;margin-top:1.7em}a{color:#28286c}nav{display:flex;gap:16px;font-size:.92rem;margin-bottom:24px}</style></head><body>
 <nav><a href="/web/">${brand}</a><a href="/privacidad">Privacidad</a><a href="/terminos">Términos</a><a href="/eliminar-datos">Eliminar datos</a></nav>${body}
 <p style="color:#6b7280;font-size:.9rem;margin-top:3em">Contacto: ${contact}. Última actualización: ${new Date().getFullYear()}.</p></body></html>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -433,7 +433,7 @@ async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, b
 async function askAI(env, brand, convo, mode, platform, extra, cfg, budgetMs) {
   const apiKey = await deepseekKey(env, brand, cfg);
   if (!apiKey) throw new Error("Falta la clave de DeepSeek: pégala en Configuración");
-  let t = await deepseekChat(env, apiKey, brand.ai_model, [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs, brand.id);
+  let t = await deepseekChat(env, apiKey, aiModelOf(brand), [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs, brand.id);
   const hm = t.match(/\[HUMANO(?:\s*[:|\-]\s*([^\]]*))?\]/i);
   if (hm) {
     // La IA puede escribir el mensaje para el cliente después de [HUMANO:motivo]
@@ -515,6 +515,7 @@ function cleanOpts(o = {}) {
     ignore_users: str(o.ignore_users, 5000),
     pause_on_human: bool(o.pause_on_human),
     ai_use_name: bool(o.ai_use_name),
+    ai_vision: bool(o.ai_vision), // leer fotos (siempre con deepseek-flash); por defecto, solo texto
     link_ref: o.link_ref !== false,
     pay_thanks: (str(o.pay_thanks, 600) || PAY_THANKS).replace(/\s*Cualquier cosa, aquí estamos\.?\s*$/, ""),
     link_buttons: (Array.isArray(o.link_buttons) ? o.link_buttons : []).slice(0, 10)
@@ -596,6 +597,7 @@ function brandOut(b, accounts = [], u = null) {
     test_mode: !!b.test_mode, test_users: b.test_users || "", ai_fallback: b.ai_fallback || "",
     accounts: accounts.filter((a) => a.brand_id === b.id).map(accountOut),
     bill_state: billState(b), ...(u && u.role === "maestro" ? { billing: b.bill } : {}),
+    plan: (planOf(b) || {}).name || "", feats: featsOf(b), ai_level: aiLevelOf(b), ai_label: AI_LEVELS[aiLevelOf(b)], ai_from: b.bill && AI_LEVELS[b.bill.ai] ? "tienda" : planOf(b) ? "plan" : "propia", locks: Object.fromEntries(FEAT_KEYS.filter((k) => !feat(b, k)).map((k) => [k, planWith(k)])),
     ads: { connected: !!(b.ads && b.ads.account && b.ads.token), account: (b.ads && b.ads.account) || "", advisor: !!(b.ads && b.ads.advisor), pro: adsPro(b), error: (b.ads && b.ads.error) || "", margin: b.ads && b.ads.margin != null ? b.ads.margin : null },
   };
 }
@@ -828,7 +830,7 @@ function normalizeOrder(kind, headers, d) {
     return { evt: `${d.id}:${st}`, event, order_id: d.number || String(d.id), total: Number(d.total || 0), currency: d.currency, method: methodOf(d.payment_method_title || d.payment_method),
       ref: meta && meta.value, customer: { name: [bi.first_name, bi.last_name].filter(Boolean).join(" ") || null, phone: bi.phone || null, email: bi.email || null, instagram: ig ? String(ig.value) : null } };
   }
-  // Otra tienda: formato propio de Autorespuestas
+  // Otra tienda: formato propio de Feedback
   const o = d.order || {}, cu = d.customer || {};
   const e = String(d.event || "");
   const event = e === "order.paid" || e === "payment.created" ? (o.status && !["paid", "completed"].includes(o.status) && e === "order.paid" ? "ignore" : "paid") : e === "order.cancelled" ? "cancelled" : e === "test" ? "test" : "ignore";
@@ -1040,6 +1042,49 @@ function handoffText(brand, out, off, who) {
 
 /* ================= lógica del bot ================= */
 
+/** deepseek-flash mira la foto y devuelve qué es. No guarda la imagen. */
+const IMG_TYPES = ["comprobante", "producto", "cabello", "captura", "otro", "inapropiada", "documento", "ilegible"];
+async function readImage(env, brand, cfg, url, text) {
+  const key = await deepseekKey(env, brand, cfg);
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`no se pudo descargar la foto (HTTP ${res.status})`);
+  let type = (res.headers.get("content-type") || "").split(";")[0].trim();
+  const buf = new Uint8Array(await res.arrayBuffer());
+  if (buf.length > 5 * 1024 * 1024) throw new Error("la foto pesa más de 5 MB");
+  if (!/^image\/(jpeg|png|gif|webp)$/.test(type)) type = buf[0] === 0x89 ? "image/png" : buf[0] === 0x47 ? "image/gif" : buf[0] === 0x52 ? "image/webp" : "image/jpeg";
+  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  const out = await deepseekChat(env, key, "deepseek-flash", [
+    { role: "system", content: `Miras fotos que un cliente envía por chat a la tienda «${brand.name}». Responde SOLO un JSON: {"tipo": "comprobante|producto|cabello|captura|otro|inapropiada|documento|ilegible", "descripcion": "...", "monto": número o null, "moneda": "USD|VES|..." o null, "referencia": "..." o null}.
+- comprobante: captura o foto de un pago o transferencia (Pago Móvil, Zelle, Binance, banco). Lee el monto, la moneda y el número de referencia.
+- producto: foto de un producto (de la tienda o parecido). cabello: foto del cabello, piel o la zona donde usaría el producto.
+- captura: captura de pantalla de una publicación, historia o chat sobre un producto.
+- otro: selfie, meme, paisaje o algo que no tiene que ver con la tienda.
+- inapropiada: desnudos, contenido sexual, violencia o algo ofensivo.
+- documento: cédula, pasaporte, tarjeta bancaria u otro documento personal. En este caso NO copies nombres ni números.
+- ilegible: no se entiende o está muy borrosa.
+"descripcion": una o dos frases en español de lo que se ve (colores, producto, texto visible útil). No diagnostiques enfermedades. No copies números de documentos ni de tarjetas.` },
+    { role: "user", content: [{ type: "text", text: text ? `El cliente escribió junto a la foto: «${String(text).slice(0, 300)}»` : "El cliente envió esta foto sin texto." }, { type: "image_url", image_url: { url: `data:${type};base64,${btoa(bin)}` } }] },
+  ], 300, true, 15000, brand.id);
+  const j = parseJson(out, {}) || {};
+  const tipo = IMG_TYPES.includes(j.tipo) ? j.tipo : "otro";
+  const monto = Number(j.monto) > 0 ? Math.round(Number(j.monto) * 100) / 100 : null;
+  let descripcion = String(j.descripcion || "").replace(/\s+/g, " ").slice(0, 300);
+  if (tipo === "documento") descripcion = "";
+  if (tipo === "comprobante") descripcion = `comprobante de pago${monto ? ` por ${monto} ${j.moneda || ""}`.trimEnd() : ""}${j.referencia ? `, referencia ${String(j.referencia).slice(0, 40)}` : ""}${descripcion ? ". " + descripcion : ""}`;
+  return { tipo, descripcion, monto, moneda: j.moneda || null, referencia: j.referencia ? String(j.referencia).slice(0, 40) : null };
+}
+/** Reglas fijas para responder a una foto (iguales para cualquier modelo). */
+function imageGuide(v) {
+  const g = {
+    comprobante: "El cliente mandó un comprobante de pago. NO confirmes que el pago llegó: agradécele, dile que lo vamos a verificar y pásalo a una persona con [HUMANO:pago].",
+    producto: "El cliente mandó la foto de un producto. Si está en la base de conocimiento, dale la información; si no lo vendes, dilo con amabilidad y ofrece lo parecido que sí tengas. Recomienda SOLO productos de la base de conocimiento.",
+    cabello: "El cliente mandó una foto de su cabello o piel. Recomienda SOLO productos de la base de conocimiento según lo que se ve. No hagas diagnósticos médicos; si ves algo que parece un problema de salud, sugiere consultar a un especialista.",
+    captura: "El cliente mandó una captura de pantalla. Úsala para entender qué producto le interesa y responde con la base de conocimiento.",
+    otro: "La foto no tiene que ver con la tienda. Responde breve y amable (una frase) y vuelve a lo que necesita o a ofrecerle ayuda con los productos.",
+    ilegible: "La foto no se ve bien. Pregúntale con amabilidad qué necesita o que la envíe de nuevo.",
+  }[v.tipo] || "";
+  return "=== FOTO DEL CLIENTE ===\nYa viste la foto; está descrita en su mensaje entre corchetes. No digas que no puedes ver imágenes.\n" + g;
+}
 async function handleDM(env, acc, ev, cfg) {
   // Toques en botones (postback) y en respuestas rápidas
   let payload = null;
@@ -1093,11 +1138,26 @@ async function handleDM(env, acc, ev, cfg) {
 
   const useAI = brand.ai_enabled && (await deepseekKey(env, brand, cfg)) && !(await overLimit(env, brand));
   const history = useAI ? await getHistory(env, acc.id, from) : [];
+  // Fotos: si la tienda lo activó, deepseek-flash mira la imagen y la describe; luego responde el modelo elegido
+  let vision = null;
+  const img = atts.find((a) => a.type === "image" && a.payload && a.payload.url && !a.payload.sticker_id);
+  if (useAI && aiLevelOf(brand) !== "text" && img && !mention && !payload && !(contact && contact.paused) && brand.active && !inList(o.ignore_users, from, username) && allowedInTest(brand, from, username)) {
+    try { vision = await readImage(env, brand, cfg, img.payload.url, text); }
+    catch (e) { console.log("Imagen", errText(e)); vision = { error: errText(e) }; }
+    if (vision && vision.tipo) {
+      const desc = vision.tipo === "documento" ? "un documento personal (no se guardan sus datos)" : vision.tipo === "inapropiada" ? "una imagen inapropiada" : vision.descripcion || "una imagen";
+      inText = inText === "[El cliente envió una foto, audio o archivo]" ? `[El cliente envió una imagen: ${desc}]` : `${inText} [Imagen: ${desc}]`;
+    }
+  }
   await saveMessage(env, acc.id, from, "user", inText, { source: "cliente" });
   await upsertContact(env, { acc, userId: from, username, name: prof.name, text: inText, channel: "dm", nameChecked: prof.checked });
   // Pago probable: tenía un link de pago y manda foto o dice que pagó
   if (contact && contact.pay_state === "link" && (atts.some((a) => a.type === "image") || PAY_WORDS.test(text))) {
     await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso() });
+  }
+  // Comprobante leído en la foto: queda «Probable» (con el monto) hasta que alguien lo confirme
+  if (vision && vision.tipo === "comprobante" && !(contact && contact.pay_state === "paid")) {
+    await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso(), ...(vision.monto ? { pay_amount: vision.monto } : {}) });
   }
   const ref = ev.referral || msg.referral;
   const adRef = ref && ref.ad_id ? { id: String(ref.ad_id), title: String((ref.ads_context_data && ref.ads_context_data.ad_title) || ref.ad_title || "").slice(0, 200) } : null;
@@ -1121,6 +1181,10 @@ async function handleDM(env, acc, ev, cfg) {
     kind = "paused";
   } else if (!brand.active || billState(brand).blocked) {
     kind = "none";
+  } else if (vision && vision.tipo === "inapropiada") {
+    kind = "image_block"; // no se responde: se pausa el bot y se avisa
+  } else if (vision && vision.tipo === "documento") {
+    reply = "Gracias, no hace falta que nos envíes ese documento 🙏 Por seguridad, no compartas datos personales por aquí."; kind = "image";
   } else if (mention) {
     kind = "mention";
     if (o.stories.enabled && o.stories.mention_reply && o.stories.mention_text.trim()) reply = fillVars(pickLine(o.stories.mention_text), who);
@@ -1138,7 +1202,7 @@ async function handleDM(env, acc, ev, cfg) {
     } else if (forced && forced.type === "handoff") {
       reason = forced.reason; reply = handoffText(brand, { reason }, off, who); kind = "handoff";
     } else if (rule && rule.dmReply) {
-      reply = fillVars(rule.dmReply, who); ruleId = rule.id; kind = "rule"; if (hasRich(rule)) richRule = rule;
+      reply = fillVars(rule.dmReply, who); ruleId = rule.id; kind = "rule"; if (hasRich(rule) && feat(brand, "buttons")) richRule = rule;
     } else {
       if (useAI) {
         const extra = [];
@@ -1148,7 +1212,8 @@ async function handleDM(env, acc, ev, cfg) {
             : "No sabes qué mostraba la historia. Si hace falta, pregúntale con amabilidad a qué producto se refiere."));
         }
         if (adTitle && (!contact || adRef)) extra.push(`=== ANUNCIO ===\nEl cliente llegó desde el anuncio: "${adTitle}". Si pregunta "info" o "precio" sin decir el producto, asume que es el del anuncio.`);
-        if ((o.link_buttons || []).length) extra.push("=== ENLACES CON BOTÓN ===\nEstos enlaces le llegan al cliente como un botón. Envía uno SOLO cuando tus instrucciones lo indiquen o el cliente lo pida o confirme que quiere avanzar (por ejemplo, que ya quiere pagar). Si solo pregunta, responde sin enviarlo. Si un enlace dice cuándo usarlo, síguelo y elige el que corresponda (por ejemplo, según el monto); no envíes varios a la vez si no hace falta. Cuando lo envíes, escribe la dirección completa tal cual, en una línea aparte, sin decir \"botón\":\n" + o.link_buttons.map((x) => `- ${x.title}: ${x.url}${x.when ? `\n  Cuándo usarlo: ${x.when}` : ""}`).join("\n"));
+        if ((o.link_buttons || []).length && feat(brand, "paylink")) extra.push("=== ENLACES CON BOTÓN ===\nEstos enlaces le llegan al cliente como un botón. Envía uno SOLO cuando tus instrucciones lo indiquen o el cliente lo pida o confirme que quiere avanzar (por ejemplo, que ya quiere pagar). Si solo pregunta, responde sin enviarlo. Si un enlace dice cuándo usarlo, síguelo y elige el que corresponda (por ejemplo, según el monto); no envíes varios a la vez si no hace falta. Cuando lo envíes, escribe la dirección completa tal cual, en una línea aparte, sin decir \"botón\":\n" + o.link_buttons.map((x) => `- ${x.title}: ${x.url}${x.when ? `\n  Cuándo usarlo: ${x.when}` : ""}`).join("\n"));
+        if (vision && vision.tipo) extra.push(imageGuide(vision));
         if (o.ai_use_name && who.name) extra.push(`=== CLIENTE ===\nSe llama ${who.name}. Puedes usar su nombre al saludar; no lo repitas en cada mensaje.`);
         if (off) extra.push("=== HORARIO ===\nAhora la tienda está fuera de su horario de atención. Puedes seguir ayudando, pero si pasas a una persona, avisa que se le responde en horario de atención.");
         try {
@@ -1173,7 +1238,7 @@ async function handleDM(env, acc, ev, cfg) {
   let sent = false;
   if (reply) {
     try {
-      const lb = !richRule && kind === "ai" ? extractLinkButtons(reply, (brand.opts || {}).link_buttons) : null;
+      const lb = !richRule && kind === "ai" && feat(brand, "paylink") ? extractLinkButtons(reply, (brand.opts || {}).link_buttons) : null;
       if (richRule) errors.push(...(await sendRuleDM(env, acc, from, reply, richRule, "regla")));
       else if (lb) errors.push(...(await sendWithLinkButtons(env, acc, from, reply, lb, "ia", brand)));
       else await sendAndSave(env, acc, from, reply, kind === "ai" ? "ia" : kind);
@@ -1189,6 +1254,12 @@ async function handleDM(env, acc, ev, cfg) {
   }
 
   const whoTxt = whoLabel(acc.platform, username);
+  if (kind === "image_block") {
+    await pauseContact(env, acc.id, from, "otro");
+    await notifyAll(env, { title: `${brand.name} · Imagen inapropiada`, body: `${whoTxt} envió una imagen inapropiada. No le respondimos y pausamos el bot en esa conversación.`, url: "/#conversaciones", tag: `c:${acc.id}:${from}` },
+      { brandId: brand.id, event: "handoff" });
+  }
+  if (vision && vision.error) errors.push("Imagen: " + vision.error);
   if (kind === "handoff") {
     await notifyAll(env, { title: `${brand.name} · ${REASONS[reason] || "Por atender"}`, body: `${whoTxt}: ${String(inText).slice(0, 140)}`, url: "/#conversaciones", tag: `c:${acc.id}:${from}` },
       { brandId: brand.id, event: "handoff" });
@@ -1483,9 +1554,18 @@ const PERMS = {
   tienda: "Configurar la tienda (funciones, mensajes, horario, avisos)",
   anuncios: "Ver anuncios y sus recomendaciones",
   exportar: "Exportar datos",
+  equipo: "Manejar el equipo de su tienda (agregar y quitar personas)",
 };
 const ROLES = { maestro: "Maestro", equipo: "Equipo", cliente: "Cliente" };
-const ROLE_PRESETS = { equipo: Object.keys(PERMS), cliente: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas"] };
+/** Niveles con un clic. Tu equipo: parcial, medio, completo. Clientes: dueño (con su equipo), y su gente: ver y responder o todo. */
+const LEVELS = {
+  parcial: ["conversaciones", "responder", "pausar"],
+  medio: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "reglas", "catalogo", "anuncios"],
+  completo: Object.keys(PERMS).filter((k) => k !== "equipo"),
+  dueno: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo"],
+  responder: ["conversaciones", "responder", "pausar"],
+};
+const ROLE_PRESETS = { equipo: LEVELS.completo, cliente: LEVELS.dueno };
 
 const can = (u, perm) => !!u && (u.role === "maestro" || u.perms.includes(perm));
 const canBrand = (u, id) => !!u && (u.role === "maestro" || u.brands.includes("*") || u.brands.includes(String(id)));
@@ -1849,7 +1929,10 @@ async function api(req, env, url) {
   /* ----- página de venta (público) ----- */
   if (p === "/api/site" && m === "GET") {
     const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
-    return json(parseJson(row && row.value, {}), 200, { "Cache-Control": "public, max-age=60" });
+    const site = parseJson(row && row.value, {});
+    if (site.brand === "Autorespuestas") site.brand = "Feedback";
+    site.plans = (await billingPlans(env)).map((x) => ({ name: x.name, desc: x.desc, price: x.price, popular: x.popular, replies: x.replies, users: x.users, features: x.features }));
+    return json(site, 200, { "Cache-Control": "public, max-age=60" });
   }
   if (p === "/api/leads" && m === "POST") {
     const b = await body();
@@ -1877,7 +1960,7 @@ async function api(req, env, url) {
       ok: true, webhook: `${url.origin}/webhook`, ai_ready: !!cfg.deepseekKey,
       ig_login: !!(cfg.igAppId && cfg.igAppSecret), fb_login: !!(cfg.fbAppId && cfg.fbAppSecret),
       callbacks: { instagram: callbackUrl(url, "instagram"), facebook: callbackUrl(url, "facebook") },
-      models: AI_MODELS, user: userOut(u), perm_labels: PERMS, role_presets: ROLE_PRESETS, reasons: REASONS,
+      models: AI_MODELS, user: userOut(u), perm_labels: PERMS, role_presets: ROLE_PRESETS, levels: LEVELS, reasons: REASONS,
     });
   }
 
@@ -1982,9 +2065,15 @@ async function api(req, env, url) {
     const id = url.searchParams.get("brand");
     needBrand(u, id); if (u.role !== "maestro") need(u, "anuncios");
     const brand = await getBrand(env, id);
+    if (!feat(brand, "ads") && u.role !== "maestro") throw lockedErr("ads");
     const to = url.searchParams.get("to") || addDays(localDate(), -1), from = url.searchParams.get("from") || addDays(to, -6);
     const okD = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x || "") ? x : null);
-    try { return json(await adsReport(env, brand, from, to, url.searchParams.get("force") === "1", okD(url.searchParams.get("pfrom")), okD(url.searchParams.get("pto")))); }
+    try {
+      const force = url.searchParams.get("force") === "1";
+      const rep = await adsReport(env, brand, from, to, force, okD(url.searchParams.get("pfrom")), okD(url.searchParams.get("pto")));
+      if (url.searchParams.get("advice") === "1") await adsAdvice(env, brand, rep, force);
+      return json(rep);
+    }
     catch (e) {
       if (!e.status) await env.DB.prepare("UPDATE brands SET ads = json_set(ads, '$.error', ?) WHERE id = ?").bind(errText(e), brand.id).run();
       return json({ error: e.status ? e.message : "Meta respondió: " + errText(e) }, e.status || 502);
@@ -2024,6 +2113,37 @@ async function api(req, env, url) {
     return json(cur);
   }
   /* ----- cobros (cuenta maestra) y plan (cada tienda) ----- */
+  /* ----- planes: qué incluye cada uno (solo la cuenta maestra) ----- */
+  if (p === "/api/plans" && m === "GET") {
+    need(u, "maestro");
+    const plans = await loadPlans(env, true);
+    const [{ results: rows }, { results: us }, { results: users }] = await Promise.all([
+      env.DB.prepare("SELECT * FROM brands ORDER BY name COLLATE NOCASE").all(),
+      env.DB.prepare("SELECT * FROM usage WHERE month = ?").bind(monthKey()).all(),
+      env.DB.prepare("SELECT brands, role FROM users WHERE active = 1 AND role = 'cliente'").all()]);
+    const brands = rows.map(parseBrand).map((b) => ({ id: b.id, name: b.name, active: !!b.active, plan: b.bill.plan, known: !!planOf(b), extras: b.bill.extras || {}, ai: b.bill.ai || "", ai_level: aiLevelOf(b), state: billState(b),
+      usage: (us.find((x) => x.brand_id === b.id) || { replies: 0 }).replies, team: users.filter((x) => parseJson(x.brands, []).map(String).includes(b.id)).length, feats: featsOf(b) }));
+    return json({ plans, features: FEATURES.filter(([k]) => !["vision", "pro_model"].includes(k)).map(([k, label, group]) => ({ k, label, group })), ai_levels: AI_LEVELS, brands, month: monthKey() });
+  }
+  if (p === "/api/plans" && m === "PUT") {
+    need(u, "maestro");
+    const b = await body();
+    if (!Array.isArray(b.plans) || !b.plans.length) return json({ error: "Debe haber al menos un plan" }, 400);
+    const plans = b.plans.slice(0, 6).map(cleanPlan).filter((x) => x.name);
+    if (new Set(plans.map((x) => x.name.toLowerCase())).size !== plans.length) return json({ error: "Dos planes no pueden tener el mismo nombre" }, 400);
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
+    const site = parseJson(row && row.value, {});
+    // Si se cambia el nombre de un plan, las tiendas que lo tenían pasan al nombre nuevo
+    const renames = (Array.isArray(b.renames) ? b.renames : []).filter((r) => r && r.from && r.to && r.from !== r.to);
+    for (const r of renames) {
+      const { results } = await env.DB.prepare("SELECT id, billing FROM brands").all();
+      for (const x of results) { const bl = parseJson(x.billing, {}); if (bl.plan === r.from) { bl.plan = String(r.to).slice(0, 40); await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify(bl), x.id).run(); } }
+    }
+    site.plans = plans;
+    await setSetting(env, "site_content", JSON.stringify(site));
+    await audit(env, u, "Editó los planes", plans.map((x) => x.name).join(", "));
+    return json({ plans: await loadPlans(env, true) });
+  }
   if (p === "/api/billing" && m === "GET") {
     need(u, "maestro");
     const [{ results: rows }, plans, pr, { results: pays }, { results: us }, { results: users }] = await Promise.all([
@@ -2093,8 +2213,9 @@ async function api(req, env, url) {
     if (!brand) return json({ error: "Tienda no encontrada" }, 404);
     const plans = await billingPlans(env), plan = plans.find((x) => x.name === brand.bill.plan) || null;
     const use = await usageFor(env, brand.id);
-    const team = (await env.DB.prepare("SELECT brands FROM users WHERE active = 1 AND role != 'maestro'").all()).results.filter((x) => parseJson(x.brands, []).map(String).includes(brand.id)).length;
+    const team = (await env.DB.prepare("SELECT brands FROM users WHERE active = 1 AND role = 'cliente'").all()).results.filter((x) => parseJson(x.brands, []).map(String).includes(brand.id)).length;
     return json({ name: brand.name, plan, plans, billing: { plan: brand.bill.plan, price: brand.bill.price ?? (plan ? plan.price : null), next_due: brand.bill.next_due, status: brand.bill.status },
+      extras: Object.entries(brand.bill.extras || {}).filter(([k, v]) => FEAT_KEYS.includes(k) && (v === "always" || v >= localDate()) && !(plan && plan.inc[k])).map(([k, v]) => ({ label: featLabel(k), until: v === "always" ? null : v })),
       state: billState(brand), usage: { replies: use.replies, month: monthKey() }, team, over: plan && plan.replies ? use.replies >= plan.replies * 1.2 : false });
   }
   if (p === "/api/plan/upgrade" && m === "POST") {
@@ -2110,6 +2231,9 @@ async function api(req, env, url) {
   if (p === "/api/site" && m === "PUT") {
     need(u, "maestro");
     const clean = cleanSite(await body());
+    const prevRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
+    const prevPlans = parseJson(prevRow && prevRow.value, {}).plans;
+    if (Array.isArray(prevPlans) && prevPlans.length) clean.plans = prevPlans; else delete clean.plans; // los planes se editan en Planes
     await setSetting(env, "site_content", JSON.stringify(clean));
     await audit(env, u, "Editó la página de venta");
     return json(clean);
@@ -2225,13 +2349,65 @@ async function api(req, env, url) {
     const { endpoint } = await body();
     const sub = endpoint && (await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subs WHERE endpoint = ?").bind(endpoint).first());
     if (!sub) return json({ error: "Este teléfono no tiene las notificaciones activadas" }, 400);
-    const status = await sendPush(env, sub, { title: "Autorespuestas", body: "¡Listo! Así te avisaré cuando un cliente necesite una persona 🔔", url: "/#conversaciones", tag: "prueba" });
+    const status = await sendPush(env, sub, { title: "Feedback", body: "¡Listo! Así te avisaré cuando un cliente necesite una persona 🔔", url: "/#conversaciones", tag: "prueba" });
     if (status >= 300) return json({ error: `El servicio de notificaciones respondió ${status}` }, 502);
     return json({ ok: true });
   }
   if (p === "/api/push/count" && m === "GET") {
     const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subs WHERE COALESCE(user_id, 'maestro') = ?").bind(u.id).first();
     return json({ devices: r ? r.n : 0 });
+  }
+
+  /* ----- mi equipo: el dueño de la tienda maneja a su gente (dentro del límite del plan) ----- */
+  if (p === "/api/myteam" && m === "GET") {
+    need(u, "equipo"); const id = url.searchParams.get("brand"); needBrand(u, id);
+    const brand = await getBrand(env, id); const plan = planOf(brand);
+    const { results } = await env.DB.prepare("SELECT * FROM users WHERE role = 'cliente' ORDER BY name COLLATE NOCASE").all();
+    const list = results.map(userFromRow).filter((x) => x.brands.includes(String(id))).map((x) => ({ id: x.id, name: x.name, login: x.login, active: x.active !== false,
+      owner: x.perms.includes("equipo"), level: x.perms.includes("equipo") ? "dueno" : LEVELS.responder.length === x.perms.length && LEVELS.responder.every((k) => x.perms.includes(k)) ? "responder" : "todo",
+      pending: !x.has_password, me: x.id === u.id }));
+    return json({ brand: { id: brand.id, name: brand.name }, plan: plan ? { name: plan.name, users: plan.users } : null, used: list.filter((x) => x.active).length, list, upgrade: plan ? ((PLANS_NOW || DEFAULT_PLANS).find((q) => q.users > plan.users) || {}).name || "" : "" });
+  }
+  if (p === "/api/myteam" && m === "POST") {
+    need(u, "equipo"); const b = await body(); needBrand(u, b.brand);
+    const brand = await getBrand(env, b.brand);
+    // Su gente nunca recibe más de lo que tiene el dueño
+    const perms = (b.level === "todo" ? u.perms.filter((k) => k !== "equipo") : LEVELS.responder).filter((k) => u.role === "maestro" || u.perms.includes(k));
+    const f = await cleanUserInput(env, { name: b.name, login: b.login, role: "cliente", perms, brands: [brand.id], notify: {} });
+    if (!f.name || !f.login) return json({ error: "Escribe el nombre y el correo o usuario" }, 400);
+    const lim = await teamLimitError(env, "cliente", [brand.id], null);
+    if (lim) return json({ error: lim.replace(/ de .+? permite/, " permite").replace("Para agregar otra, cambia de plan.", "Mejora tu plan para agregar más."), limit: true }, 409);
+    const nid = randomToken(8), token = randomToken(24);
+    await env.DB.prepare("INSERT INTO users (id, name, login, role, perms, brands, notify, active, invite_token, invite_exp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)")
+      .bind(nid, f.name, f.login, "cliente", f.perms, f.brands, f.notify, token, new Date(Date.now() + 7 * DAY).toISOString(), nowIso()).run();
+    await audit(env, u, "Agregó a su equipo", f.name, brand.id);
+    return json({ ok: true, invite_url: `${url.origin}/?invitacion=${token}` });
+  }
+  let tm = p.match(/^\/api\/myteam\/([0-9a-f]+)(\/invite)?$/);
+  if (tm) {
+    need(u, "equipo");
+    const x = await loadUser(env, cfg, tm[1]);
+    // Solo gente de sus tiendas, con rol cliente, y nunca a sí mismo ni a otro dueño
+    if (!x || x.role !== "cliente" || !x.brands.length || !x.brands.every((id) => canBrand(u, id))) return json({ error: "Esa persona no es de tu equipo" }, 404);
+    if (x.id === u.id) return json({ error: "No puedes cambiarte a ti misma" }, 400);
+    if (x.perms.includes("equipo") && u.role !== "maestro") return json({ error: "No puedes cambiar a otro dueño de la tienda" }, 403);
+    if (tm[2] && m === "POST") {
+      const token = randomToken(24);
+      await env.DB.prepare("UPDATE users SET invite_token = ?, invite_exp = ? WHERE id = ?").bind(token, new Date(Date.now() + 7 * DAY).toISOString(), x.id).run();
+      return json({ invite_url: `${url.origin}/?invitacion=${token}` });
+    }
+    if (m === "PUT") {
+      const b = await body();
+      const perms = (b.level === "todo" ? u.perms.filter((k) => k !== "equipo") : LEVELS.responder).filter((k) => u.role === "maestro" || u.perms.includes(k));
+      await env.DB.prepare("UPDATE users SET perms = ? WHERE id = ?").bind(JSON.stringify(perms), x.id).run();
+      await audit(env, u, "Cambió el acceso de su equipo", x.name, x.brands[0]);
+      return json({ ok: true });
+    }
+    if (m === "DELETE") {
+      await env.DB.batch([env.DB.prepare("DELETE FROM users WHERE id = ?").bind(x.id), env.DB.prepare("DELETE FROM push_subs WHERE user_id = ?").bind(x.id)]);
+      await audit(env, u, "Quitó a alguien de su equipo", x.name, x.brands[0]);
+      return json({ ok: true });
+    }
   }
 
   /* ----- usuarios y registro (solo maestro) ----- */
@@ -2244,6 +2420,8 @@ async function api(req, env, url) {
     const b = await body();
     const f = await cleanUserInput(env, { name: b.name, login: b.login, role: b.role, perms: b.perms ?? ROLE_PRESETS[b.role === "cliente" ? "cliente" : "equipo"], brands: b.brands || [], notify: b.notify || {} });
     if (!f.name || !f.login) return json({ error: "Escribe el nombre y el usuario o correo" }, 400);
+    const lim = !b.force && (await teamLimitError(env, f.role, parseJson(f.brands, []), null));
+    if (lim) return json({ error: lim, limit: true }, 409);
     const id = randomToken(8), token = randomToken(24);
     await env.DB.prepare("INSERT INTO users (id, name, login, role, perms, brands, notify, active, invite_token, invite_exp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)")
       .bind(id, f.name, f.login, f.role, f.perms, f.brands, f.notify, token, new Date(Date.now() + 7 * DAY).toISOString(), nowIso()).run();
@@ -2261,7 +2439,10 @@ async function api(req, env, url) {
       return json({ invite_url: `${url.origin}/?invitacion=${token}` });
     }
     if (!mm[2] && m === "PUT") {
-      const f = await cleanUserInput(env, await body(), existing);
+      const bb = await body();
+      const f = await cleanUserInput(env, bb, existing);
+      const lim = !bb.force && (f.role || f.brands) && (await teamLimitError(env, f.role || existing.role, f.brands ? parseJson(f.brands, []) : (existing.brands || []).map(String), existing.id));
+      if (lim) return json({ error: lim, limit: true }, 409);
       const keys = Object.keys(f);
       if (keys.length) await env.DB.prepare(`UPDATE users SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => f[k]), existing.id).run();
       await audit(env, u, "Editó un usuario", existing.name);
@@ -2346,6 +2527,7 @@ async function api(req, env, url) {
     need(u, "tienda");
     const b = await body();
     needBrand(u, b.brand);
+    if (u.role !== "maestro" && !feat(await getBrand(env, b.brand), "store")) throw lockedErr("store");
     if (!STORE_KINDS[b.kind]) return json({ error: "Elige el tipo de tienda" }, 400);
     const name = String(b.name || "").trim().slice(0, 60) || STORE_KINDS[b.kind];
     const id = randomToken(12);
@@ -2451,9 +2633,12 @@ async function api(req, env, url) {
       const { results } = await env.DB.prepare("SELECT role, content, at, source, user_name FROM messages WHERE account_id = ? AND user_id = ? ORDER BY id DESC LIMIT 300").bind(String(acc.id), userId).all();
       const brand = acc.brand_id ? await getBrand(env, acc.brand_id) : null;
       if (contact.unread) await setContact(env, acc.id, userId, { unread: 0 });
-      const team = [{ id: "maestro", name: cfg.maestroName || "Maestro" }];
+      // El cliente solo ve a la gente de su tienda (ni la cuenta maestra ni tu equipo)
+      const inStore = u.role === "cliente";
+      const team = inStore ? [] : [{ id: "maestro", name: cfg.maestroName || "Maestro" }];
       const rows = (await env.DB.prepare("SELECT * FROM users WHERE active = 1 AND pw IS NOT NULL ORDER BY name COLLATE NOCASE").all()).results.map(userFromRow);
-      for (const x of rows) if (canBrand(x, acc.brand_id) && can(x, "conversaciones")) team.push({ id: x.id, name: x.name });
+      for (const x of rows) if (canBrand(x, acc.brand_id) && can(x, "conversaciones") && (!inStore || x.role === "cliente")) team.push({ id: x.id, name: x.name });
+      if (inStore && contact.assigned_to && !team.some((x) => x.id === contact.assigned_to)) team.push({ id: contact.assigned_to, name: "Equipo de soporte" });
       return json({
         contact: { ...contact, tags: parseJson(contact.tags, []), notes: parseJson(contact.notes, []), brand: brand && brand.name, first_name: firstName(contact.name) }, account: accountOut(acc), team,
         messages: results.reverse(), templates: brand ? brand.opts.templates : [],
@@ -2739,7 +2924,8 @@ async function api(req, env, url) {
     if (b.ai_model !== undefined) { if (!AI_MODELS.includes(b.ai_model)) return json({ error: "Modelo no válido" }, 400); set.ai_model = b.ai_model; }
     if (b.moderation !== undefined) { if (!["off", "notify", "hide"].includes(b.moderation)) return json({ error: "Opción no válida" }, 400); set.moderation = b.moderation; }
     if (b.rules !== undefined) { try { set.rules = JSON.stringify(cleanRules(b.rules)); } catch (e) { return json({ error: errText(e) }, 400); } }
-    if (b.opts !== undefined && typeof b.opts === "object") set.opts = JSON.stringify(cleanOpts({ ...brand.opts, ...b.opts }));
+    if ((b.opts !== undefined && typeof b.opts === "object") || typeof b.ai_vision === "boolean")
+      set.opts = JSON.stringify(cleanOpts({ ...brand.opts, ...(b.opts && typeof b.opts === "object" ? b.opts : {}), ...(typeof b.ai_vision === "boolean" ? { ai_vision: b.ai_vision } : {}) }));
     if (typeof b.ai_api_key === "string") set.ai_api_key = b.ai_api_key.trim();
     // Solo cuenta lo que de verdad cambia (el panel a veces manda datos que no se tocaron)
     const cur = { ...brand, rules: JSON.stringify(brand.rules), opts: JSON.stringify(brand.opts) };
@@ -3196,7 +3382,7 @@ async function runFollowUps(env) {
   const { results: brands } = await env.DB.prepare("SELECT * FROM brands WHERE active = 1").all();
   for (const row of brands) {
     const brand = parseBrand(row), fu = brand.opts.follow_up;
-    if (!fu.enabled || (!fu.text.trim() && !fu.ai)) continue;
+    if (!fu.enabled || (!fu.text.trim() && !fu.ai) || !feat(brand, "follow")) continue;
     const now = Date.now();
     const { results } = await env.DB.prepare(
       `SELECT c.* FROM contacts c WHERE c.brand_id = ? AND c.paused = 0 AND c.last_dm_at >= ? AND c.last_bot_at IS NOT NULL
@@ -3624,7 +3810,7 @@ const sumM = (list) => {
   t.frequency = t.reach ? t.impressions / t.reach : 0; t.cpm = t.impressions ? (t.spend / t.impressions) * 1000 : 0;
   return t;
 };
-const adsPro = (brand) => (brand.bill && /pro/i.test(brand.bill.plan || "")) || !!(brand.ads && brand.ads.advisor);
+const adsPro = (brand) => (planOf(brand) ? feat(brand, "advisor") : /pro/i.test((brand.bill && brand.bill.plan) || "")) || !!(brand.ads && brand.ads.advisor);
 async function adsReport(env, brand, from, to, force, pf, pt) {
   const [d, live] = await Promise.all([adsFetch(env, brand, from, to, force, pf, pt), adsLive(env, brand, force).catch(() => null)]);
   if (live) {
@@ -3693,6 +3879,21 @@ async function adsReport(env, brand, from, to, force, pf, pt) {
     lights: pro ? { cost_chat: L("cost_chat", tot.cost_chat), ctr: L("ctr", tot.ctr), frequency: L("frequency", tot.frequency), roas: L("roas", hasSales && tot.spend > 0 ? soldAds / tot.spend : tot.roas) } : null,
     funnel: { reach: tot.reach, clicks: tot.clicks, chats: tot.chats, bot_chats: cs.length, handoff_pay: cs.filter((c) => c.pause_reason === "pago").length },
     asks: asks.map(([l, n]) => ({ label: l, pct: totalAsks ? Math.round((n / totalAsks) * 100) : 0 })) };
+}
+/** Las recomendaciones y el semáforo siempre se calculan con los últimos 7 días completos,
+ *  aunque la pantalla muestre otro periodo (por ejemplo «Hoy»). */
+async function adsAdvice(env, brand, rep, force) {
+  const to = addDays(localDate(), -1), from = addDays(to, -6);
+  const w = rep.from === from && rep.to === to ? rep : await adsReport(env, brand, from, to, false);
+  const by = Object.fromEntries(w.ads.map((a) => [a.id, a]));
+  for (const a of rep.ads) {
+    const x = by[a.id];
+    if (x) { a.action = x.action; if (x.dx) a.dx = x.dx; else delete a.dx; }
+    else if (["active", "review", "issues", "billing"].includes(a.st)) { a.action = { k: "wait", label: "ESPERAR", why: "Todavía no tiene datos de los últimos 7 días completos. Déjalo correr y mira mañana.", rule: "Se recomienda con los últimos 7 días completos" }; delete a.dx; }
+    else { a.action = null; delete a.dx; }
+  }
+  rep.advice = { from, to, lights: w.lights, totals: w.totals, sales: w.sales };
+  return rep;
 }
 async function adsSummaryAI(env, brand, rep, cfg) {
   const key = await deepseekKey(env, brand, cfg);
@@ -3847,6 +4048,13 @@ async function trackUsage(env, brandId, inc) {
     tokens_in = tokens_in + excluded.tokens_in, tokens_out = tokens_out + excluded.tokens_out`)
     .bind(String(brandId), monthKey(), f.replies, f.ai_calls, f.tokens_in, f.tokens_out).run();
 }
+/** Extras de una tienda sin cambiarle el plan: { función: "always" | "AAAA-MM-DD", replies_extra: { month, n } } */
+function cleanExtras(x) {
+  x = x && typeof x === "object" ? x : {}; const out = {};
+  for (const k of FEAT_KEYS) { const v = x[k]; if (v === "always" || (/^\d{4}-\d{2}-\d{2}$/.test(v || ""))) out[k] = v; }
+  const r = x.replies_extra; if (r && /^\d{4}-\d{2}$/.test(r.month || "") && parseInt(r.n, 10) > 0) out.replies_extra = { month: r.month, n: Math.min(1e6, parseInt(r.n, 10)) };
+  return out;
+}
 function cleanBilling(b) {
   b = b && typeof b === "object" ? b : {};
   const num = (v) => (v === "" || v == null || isNaN(Number(v)) ? null : Math.max(0, Math.round(Number(v) * 100) / 100));
@@ -3855,19 +4063,114 @@ function cleanBilling(b) {
     grace_days: Math.min(60, Math.max(0, parseInt(b.grace_days ?? 7, 10) || 0)), status: ["active", "suspended", "free"].includes(b.status) ? b.status : "active",
     owner: String(b.owner || "").slice(0, 80), phone: String(b.phone || "").slice(0, 30), note: String(b.note || "").slice(0, 300),
     warned: String(b.warned || "").slice(0, 40),
+    extras: cleanExtras(b.extras),
+    ai: AI_LEVELS[b.ai] ? b.ai : "",
   };
 }
-const DEFAULT_PLANS = [
-  { name: "Emprende", price: 25, replies: 1500, users: 2, features: ["1.500 respuestas al mes", "Instagram y Facebook", "Mensajes, comentarios e historias", "2 personas del equipo", "Métricas del mes"] },
-  { name: "Crece", price: 49, replies: 5000, users: 5, features: ["5.000 respuestas al mes", "Todo lo de Emprende", "Seguimiento a quien no compró", "Botones y carruseles", "Reportes en PDF", "5 personas del equipo"] },
-  { name: "Pro", price: 99, replies: 15000, users: 10, features: ["15.000 respuestas al mes", "Todo lo de Crece", "Asesor de anuncios incluido", "Hasta 3 tiendas", "Conexión con tu tienda online", "Soporte prioritario"] },
+const AI_LEVELS = { text: "deepseek-flash · solo texto", vision: "deepseek-flash · texto e imágenes", pro: "deepseek-v4-pro · texto (las fotos las lee flash)" };
+/** La IA que usa la tienda: la que le pusiste a ella, o la de su plan; sin plan, la que tenga configurada. */
+function aiLevelOf(b) {
+  if (b.bill && AI_LEVELS[b.bill.ai]) return b.bill.ai;
+  const p = planOf(b);
+  if (p) return p.ai || "text";
+  return b.ai_model === "deepseek-v4-pro" ? "pro" : b.opts && b.opts.ai_vision ? "vision" : "text";
+}
+const aiModelOf = (b) => (aiLevelOf(b) === "pro" ? "deepseek-v4-pro" : "deepseek-flash");
+/** Funciones que se pueden incluir o no en cada plan (la cuenta maestra las marca en Planes). */
+const FEATURES = [
+  ["buttons", "Botones y carruseles", "bot"], ["follow", "Seguimiento a quien no compró", "bot"],
+  ["vision", "Leer fotos (comprobantes, productos)", "bot"], ["pro_model", "Modelo deepseek-v4-pro", "bot"],
+  ["paylink", "Botón de pago con tus links", "ventas"], ["store", "Conexión con tienda online (Shopify, Woo, otra)", "ventas"],
+  ["pdf", "Reportes en PDF e imagen", "ventas"], ["ads", "Anuncios (gasto y resultados)", "ventas"],
+  ["advisor", "Asesor de anuncios PRO", "ventas"], ["support", "Soporte prioritario", "ventas"],
 ];
+const FEAT_KEYS = FEATURES.map((f) => f[0]);
+const incOf = (keys) => Object.fromEntries(FEAT_KEYS.map((k) => [k, keys.includes(k)]));
+const DEFAULT_PLANS = [
+  { name: "Emprende", ai: "text", price: 25, replies: 1500, users: 2, brands: 1, desc: "Para empezar a vender por Instagram", popular: false, inc: incOf(["paylink", "ads"]) },
+  { name: "Crece", ai: "vision", price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads"]) },
+  { name: "Pro", ai: "pro", price: 99, replies: 15000, users: 10, brands: 3, desc: "Para marcas que invierten en anuncios", popular: false, inc: incOf(FEAT_KEYS) },
+];
+/** La lista de la página de venta sale de lo marcado en cada plan. */
+function planLines(plans, i) {
+  const p = plans[i], prev = i > 0 ? plans[i - 1] : null, nf0 = (n) => Number(n).toLocaleString("es-VE");
+  const out = [`${nf0(p.replies)} respuestas al mes`];
+  if (prev) out.push(`Todo lo de ${prev.name}`); else out.push("Instagram y Facebook", "Mensajes, comentarios e historias");
+  if (!prev || prev.ai !== p.ai) out.push(p.ai === "pro" ? "IA más precisa (lee fotos)" : p.ai === "vision" ? "La IA lee fotos (comprobantes, productos)" : "IA de texto");
+  for (const [k, l] of FEATURES) if (!["vision", "pro_model"].includes(k) && p.inc[k] && !(prev && prev.inc[k])) out.push(l.replace(/ \(.*\)$/, ""));
+  out.push(`${p.users} persona${p.users === 1 ? "" : "s"} del equipo`);
+  if (p.brands > 1) out.push(`Hasta ${p.brands} tiendas`);
+  return out;
+}
+function cleanPlan(p, i) {
+  const d = DEFAULT_PLANS[i] || DEFAULT_PLANS[DEFAULT_PLANS.length - 1];
+  const int = (v, def) => { const n = parseInt(v, 10); return isNaN(n) ? def : Math.max(0, n); };
+  const inc = p.inc && typeof p.inc === "object" ? Object.fromEntries(FEAT_KEYS.map((k) => [k, p.inc[k] === true])) : { ...d.inc };
+  // La IA del plan: solo texto, texto e imágenes, o pro (con fotos)
+  const ai = AI_LEVELS[p.ai] ? p.ai : inc.pro_model ? "pro" : inc.vision ? "vision" : (d.ai || "text");
+  inc.vision = ai !== "text"; inc.pro_model = ai === "pro";
+  return { name: String(p.name || "").trim().slice(0, 40), desc: String(p.desc || "").trim().slice(0, 90), price: Math.max(0, Math.round(Number(p.price) * 100) / 100 || 0),
+    popular: !!p.popular, replies: int(p.replies, d.replies) || d.replies, users: int(p.users, d.users) || d.users, brands: int(p.brands, d.brands) || 1, ai, inc };
+}
 async function billingPlans(env) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_content'").first();
   const site = parseJson(row && row.value, {});
-  const list = Array.isArray(site.plans) && site.plans.length ? site.plans : null;
-  if (!list) return DEFAULT_PLANS.map((p) => ({ ...p }));
-  return list.map((p, i) => ({ name: p.name, price: p.price, replies: p.replies || (DEFAULT_PLANS[i] || DEFAULT_PLANS[2]).replies, users: p.users || (DEFAULT_PLANS[i] || DEFAULT_PLANS[2]).users, features: p.features || [] }));
+  const list = Array.isArray(site.plans) && site.plans.length ? site.plans : DEFAULT_PLANS;
+  const plans = list.map(cleanPlan).filter((p) => p.name);
+  return plans.map((p, i) => ({ ...p, features: planLines(plans, i) }));
+}
+/** Planes en memoria para saber, sin esperar, qué incluye cada tienda. Se recargan cada minuto. */
+let PLANS_NOW = null, PLANS_AT = 0;
+async function loadPlans(env, force) {
+  if (!force && PLANS_NOW && Date.now() - PLANS_AT < 60e3) return PLANS_NOW;
+  try { PLANS_NOW = await billingPlans(env); PLANS_AT = Date.now(); await plansMigrate(env); } catch (e) { console.log("Planes", errText(e)); }
+  return PLANS_NOW || DEFAULT_PLANS;
+}
+const planOf = (brand) => (brand && brand.bill && brand.bill.plan ? (PLANS_NOW || DEFAULT_PLANS).find((p) => p.name === brand.bill.plan) || null : null);
+/** ¿La tienda tiene esta función? Sin plan asignado no se limita nada. */
+function feat(brand, key) {
+  if (!brand) return false;
+  if (key === "vision") return aiLevelOf(brand) !== "text";
+  if (key === "pro_model") return aiLevelOf(brand) === "pro";
+  const p = planOf(brand);
+  if (!p || (p.inc && p.inc[key])) return true;
+  const x = ((brand.bill && brand.bill.extras) || {})[key];
+  return !!x && (x === "always" || x >= localDate());
+}
+const featsOf = (brand) => Object.fromEntries(FEAT_KEYS.map((k) => [k, feat(brand, k)]));
+/** El plan más barato que incluye una función (para decir «Disponible en el plan X»). */
+const planWith = (key) => ((PLANS_NOW || DEFAULT_PLANS).find((p) => p.inc && p.inc[key]) || {}).name || "";
+const featLabel = (key) => (FEATURES.find((f) => f[0] === key) || [, key])[1];
+const lockedErr = (key) => httpError(403, `${featLabel(key)} no está en el plan de esta tienda${planWith(key) ? `. Disponible en el plan ${planWith(key)}` : ""}.`);
+/** Una sola vez: lo que cada tienda ya usaba y su plan no incluye queda como extra, para que nadie pierda nada. */
+async function plansMigrate(env) {
+  if (await env.DB.prepare("SELECT 1 FROM settings WHERE key = 'plans_v2'").first()) return;
+  const { results } = await env.DB.prepare("SELECT * FROM brands").all();
+  const { results: st } = await env.DB.prepare("SELECT DISTINCT brand_id FROM stores").all().catch(() => ({ results: [] }));
+  for (const raw of results) {
+    const b = parseBrand(raw), p = planOf(b); if (!p) continue;
+    const used = { buttons: (b.rules || []).some((r) => hasRich(r)), follow: !!b.opts.follow_up.enabled, vision: !!b.opts.ai_vision, pro_model: b.ai_model === "deepseek-v4-pro",
+      paylink: (b.opts.link_buttons || []).length > 0, store: st.some((x) => x.brand_id === b.id), advisor: !!(b.ads && b.ads.advisor), ads: !!(b.ads && b.ads.token) };
+    const extras = { ...(b.bill.extras || {}) };
+    for (const [k, u] of Object.entries(used)) if (u && !p.inc[k]) extras[k] = "always";
+    if (Object.keys(extras).length !== Object.keys(b.bill.extras || {}).length)
+      await env.DB.prepare("UPDATE brands SET billing = ? WHERE id = ?").bind(JSON.stringify({ ...b.bill, extras }), b.id).run();
+  }
+  await setSetting(env, "plans_v2", "1");
+}
+/** Límites de personas y de tiendas al dar acceso a un usuario cliente. Devuelve el aviso o null. */
+async function teamLimitError(env, role, brandIds, userId) {
+  if (role !== "cliente" || !brandIds.length) return null;
+  const { results: users } = await env.DB.prepare("SELECT id, brands FROM users WHERE active = 1 AND role = 'cliente'").all();
+  let maxBrands = 0;
+  for (const id of brandIds) {
+    const b = await getBrand(env, id); const p = planOf(b); if (!p) { maxBrands = Infinity; continue; }
+    maxBrands = Math.max(maxBrands, p.brands || 1);
+    const n = users.filter((x) => x.id !== userId && parseJson(x.brands, []).map(String).includes(String(id))).length + 1;
+    if (p.users && n > p.users) return `El plan ${p.name} de ${b.name} permite ${p.users} persona${p.users === 1 ? "" : "s"} del equipo. Para agregar otra, cambia de plan.`;
+  }
+  if (brandIds.length > maxBrands) return `El plan permite ${maxBrands} tienda${maxBrands === 1 ? "" : "s"} por cliente. Para darle más, cambia de plan.`;
+  return null;
 }
 async function aiPrices(env) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ai_prices'").first();
@@ -3893,8 +4196,9 @@ async function overLimit(env, brand) {
   if (!brand.bill || !brand.bill.plan) return false;
   const plan = (await billingPlans(env)).find((p) => p.name === brand.bill.plan);
   if (!plan || !plan.replies) return false;
-  const u = await usageFor(env, brand.id);
-  return u.replies >= plan.replies * 1.2;
+  const u = await usageFor(env, brand.id), ex = (brand.bill.extras || {}).replies_extra;
+  const extra = ex && ex.month === monthKey() ? ex.n || 0 : 0;
+  return u.replies >= (plan.replies + extra) * 1.2;
 }
 async function billingDaily(env) {
   const { results } = await env.DB.prepare("SELECT * FROM brands").all();
@@ -3941,6 +4245,7 @@ export default {
       try { await ensureSchema(env); }
       catch (e) { console.error(e); return json({ error: "No se pudo preparar la base de datos: " + errText(e) }, 500); }
     }
+    if (needsDb) await loadPlans(env);
     if (url.pathname === "/webhook") return webhook(req, env, ctx, url);
     const hm = url.pathname.match(/^\/hook\/tienda\/([a-f0-9]{16,64})$/);
     if (hm) {
@@ -3956,6 +4261,6 @@ export default {
     return env.ASSETS ? env.ASSETS.fetch(req) : new Response("Not found", { status: 404 });
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(cron(env));
+    ctx.waitUntil(loadPlans(env, true).then(() => cron(env)));
   },
 };
