@@ -855,7 +855,7 @@ async function storeApi(env, st, method, path, bodyObj) {
   const r = await fetch(String(st.api_url).replace(/\/+$/, "") + path, { method, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
     body: bodyObj ? JSON.stringify(bodyObj) : undefined, redirect: "manual", signal: AbortSignal.timeout(9000) });
   const txt = await r.text(); let d = null; try { d = JSON.parse(txt); } catch {}
-  if (!r.ok) throw httpError(502, `La tienda respondió ${r.status}${d && (d.error || d.message) ? ": " + (d.error && d.error.message || d.error || d.message) : ""}`);
+  if (!r.ok) { const e = httpError(502, `La tienda respondió ${r.status} en ${String(st.api_url).replace(/\/+$/, "") + path}${d && (d.error || d.message) ? ": " + (d.error && d.error.message || d.error || d.message) : ""}`); e.remote = r.status; throw e; }
   return d || {};
 }
 const b64ToHex = (b) => { try { return [...atob(b)].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join(""); } catch { return ""; } };
@@ -2711,13 +2711,20 @@ async function api(req, env, url) {
       if (!/^whsec_\S{8,}$/.test(sec)) return json({ error: "El secreto de firma debe empezar con whsec_" }, 400);
       const hookUrl = `${url.origin}/hook/tienda/${st.id}`;
       if (!devHttp && !/^https:\/\//.test(hookUrl)) return json({ error: "Para conectar en automático, el panel debe estar publicado con https" }, 400);
-      const tmp = { ...st, api_url: apiUrl, api_key: await encSecret(env, key) };
-      let me, hook;
-      try { me = await storeApi(env, tmp, "GET", "/api/v1/me"); } catch (e) { return json({ error: "No se pudo entrar con esa clave. " + errText(e) }, 400); }
+      // Acepta la URL con o sin ruta (ej. …workers.dev, …workers.dev/api/v1 o …/api/v1/me): probamos las variantes
+      const origin = new URL(apiUrl).origin, path0 = new URL(apiUrl).pathname.replace(/\/+$/, "");
+      const bases = [...new Set([origin + path0.replace(/\/api\/v1(\/.*)?$/i, ""), origin])];
+      const tmp = { ...st, api_key: await encSecret(env, key) };
+      let me, hook, lastErr = null;
+      for (const base of bases) {
+        tmp.api_url = base;
+        try { me = await storeApi(env, tmp, "GET", "/api/v1/me"); lastErr = null; break; } catch (e) { lastErr = e; if (e.remote !== 404) break; }
+      }
+      if (lastErr) return json({ error: (lastErr.remote === 404 ? "La tienda no tiene la ruta /api/v1/me (respondió 404). Revisa que la URL sea la que te dio Téreapp y que su API esté publicada. " : lastErr.remote === 401 || lastErr.remote === 403 ? "La tienda no aceptó la clave. " : "No se pudo entrar con esa clave. ") + errText(lastErr) }, 400);
       try { hook = await storeApi(env, tmp, "POST", "/api/v1/webhooks", { url: hookUrl, events: ["order.paid", "payment.created", "order.cancelled"] }); }
       catch (e) { return json({ error: "La clave funciona, pero no se pudo registrar el aviso. " + errText(e) }, 400); }
       await env.DB.prepare("UPDATE stores SET api_url = ?, api_key = ?, secret = ?, webhook_id = ?, api_ok_at = ?, api_error = NULL WHERE id = ?")
-        .bind(apiUrl, tmp.api_key, await encSecret(env, hook.signing_secret || sec), hook.id ? String(hook.id) : null, nowIso(), st.id).run();
+        .bind(tmp.api_url, tmp.api_key, await encSecret(env, hook.signing_secret || sec), hook.id ? String(hook.id) : null, nowIso(), st.id).run();
       await storeLog(env, st.id, 200, "Conectada en automático", `${(me && (me.name || me.store)) || "La tienda"} confirmó la clave · aviso registrado${hook.id ? " (" + hook.id + ")" : ""}`);
       await audit(env, u, "Conectó una tienda en automático", st.name, st.brand_id);
       return json({ store: await storeOut(env, await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true), me });
