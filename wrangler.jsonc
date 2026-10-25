@@ -3,6 +3,9 @@
   "name": "autorespuestas",
   "main": "src/index.js",
   "compatibility_date": "2025-09-01",
+  // Para poder llamar a otros Workers de la misma cuenta (ej. la API de Téreapp en *.workers.dev).
+  // Sin esto Cloudflare responde error 1042 / 404.
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "assets": { "directory": "./public", "binding": "ASSETS" },
   // La base de datos se crea sola la primera vez que Cloudflare publica. No hace falta ningún ID.
   "d1_databases": [{ "binding": "DB", "database_name": "autorespuestas" }],
