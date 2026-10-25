@@ -111,6 +111,9 @@ const COLUMNS = {
     opts: "TEXT NOT NULL DEFAULT '{}'", billing: "TEXT NOT NULL DEFAULT '{}'", ads: "TEXT NOT NULL DEFAULT '{}'",
   },
   logs: { account_id: "TEXT", platform: "TEXT", media_id: "TEXT", comment_id: "TEXT", moderation: "TEXT", level: "TEXT" },
+  stores: { api_url: "TEXT", api_key: "TEXT", webhook_id: "TEXT", api_ok_at: "TEXT", api_error: "TEXT" },
+  store_log: { order_id: "TEXT", sig_ok: "INTEGER" },
+  sales: { items: "TEXT" },
   contacts: {
     brand_id: "TEXT", platform: "TEXT", paused_at: "TEXT", pause_reason: "TEXT", name: "TEXT", name_checked: "INTEGER NOT NULL DEFAULT 0",
     last_dm_at: "TEXT", last_bot_at: "TEXT", followup_at: "TEXT", off_hours_at: "TEXT",
@@ -164,6 +167,30 @@ async function hmacHex(key, data) {
   const k = await crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", k, typeof data === "string" ? enc.encode(data) : data);
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* ---------- datos cifrados (claves de tiendas): AES-GCM con DATA_KEY (secreto de Cloudflare) ---------- */
+async function dataKeys(env) {
+  const cfg = await getConfig(env);
+  const bases = [env.DATA_KEY, cfg.sessionSecret ? cfg.sessionSecret + "|datos" : ""].filter(Boolean);
+  if (!bases.length) throw httpError(500, "Falta la clave para cifrar (DATA_KEY)");
+  return Promise.all(bases.map(async (b) => crypto.subtle.importKey("raw", await crypto.subtle.digest("SHA-256", enc.encode(b)), "AES-GCM", false, ["encrypt", "decrypt"])));
+}
+const b64e = (u8) => btoa(String.fromCharCode(...u8));
+const b64d = (t) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+/** Cifra con DATA_KEY (secreto de Cloudflare); si no existe, con la clave interna del panel. */
+async function encSecret(env, plain) {
+  if (!plain) return "";
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, (await dataKeys(env))[0], enc.encode(String(plain))));
+  return `enc:v1:${b64e(iv)}:${b64e(ct)}`;
+}
+/** Descifra probando DATA_KEY y luego la clave interna (por si DATA_KEY se agregó después). */
+async function decSecret(env, stored) {
+  if (!stored || !String(stored).startsWith("enc:v1:")) return stored || "";
+  const [, , iv, ct] = String(stored).split(":");
+  for (const k of await dataKeys(env)) { try { return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64d(iv) }, k, b64d(ct))); } catch {} }
+  throw new Error("No se pudo descifrar (¿cambió DATA_KEY?)");
 }
 
 function safeEqual(a, b) {
@@ -746,6 +773,17 @@ async function contactRef(env, accId, userId, contact) {
   await setContact(env, accId, userId, { ref });
   return ref;
 }
+/**
+ * Formato del ?ref= que va en el link de pago: «ad<ID del anuncio>_<conversación>» o «org_<conversación>» si no vino de un anuncio.
+ * Ej: ad120211223344556677_c-8k2m9x1q. También se aceptan «ad<ID>» solo (link puesto directo en un anuncio) y el formato viejo «c-xxxxxxxx».
+ */
+function parseRef(ref) {
+  const r = String(ref || "").trim(); if (!r) return {};
+  const conv = (r.match(/c-[a-z0-9]{6,12}/i) || [])[0] || null;
+  const ad = (r.match(/(?:^|_)ad(\d{6,})/i) || [])[1] || null;
+  return { conv, ad };
+}
+const buildRef = (contact, conv) => `${contact && contact.ad_id ? "ad" + digits(contact.ad_id) : "org"}_${conv}`;
 const withRef = (url, ref) => { try { const u = new URL(url); u.searchParams.set("ref", ref); return u.toString(); } catch { return url; } };
 const amountFrom = (t) => { const m = String(t || "").replace(/\s/g, "").match(/(\d+(?:[.,]\d{1,2})?)/); return m ? parseFloat(m[1].replace(",", ".")) : null; };
 const PAY_WORDS = /comprobante|capture|captura|ya pagu|ya te pagu|ya transfer|te transfer|listo el pago|pago listo|ya pag[oó]|hice el pago|realic[eé] el pago|referencia/i;
@@ -765,7 +803,8 @@ async function recordSale(env, x) {
   }
   const f = { brand_id: x.brand_id, account_id: x.account_id || null, user_id: x.user_id || null, ad_id: x.ad_id || null, amount: Math.round((Number(x.amount) || 0) * 100) / 100,
     currency: x.currency || "USD", method: x.method || null, source: x.source, store_id: x.store_id || null, order_id: x.order_id ? String(x.order_id) : null, ref: x.ref || null,
-    status: x.status || "paid", note: x.note || null, customer: x.customer ? JSON.stringify(x.customer) : null, by: x.by || null };
+    status: x.status || "paid", note: x.note || null, customer: x.customer ? JSON.stringify(x.customer) : null, by: x.by || null,
+    items: Array.isArray(x.items) && x.items.length ? JSON.stringify(x.items.slice(0, 50).map((i) => ({ name: String(i.name || "").slice(0, 120), qty: Number(i.qty) || 1, price: Number(i.price) || 0 }))) : null };
   if (row) {
     // La tienda manda: completa lo que falte y queda como confirmada por la tienda
     const upd = { ...f, account_id: f.account_id || row.account_id, user_id: f.user_id || row.user_id, ad_id: f.ad_id || row.ad_id, note: f.note || row.note,
@@ -800,10 +839,24 @@ async function refreshPayState(env, accId, userId) {
 /* ================= tiendas online (webhooks de pedidos) ================= */
 const STORE_KINDS = { shopify: "Shopify", woo: "WooCommerce", custom: "Otra tienda" };
 const storeOpts = (o = {}) => ({ notify_customer: o.notify_customer !== false, paid: o.paid !== false, cancelled: o.cancelled !== false });
-function storeOut(st, origin, full) {
+async function storeOut(env, st, origin, full) {
   const o = storeOpts(parseJson(st.opts, {}));
+  const secret = await decSecret(env, st.secret).catch(() => ""), api = !!st.api_url;
+  const key = api ? await decSecret(env, st.api_key).catch(() => "") : "";
   return { id: st.id, brand_id: st.brand_id, kind: st.kind, kind_name: STORE_KINDS[st.kind] || st.kind, name: st.name, active: !!st.active, opts: o,
-    url: `${origin}/hook/tienda/${st.id}`, has_secret: !!st.secret, secret: full ? st.secret : st.secret ? "••••" + st.secret.slice(-4) : "", last_at: st.last_at, created_at: st.created_at };
+    url: `${origin}/hook/tienda/${st.id}`, has_secret: !!secret,
+    // Con conexión automática el secreto es de la tienda: nunca sale del servidor
+    secret: full && !api ? secret : secret ? "••••" + secret.slice(-4) : "", last_at: st.last_at, created_at: st.created_at,
+    api: api ? { url: st.api_url, key: key ? key.slice(0, 8) + "••••" + key.slice(-4) : "", webhook_id: st.webhook_id || null, ok_at: st.api_ok_at || null, error: st.api_error || null } : null };
+}
+/** Llama a la API de la tienda (conexión automática). */
+async function storeApi(env, st, method, path, bodyObj) {
+  const key = await decSecret(env, st.api_key);
+  const r = await fetch(String(st.api_url).replace(/\/+$/, "") + path, { method, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: bodyObj ? JSON.stringify(bodyObj) : undefined, redirect: "manual", signal: AbortSignal.timeout(9000) });
+  const txt = await r.text(); let d = null; try { d = JSON.parse(txt); } catch {}
+  if (!r.ok) throw httpError(502, `La tienda respondió ${r.status}${d && (d.error || d.message) ? ": " + (d.error && d.error.message || d.error || d.message) : ""}`);
+  return d || {};
 }
 const b64ToHex = (b) => { try { return [...atob(b)].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join(""); } catch { return ""; } };
 const digits = (t) => String(t || "").replace(/\D/g, "");
@@ -835,21 +888,30 @@ function normalizeOrder(kind, headers, d) {
   // Otra tienda: formato propio de Feedback
   const o = d.order || {}, cu = d.customer || {};
   const e = String(d.event || "");
-  const event = e === "order.paid" || e === "payment.created" ? (o.status && !["paid", "completed"].includes(o.status) && e === "order.paid" ? "ignore" : "paid") : e === "order.cancelled" ? "cancelled" : e === "test" ? "test" : "ignore";
+  // order.paid cuenta la venta; payment.created llega junto y solo se registra; webhook.test es una prueba
+  const event = e === "webhook.test" || e === "test" || d.test === true ? "test" : e === "order.paid" ? (o.status && !["paid", "completed"].includes(o.status) ? "ignore" : "paid")
+    : e === "payment.created" ? "payment" : e === "order.cancelled" ? "cancelled" : "ignore";
   return { evt: d.id || `${o.id}:${e}`, event, order_id: o.id != null ? String(o.id) : null, total: Number(o.total || 0), currency: o.currency, method: SALE_METHODS.includes(o.payment_method) ? o.payment_method : methodOf(o.payment_method),
-    ref: d.ref || null, customer: { name: cu.name || null, phone: cu.phone || null, email: cu.email || null, instagram: cu.instagram ? String(cu.instagram).replace(/^@/, "") : null } };
+    ref: d.ref || null, items: Array.isArray(o.items) ? o.items : [], customer: { name: cu.name || null, phone: cu.phone || null, email: cu.email || null, instagram: cu.instagram ? String(cu.instagram).replace(/^@/, "") : null } };
 }
 
 /** Busca de qué chat viene la venta: referencia del link, @usuario o teléfono escrito en el chat. */
 async function matchContact(env, brandId, n) {
-  if (n.ref) {
-    const c = await env.DB.prepare("SELECT account_id, user_id, ad_id, username, last_dm_at, name FROM contacts WHERE ref = ? AND brand_id = ?").bind(String(n.ref), brandId).first();
-    if (c) return { ...c, by: "ref" };
+  const R = parseRef(n.ref);
+  if (R.conv) {
+    const c = await env.DB.prepare("SELECT account_id, user_id, ad_id, username, last_dm_at, name FROM contacts WHERE ref = ? AND brand_id = ?").bind(R.conv, brandId).first();
+    if (c) return { ...c, ad_id: R.ad || c.ad_id, by: "ref" };
   }
   const ig = n.customer && n.customer.instagram && String(n.customer.instagram).replace(/^@/, "").toLowerCase().trim();
   if (ig) {
     const c = await env.DB.prepare("SELECT account_id, user_id, ad_id, username, last_dm_at, name FROM contacts WHERE brand_id = ? AND LOWER(username) = ? ORDER BY last_at DESC LIMIT 1").bind(brandId, ig).first();
     if (c) return { ...c, by: "usuario" };
+  }
+  const em = n.customer && n.customer.email && String(n.customer.email).toLowerCase().trim();
+  if (em && /@/.test(em)) {
+    const c = await env.DB.prepare(`SELECT c.account_id, c.user_id, c.ad_id, c.username, c.last_dm_at, c.name FROM messages m JOIN contacts c ON c.account_id = m.account_id AND c.user_id = m.user_id
+      WHERE c.brand_id = ? AND m.role = 'user' AND m.at >= ? AND LOWER(m.content) LIKE ? ORDER BY m.id DESC LIMIT 1`).bind(brandId, new Date(Date.now() - 60 * 864e5).toISOString(), `%${em}%`).first();
+    if (c) return { ...c, by: "correo" };
   }
   const ph = digits(n.customer && n.customer.phone).slice(-7);
   if (ph.length === 7) {
@@ -860,38 +922,46 @@ async function matchContact(env, brandId, n) {
   }
   return null;
 }
-async function storeLog(env, storeId, code, event, summary) {
+async function storeLog(env, storeId, code, event, summary, orderId = null, sigOk = null) {
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO store_log (store_id, at, code, event, summary) VALUES (?, ?, ?, ?, ?)").bind(storeId, nowIso(), code, event, String(summary || "").slice(0, 300)),
+    env.DB.prepare("INSERT INTO store_log (store_id, at, code, event, summary, order_id, sig_ok) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(storeId, nowIso(), code, event, String(summary || "").slice(0, 300), orderId ? String(orderId).slice(0, 40) : null, sigOk == null ? null : sigOk ? 1 : 0),
     env.DB.prepare("DELETE FROM store_log WHERE store_id = ? AND id NOT IN (SELECT id FROM store_log WHERE store_id = ? ORDER BY id DESC LIMIT 60)").bind(storeId, storeId),
   ]);
 }
-const EVT_LABEL = { paid: "Pedido pagado", cancelled: "Pedido cancelado", ignore: "Aviso ignorado", test: "Prueba", ping: "Prueba de conexión" };
+const EVT_LABEL = { paid: "Pedido pagado", cancelled: "Pedido cancelado", ignore: "Aviso ignorado", test: "Prueba", ping: "Prueba de conexión", payment: "Pago registrado" };
 
-async function storeHook(req, env, id) {
+async function storeHook(req, env, id, ctx) {
   if (req.method !== "POST") return new Response("Usa POST", { status: 405 });
   const st = await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(id).first();
   if (!st) return json({ error: "Tienda no encontrada" }, 404);
-  const raw = await req.text();
+  // La firma se calcula sobre los bytes exactos que llegaron (sin volver a armar el JSON)
+  const bytes = new Uint8Array(await req.arrayBuffer());
+  const raw = new TextDecoder().decode(bytes);
   // WooCommerce manda un "ping" sin firma al crear el webhook
   if (st.kind === "woo" && /^webhook_id=\d+/.test(raw)) { await storeLog(env, st.id, 200, EVT_LABEL.ping, "WooCommerce confirmó el enlace"); return json({ ok: true }); }
   if (!st.active) { await storeLog(env, st.id, 410, "Desactivada", "La conexión está apagada en el panel"); return json({ error: "Conexión desactivada" }, 410); }
-  if (!st.secret) { await storeLog(env, st.id, 401, "Falta la clave", "Pega la clave secreta en el panel"); return json({ error: "Falta la clave secreta" }, 401); }
-  const mine = await hmacHex(st.secret, raw);
+  const secret = await decSecret(env, st.secret).catch(() => "");
+  if (!secret) { await storeLog(env, st.id, 401, "Falta la clave", "Pega la clave secreta en el panel", null, false); return json({ error: "Falta la clave secreta" }, 401); }
+  const mine = await hmacHex(secret, bytes);
   const sig = st.kind === "shopify" ? b64ToHex(req.headers.get("x-shopify-hmac-sha256") || "") : st.kind === "woo" ? b64ToHex(req.headers.get("x-wc-webhook-signature") || "")
     : String(req.headers.get("x-signature") || "").replace(/^sha256=/i, "").toLowerCase();
-  if (!sig || sig !== mine) { await storeLog(env, st.id, 401, "Firma inválida", "Revisa la clave secreta"); return json({ error: "Firma inválida" }, 401); }
-  let d; try { d = JSON.parse(raw); } catch { await storeLog(env, st.id, 400, "Formato inválido", "El cuerpo no es JSON"); return json({ error: "JSON inválido" }, 400); }
-  const res = await processStoreOrder(env, st, normalizeOrder(st.kind, req.headers, d));
+  if (!sig || !safeEqual(sig, mine)) { let oid = null; try { oid = JSON.parse(raw).order.id; } catch {} await storeLog(env, st.id, 401, "Firma inválida", "Revisa el secreto de firma (whsec_). No se guardó nada.", oid, false); return json({ error: "Firma inválida" }, 401); }
+  let d; try { d = JSON.parse(raw); } catch { await storeLog(env, st.id, 400, "Formato inválido", "El cuerpo no es JSON", null, true); return json({ error: "JSON inválido" }, 400); }
+  const res = await processStoreOrder(env, st, normalizeOrder(st.kind, req.headers, d), false, ctx);
   return json(res.body, res.code);
 }
 
-async function processStoreOrder(env, st, n, isTest) {
+async function processStoreOrder(env, st, n, isTest, ctx) {
   const o = storeOpts(parseJson(st.opts, {}));
+  const later = (p) => (ctx && ctx.waitUntil ? ctx.waitUntil(p.catch((e) => console.log("Aviso de tienda", errText(e)))) : p);
   await env.DB.prepare("UPDATE stores SET last_at = ? WHERE id = ?").bind(nowIso(), st.id).run();
-  if (n.event === "test" || isTest) { await storeLog(env, st.id, 200, EVT_LABEL.test, "La conexión funciona ✓"); return { code: 200, body: { ok: true, test: true } }; }
+  if (n.event === "test" || isTest) { await storeLog(env, st.id, 200, EVT_LABEL.test, "La conexión funciona ✓ (no cuenta como venta)", n.order_id, isTest ? null : true); return { code: 200, body: { ok: true, test: true } }; }
+  if (n.event === "payment") {
+    if (!(await firstTime(env, `st:${st.id}:${n.evt}`))) return { code: 200, body: { ok: true, duplicate: true } };
+    await storeLog(env, st.id, 200, EVT_LABEL.payment, `#${n.order_id} · la venta se cuenta con order.paid (no se suma dos veces)`, n.order_id, true); return { code: 200, body: { ok: true } };
+  }
   if (n.event === "ignore" || (n.event === "paid" && !o.paid) || (n.event === "cancelled" && !o.cancelled)) {
-    await storeLog(env, st.id, 200, EVT_LABEL.ignore, `${n.order_id ? "#" + n.order_id + " · " : ""}no es un pago ni una cancelación`); return { code: 200, body: { ok: true, ignored: true } };
+    await storeLog(env, st.id, 200, EVT_LABEL.ignore, `${n.order_id ? "#" + n.order_id + " · " : ""}no es un pago ni una cancelación`, n.order_id, true); return { code: 200, body: { ok: true, ignored: true } };
   }
   if (!(await firstTime(env, `st:${st.id}:${n.evt}`))) return { code: 200, body: { ok: true, duplicate: true } };
   const brand = await getBrand(env, st.brand_id);
@@ -902,25 +972,26 @@ async function processStoreOrder(env, st, n, isTest) {
       await env.DB.prepare("UPDATE sales SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(nowIso(), row.id).run();
       if (row.account_id && row.user_id) await refreshPayState(env, row.account_id, row.user_id);
     }
-    await storeLog(env, st.id, 200, EVT_LABEL.cancelled, `#${n.order_id} · ${who}${row ? " · se restó de tus ventas" : " · no estaba registrado"}`);
+    await storeLog(env, st.id, 200, EVT_LABEL.cancelled, `#${n.order_id} · ${who}${row ? " · se restó de tus ventas" : " · no estaba registrado"}`, n.order_id, true);
     return { code: 200, body: { ok: true } };
   }
-  const c = await matchContact(env, st.brand_id, n);
-  const sale = await recordSale(env, { brand_id: st.brand_id, account_id: c ? String(c.account_id) : null, user_id: c ? c.user_id : null, ad_id: c ? c.ad_id : null,
-    amount: n.total, currency: n.currency || "USD", method: n.method, source: "store", store_id: st.id, order_id: n.order_id, ref: n.ref, customer: n.customer, by: st.name });
+  const c = await matchContact(env, st.brand_id, n), refAd = parseRef(n.ref).ad;
+  const sale = await recordSale(env, { brand_id: st.brand_id, account_id: c ? String(c.account_id) : null, user_id: c ? c.user_id : null, ad_id: (c && c.ad_id) || refAd || null,
+    amount: n.total, currency: n.currency || "USD", method: n.method, source: "store", store_id: st.id, order_id: n.order_id, ref: n.ref, customer: n.customer, items: n.items, by: st.name });
   let thanked = false;
   if (c) {
     await refreshPayState(env, c.account_id, c.user_id);
     const open = c.last_dm_at && Date.now() - Date.parse(c.last_dm_at) < 24 * 3600e3;
     if (o.notify_customer && open && !sale.merged && brand) {
       const acc = await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(String(c.account_id)).first();
-      if (acc) { try { await sendAndSave(env, acc, c.user_id, fillVars(brand.opts.pay_thanks, { name: firstName(c.name), username: c.username }), "pago", st.name); thanked = true; } catch (e) { console.log("No se pudo avisar el pago", errText(e)); } }
+      // El DM se manda después de responderle a la tienda (debe recibir respuesta en menos de 10 s)
+      if (acc) { thanked = true; later(sendAndSave(env, acc, c.user_id, fillVars(brand.opts.pay_thanks, { name: firstName(c.name), username: c.username }), "pago", st.name)); }
     }
   }
   const amountTxt = `${n.currency && n.currency !== "USD" ? n.currency + " " : "$"}${fx(n.total, 2)}`;
-  await storeLog(env, st.id, 200, EVT_LABEL.paid, `#${n.order_id} · ${amountTxt} · ${who}${c ? ` · cruzado por ${{ ref: "la referencia del botón", usuario: "el @usuario", "teléfono": "el teléfono" }[c.by] || c.by}${c.ad_id ? " con su anuncio" : ""}${thanked ? " · se le confirmó por DM" : ""}` : " · sin chat (venta sin anuncio)"}`);
-  if (brand) await notifyAll(env, { title: `${brand.name} · Venta ${amountTxt}`, body: `${st.name}: pedido #${n.order_id} de ${who}${c && c.ad_id ? " (vino de un anuncio)" : ""}`, url: "/#conversaciones", tag: `sale:${st.id}:${n.order_id}` },
-    { brandId: brand.id, event: "sales" });
+  await storeLog(env, st.id, 200, EVT_LABEL.paid, `#${n.order_id} · ${amountTxt} · ${who}${c ? ` · cruzado por ${{ ref: "la referencia del botón", usuario: "el @usuario", "teléfono": "el teléfono", correo: "el correo" }[c.by] || c.by}${c.ad_id ? " con su anuncio" : ""}${thanked ? " · se le confirma por DM" : ""}` : refAd ? " · atribuido a su anuncio por la referencia" : " · sin atribuir"}`, n.order_id, true);
+  if (brand) later(notifyAll(env, { title: `${brand.name} · Venta ${amountTxt}`, body: `${st.name}: pedido #${n.order_id} de ${who}${c && c.ad_id ? " (vino de un anuncio)" : ""}`, url: "/#conversaciones", tag: `sale:${st.id}:${n.order_id}` },
+    { brandId: brand.id, event: "sales" }));
   return { code: 200, body: { ok: true, matched: !!c } };
 }
 
@@ -956,7 +1027,8 @@ function extractLinkButtons(text, list) {
 async function sendWithLinkButtons(env, acc, to, original, lb, source, brand) {
   const P = PLATFORM[acc.platform];
   const o = (brand && brand.opts) || {};
-  const ref = o.link_ref !== false ? await contactRef(env, acc.id, to, await getContact(env, acc.id, to)) : null;
+  const ctc = await getContact(env, acc.id, to);
+  const ref = o.link_ref !== false ? buildRef(ctc, await contactRef(env, acc.id, to, ctc)) : null;
   const btns = lb.buttons.map((b) => ({ type: "web_url", url: ref ? withRef(b.url, ref) : b.url, title: b.title }));
   // El cliente recibió un link de pago: queda pendiente de pagar (si no tiene un pago reciente)
   const cur = await getContact(env, acc.id, to);
@@ -2589,7 +2661,7 @@ async function api(req, env, url) {
     if (!brand) return json([]);
     needBrand(u, brand);
     const { results } = await env.DB.prepare("SELECT * FROM stores WHERE brand_id = ? ORDER BY created_at").bind(brand).all();
-    return json(results.map((x) => storeOut(x, url.origin, false)));
+    return json(await Promise.all(results.map((x) => storeOut(env, x, url.origin, false))));
   }
   if (p === "/api/stores" && m === "POST") {
     need(u, "tienda");
@@ -2599,34 +2671,76 @@ async function api(req, env, url) {
     if (!STORE_KINDS[b.kind]) return json({ error: "Elige el tipo de tienda" }, 400);
     const name = String(b.name || "").trim().slice(0, 60) || STORE_KINDS[b.kind];
     const id = randomToken(12);
-    const secret = b.kind === "shopify" ? String(b.secret || "").trim().slice(0, 200) : "whsec_" + randomToken(16);
+    const secret = await encSecret(env, b.kind === "shopify" ? String(b.secret || "").trim().slice(0, 200) : "whsec_" + randomToken(16));
     await env.DB.prepare("INSERT INTO stores (id, brand_id, kind, name, secret, active, opts, created_at) VALUES (?, ?, ?, ?, ?, 1, '{}', ?)").bind(id, b.brand, b.kind, name, secret, nowIso()).run();
     await audit(env, u, "Conectó una tienda online", `${STORE_KINDS[b.kind]} · ${name}`, b.brand);
-    return json({ store: storeOut(await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(id).first(), url.origin, true) });
+    return json({ store: await storeOut(env, await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(id).first(), url.origin, true) });
   }
-  mm = p.match(/^\/api\/stores\/([a-f0-9]+)(\/test|\/log)?$/);
+  mm = p.match(/^\/api\/stores\/([a-f0-9]+)(\/test|\/log|\/api|\/ping)?$/);
   if (mm) {
     const st = await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(mm[1]).first();
     if (!st) return json({ error: "Esta conexión no existe" }, 404);
     needBrand(u, st.brand_id);
     if (!mm[2] && m === "GET") {
-      const { results } = await env.DB.prepare("SELECT at, code, event, summary FROM store_log WHERE store_id = ? ORDER BY id DESC LIMIT 20").bind(st.id).all();
-      const month = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM sales WHERE store_id = ? AND status = 'paid' AND at >= ?").bind(st.id, caracasDayStartIso(caracasToday().slice(0, 8) + "01")).first();
-      return json({ store: storeOut(st, url.origin, can(u, "tienda")), log: results, month });
+      const { results } = await env.DB.prepare("SELECT at, code, event, summary, order_id, sig_ok FROM store_log WHERE store_id = ? ORDER BY id DESC LIMIT 30").bind(st.id).all();
+      const since = caracasDayStartIso(caracasToday().slice(0, 8) + "01");
+      const month = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM sales WHERE store_id = ? AND status = 'paid' AND at >= ?").bind(st.id, since).first();
+      const canc = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM sales WHERE store_id = ? AND status = 'cancelled' AND at >= ?").bind(st.id, since).first();
+      const attr = await env.DB.prepare("SELECT COUNT(*) AS n FROM sales WHERE store_id = ? AND status = 'paid' AND at >= ? AND (ad_id IS NOT NULL OR user_id IS NOT NULL)").bind(st.id, since).first();
+      return json({ store: await storeOut(env, st, url.origin, can(u, "tienda")), log: results, month: { ...month, cancelled: canc.n, cancelled_total: canc.total, attributed: attr.n } });
     }
     need(u, "tienda");
     if (!mm[2] && m === "PUT") {
       const b = await body(), set = {};
       if (typeof b.name === "string" && b.name.trim()) set.name = b.name.trim().slice(0, 60);
       if (typeof b.active === "boolean") set.active = b.active ? 1 : 0;
-      if (typeof b.secret === "string" && st.kind === "shopify") set.secret = b.secret.trim().slice(0, 200);
-      if (b.regenerate && st.kind !== "shopify") set.secret = "whsec_" + randomToken(16);
+      if (typeof b.secret === "string" && st.kind === "shopify") set.secret = await encSecret(env, b.secret.trim().slice(0, 200));
+      if (b.regenerate && st.kind !== "shopify" && !st.api_url) set.secret = await encSecret(env, "whsec_" + randomToken(16));
       if (b.opts) set.opts = JSON.stringify(storeOpts({ ...parseJson(st.opts, {}), ...b.opts }));
       const keys = Object.keys(set);
       if (keys.length) await env.DB.prepare(`UPDATE stores SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => set[k]), st.id).run();
-      return json({ store: storeOut(await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true) });
+      return json({ store: await storeOut(env, await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true) });
+    }
+    // Conexión automática: guarda URL, clave y secreto (cifrados) y registra nuestro webhook en la tienda
+    if (mm[2] === "/api" && m === "POST") {
+      const b = await body();
+      const apiUrl = String(b.url || "").trim().replace(/\/+$/, ""), key = String(b.key || "").trim(), sec = String(b.secret || "").trim();
+      const devHttp = env.ALLOW_HTTP_HOOK === "1"; // solo para pruebas locales
+      if (!(devHttp ? /^https?:\/\/[^\s#]+$/ : /^https:\/\/[^\s#]+$/).test(apiUrl)) return json({ error: "La URL de la tienda debe empezar con https://" }, 400);
+      if (!/^tk_live_\S{8,}$/.test(key)) return json({ error: "La clave de acceso debe empezar con tk_live_" }, 400);
+      if (!/^whsec_\S{8,}$/.test(sec)) return json({ error: "El secreto de firma debe empezar con whsec_" }, 400);
+      const hookUrl = `${url.origin}/hook/tienda/${st.id}`;
+      if (!devHttp && !/^https:\/\//.test(hookUrl)) return json({ error: "Para conectar en automático, el panel debe estar publicado con https" }, 400);
+      const tmp = { ...st, api_url: apiUrl, api_key: await encSecret(env, key) };
+      let me, hook;
+      try { me = await storeApi(env, tmp, "GET", "/api/v1/me"); } catch (e) { return json({ error: "No se pudo entrar con esa clave. " + errText(e) }, 400); }
+      try { hook = await storeApi(env, tmp, "POST", "/api/v1/webhooks", { url: hookUrl, events: ["order.paid", "payment.created", "order.cancelled"] }); }
+      catch (e) { return json({ error: "La clave funciona, pero no se pudo registrar el aviso. " + errText(e) }, 400); }
+      await env.DB.prepare("UPDATE stores SET api_url = ?, api_key = ?, secret = ?, webhook_id = ?, api_ok_at = ?, api_error = NULL WHERE id = ?")
+        .bind(apiUrl, tmp.api_key, await encSecret(env, hook.signing_secret || sec), hook.id ? String(hook.id) : null, nowIso(), st.id).run();
+      await storeLog(env, st.id, 200, "Conectada en automático", `${(me && (me.name || me.store)) || "La tienda"} confirmó la clave · aviso registrado${hook.id ? " (" + hook.id + ")" : ""}`);
+      await audit(env, u, "Conectó una tienda en automático", st.name, st.brand_id);
+      return json({ store: await storeOut(env, await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true), me });
+    }
+    if (mm[2] === "/ping" && m === "POST") {
+      if (!st.api_url) return json({ error: "Esta conexión es manual: usa «Probar» en tu tienda para enviar un aviso de prueba." }, 400);
+      try {
+        const me = await storeApi(env, st, "GET", "/api/v1/me");
+        await env.DB.prepare("UPDATE stores SET api_ok_at = ?, api_error = NULL WHERE id = ?").bind(nowIso(), st.id).run();
+        return json({ ok: true, me });
+      } catch (e) {
+        await env.DB.prepare("UPDATE stores SET api_error = ? WHERE id = ?").bind(errText(e).slice(0, 200), st.id).run();
+        return json({ error: errText(e) }, 502);
+      }
+    }
+    if (mm[2] === "/api" && m === "DELETE") {
+      if (st.webhook_id) { try { await storeApi(env, st, "DELETE", `/api/v1/webhooks/${encodeURIComponent(st.webhook_id)}`); } catch (e) { console.log("Quitar webhook", errText(e)); } }
+      await env.DB.prepare("UPDATE stores SET api_url = NULL, api_key = NULL, webhook_id = NULL, api_ok_at = NULL, api_error = NULL, secret = ? WHERE id = ?").bind(await encSecret(env, "whsec_" + randomToken(16)), st.id).run();
+      await audit(env, u, "Quitó la conexión automática", st.name, st.brand_id);
+      return json({ store: await storeOut(env, await env.DB.prepare("SELECT * FROM stores WHERE id = ?").bind(st.id).first(), url.origin, true) });
     }
     if (!mm[2] && m === "DELETE") {
+      if (st.api_url && st.webhook_id) { try { await storeApi(env, st, "DELETE", `/api/v1/webhooks/${encodeURIComponent(st.webhook_id)}`); } catch (e) { console.log("Quitar webhook", errText(e)); } }
       const tid = await toTrash(env, u, "store", st.name, st.brand_id, [["stores", "id = ?", [st.id]], ["store_log", "store_id = ?", [st.id]]]);
       await env.DB.batch([env.DB.prepare("DELETE FROM stores WHERE id = ?").bind(st.id), env.DB.prepare("DELETE FROM store_log WHERE store_id = ?").bind(st.id)]);
       await audit(env, u, "Desconectó una tienda online", st.name, st.brand_id);
@@ -3937,6 +4051,13 @@ async function adsReport(env, brand, from, to, force, pf, pt) {
     return x;
   }).sort((a, b) => b.m.spend - a.m.spend);
   const soldAds = Object.values(salesBy).reduce((t, x) => t + x.total, 0), ordersAds = Object.values(salesBy).reduce((t, x) => t + x.n, 0);
+  // Ingresos y ROAS por campaña (las ventas se atribuyen al anuncio; el anuncio pertenece a una campaña)
+  const camps = {};
+  for (const a of ads) { const k = a.campaign || "Sin nombre de campaña"; const c = (camps[k] ||= { name: k, spend: 0, sold: 0, orders: 0 }); c.spend += a.m.spend || 0; c.sold += (a.sales && a.sales.total) || 0; c.orders += (a.sales && a.sales.n) || 0; }
+  const known = new Set(ads.map((a) => a.id));
+  for (const [id, x] of Object.entries(salesBy)) if (!known.has(id)) { const c = (camps["Anuncios sin gasto en el periodo"] ||= { name: "Anuncios sin gasto en el periodo", spend: 0, sold: 0, orders: 0 }); c.sold += x.total; c.orders += x.n; }
+  const campaigns = Object.values(camps).filter((c) => c.spend > 0 || c.sold > 0).map((c) => ({ ...c, spend: Math.round(c.spend * 100) / 100, sold: Math.round(c.sold * 100) / 100, roas: c.spend > 0 ? Math.round((c.sold / c.spend) * 100) / 100 : null })).sort((a, b) => b.sold - a.sold || b.spend - a.spend);
+  const cancelled = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM sales WHERE brand_id = ? AND status = 'cancelled' AND at >= ? AND at <= ?").bind(brand.id, sFrom, sTo).first();
   const soldPrev = Object.values(prevSalesBy).reduce((t, x) => t + x.total, 0), ordersPrev = Object.values(prevSalesBy).reduce((t, x) => t + x.n, 0);
   const pSpend = d.prev ? d.prev.spend : null;
   return { from, to, prev: d.prev, prev_from: d.prev_from, prev_to: d.prev_to, totals: tot, pro, rules, ads,
@@ -3947,7 +4068,8 @@ async function adsReport(env, brand, from, to, force, pf, pt) {
       ppo: hasSales && ordersAds && margin != null ? Math.round((soldAds / ordersAds) * margin) / 100 : null,
       ticket: ordersAds ? Math.round((soldAds / ordersAds) * 100) / 100 : null,
       net_po: hasSales && ordersAds && margin != null ? Math.round(((soldAds / ordersAds) * margin / 100 - tot.spend / ordersAds) * 100) / 100 : null,
-      prev: { sold: soldPrev, orders: ordersPrev, cpo: ordersPrev && pSpend ? pSpend / ordersPrev : null, roas: pSpend ? soldPrev / pSpend : null } },
+      prev: { sold: soldPrev, orders: ordersPrev, cpo: ordersPrev && pSpend ? pSpend / ordersPrev : null, roas: pSpend ? soldPrev / pSpend : null },
+      campaigns, cancelled: { n: cancelled.n || 0, total: Math.round((cancelled.total || 0) * 100) / 100 } },
     cpc: tot.clicks ? Math.round((tot.spend / tot.clicks) * 100) / 100 : null, cpc_prev: d.prev && d.prev.clicks ? d.prev.spend / d.prev.clicks : null,
     computed_at: d.computed_at,
     live: live ? { at: live.at, currency: live.currency, account_status: live.account_status, active: live.active, total: live.total, review: live.review, daily_budget: live.daily_budget, lifetime_budget: live.lifetime_budget, today_spend: live.today_spend } : null,
@@ -4388,7 +4510,7 @@ export default {
     if (url.pathname === "/webhook") return webhook(req, env, ctx, url);
     const hm = url.pathname.match(/^\/hook\/tienda\/([a-f0-9]{16,64})$/);
     if (hm) {
-      try { return await storeHook(req, env, hm[1]); }
+      try { return await storeHook(req, env, hm[1], ctx); }
       catch (e) { console.error(e); return json({ error: errText(e) }, e.status || 500); }
     }
     if (url.pathname === "/auth/instagram/callback") return oauthCallback(env, url, "instagram");
