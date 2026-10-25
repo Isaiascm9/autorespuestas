@@ -249,6 +249,7 @@ dialog::backdrop{background:rgba(17,24,39,.45)}
 .toast.undo{display:flex;align-items:center;gap:14px;padding:10px 12px 10px 16px;overflow:hidden}.toast.undo button{background:none;border:0;color:#c9cbeb;font-weight:800;cursor:pointer;padding:4px 6px}.toast.undo i{position:absolute;left:0;bottom:0;height:3px;background:#c9cbeb;animation:undoBar 10s linear forwards}
 @keyframes undoBar{from{width:100%}to{width:0}}
 .tr-row .grow,.mt-row .grow{flex:1}.tr-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}.tr-row:last-child{border-bottom:0}
+.manual-c > summary{cursor:pointer;line-height:1.5}.manual-c[open] > summary{margin-bottom:10px}.slog th{font-size:11.5px;color:var(--muted);text-align:left;font-weight:600;padding:4px 6px}
 .lknote{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px}.lknote svg{flex:none;margin-top:2px}
 .adhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dl-wrap{position:relative}.dl-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:45;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 28px rgba(17,24,39,.14);padding:6px;min-width:150px;display:flex;flex-direction:column}
@@ -4751,25 +4752,37 @@ async function renderStoreConn(id) {
     <div class="row" style="justify-content:flex-end;margin:-6px 0 10px;gap:10px"><span class="small muted">${st.active ? "Activa" : "Apagada"}</span><input type="checkbox" class="switch" id="scOn" ${st.active ? "checked" : ""} ${T ? "" : "disabled"}></div>
     <div class="grid2" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start;margin-top:0">
       <div>
-        <div class="card" style="margin-top:0"><h2 style="font-size:16px;margin:0">1 · Pega este enlace en ${st.kind === "custom" ? "tu sistema" : esc(ui.t)}</h2><p class="muted small" style="margin:4px 0 10px">Es único de esta conexión.</p>
-          <div class="code"><span id="scUrl" class="ell">${esc(st.url)}</span>${copyBtn("scUrl")}</div>
+        ${st.kind === "custom" ? (st.api ? `<div class="card" style="margin-top:0"><div class="card-h"><div><h2 style="font-size:16px">Conectada en automático <span class="pill ok">Activa</span></h2><p>Con los datos que creaste en tu tienda.</p></div></div>
+            <div class="kv small"><span>URL de la tienda</span><span class="ell">${esc(st.api.url)}</span><span>Clave de acceso</span><span>${esc(st.api.key)}</span><span>Secreto de firma</span><span>${esc(st.secret)}</span>
+              <span>Aviso registrado</span><span>${st.api.webhook_id ? esc(st.api.webhook_id) : "—"}</span><span>Última prueba</span><span>${st.api.ok_at ? esc(agoText(st.api.ok_at)) : "—"}${st.api.error ? ` <span style="color:var(--bad)">· ${esc(st.api.error)}</span>` : ""}</span></div>
+            ${T ? `<div class="row" style="gap:8px;margin-top:14px"><button type="button" class="btn small primary" id="apiPing">Probar conexión</button><button type="button" class="btn small" id="apiOff">Quitar conexión automática</button></div>
+              <div class="small" id="apiOut" style="margin-top:8px"></div>` : ""}</div>`
+          : `<div class="card" style="margin-top:0"><h2 style="font-size:16px;margin:0">Conectar en automático <span class="pill gray">recomendado</span></h2>
+            <p class="muted small" style="margin:4px 0 10px">Crea la conexión en el panel de tu tienda y pega aquí los 3 datos que te entrega. Se guardan cifrados y no se vuelven a mostrar completos.</p>
+            ${T ? `<label class="f" for="apiU">URL de la tienda</label><input id="apiU" placeholder="https://…" autocomplete="off">
+              <label class="f" for="apiK">Clave de acceso</label><input id="apiK" type="password" placeholder="tk_live_…" autocomplete="off">
+              <label class="f" for="apiS">Secreto de firma</label><input id="apiS" type="password" placeholder="whsec_…" autocomplete="off">
+              <div class="row" style="margin-top:12px;gap:8px"><button type="button" class="btn primary" id="apiGo">Conectar</button><span class="small" id="apiOut"></span></div>` : `<p class="small muted">Pídele a quien maneja la tienda que la conecte.</p>`}</div>`) : ""}
+        ${st.kind === "custom" && st.api ? "" : `<${st.kind === "custom" ? "details" : "div"} class="card manual-c" ${st.kind === "custom" ? "" : 'style="margin-top:0"'}>${st.kind === "custom" ? `<summary><b>¿Prefieres hacerlo a mano?</b> <span class="muted small">Copia estos datos y pégalos en tu tienda, en Integraciones → Webhook manual.</span></summary>` : `<h2 style="font-size:16px;margin:0">1 · Pega este enlace en ${esc(ui.t)}</h2><p class="muted small" style="margin:4px 0 10px">Es único de esta conexión.</p>`}
+          <label class="f">URL de recepción</label><div class="code"><span id="scUrl" class="ell">${esc(st.url)}</span>${copyBtn("scUrl")}</div>
           ${secretBlock}
-          <div style="margin-top:14px">${steps}</div></div>
+          <div style="margin-top:14px">${steps}</div></${st.kind === "custom" ? "details" : "div"}>`}
         <div class="card"><h2 style="font-size:16px;margin:0">2 · Qué hacemos con cada aviso</h2>
           ${sw("paid", o.paid, "Pedido pagado", "Se cuenta como venta y se busca de qué chat y de qué anuncio vino.", st.kind === "custom" ? "order.paid · payment.created" : "")}
           ${sw("cancelled", o.cancelled, "Pedido cancelado o devuelto", "Se resta de las ventas del anuncio.", st.kind === "custom" ? "order.cancelled" : "")}
           ${sw("notify_customer", o.notify_customer, "Confirmarle el pago al cliente por DM", "Le enviamos el mensaje de «Pago recibido» si te escribió en las últimas 24 horas. Lo editas en Asistentes → Vendedor → Botón de pago.")}</div>
         ${T ? `<div class="card"><h2 style="font-size:16px;margin:0">Ajustes</h2><label class="f" for="scName">Nombre</label><div class="row" style="flex-wrap:nowrap;gap:8px"><input id="scName" maxlength="60" value="${esc(st.name)}"><button type="button" class="btn small" id="scNameSave">Guardar</button></div>
-          <div class="row" style="justify-content:space-between;margin-top:16px"><span class="small muted">Este mes: <b style="color:var(--ink)">${nf(d.month.n)} venta${d.month.n === 1 ? "" : "s"} · ${money(d.month.total)}</b></span><button type="button" class="btn small danger" id="scDel">Desconectar</button></div></div>` : ""}
+          <div class="row" style="justify-content:space-between;margin-top:16px"><span class="small muted">Este mes: <b style="color:var(--ink)">${nf(d.month.n)} pedido${d.month.n === 1 ? "" : "s"} · ${money(d.month.total)}</b>${d.month.cancelled ? ` · ${nf(d.month.cancelled)} cancelado${d.month.cancelled === 1 ? "" : "s"} (${money(d.month.cancelled_total)})` : ""} · ${nf(d.month.attributed)} atribuido${d.month.attributed === 1 ? "" : "s"}</span><button type="button" class="btn small danger" id="scDel">Desconectar</button></div></div>` : ""}
       </div>
       <div>
         <div class="card" style="margin-top:0"><div class="card-h"><div><h2>Últimos avisos</h2><p>Lo que llegó de ${esc(st.name)}</p></div>${T ? `<button class="btn small" id="scTest">Probar</button>` : ""}</div>
-          ${d.log.length ? `<table class="slog"><tbody>${d.log.map((x) => `<tr><td><span class="pill ${x.code < 300 ? "ok" : "bad"}">${x.code}</span></td><td><b>${esc(x.event || "")}</b><div class="small muted">${esc(x.summary || "")}</div></td><td class="small muted" style="white-space:nowrap;text-align:right">${esc(agoText(x.at))}</td></tr>`).join("")}</tbody></table>`
+          ${d.log.length ? `<table class="slog"><thead><tr><th>Fecha</th><th>Evento</th><th>Pedido</th><th>Firma</th></tr></thead><tbody>${d.log.map((x) => `<tr><td class="small muted" style="white-space:nowrap">${esc(fmt(x.at))}</td><td><b>${esc(x.event || "")}</b><div class="small muted">${esc(x.summary || "")}</div></td><td class="small">${x.order_id && x.order_id !== "0" ? "#" + esc(x.order_id) : "—"}</td><td>${x.sig_ok == null ? `<span class="small muted">—</span>` : x.sig_ok ? `<span class="pill ok">válida</span>` : `<span class="pill bad">inválida</span>`}</td></tr>`).join("")}</tbody></table>`
             : `<p class="muted small">Todavía no llega ningún aviso. Cuando tu tienda marque un pedido como pagado, aparece aquí.</p>`}</div>
         <div class="card"><h2 style="font-size:16px;margin:0">¿Cómo sabemos de qué anuncio vino?</h2><p class="muted small" style="margin:4px 0 0">Buscamos el chat del cliente, en este orden:</p>
           <ol class="small" style="margin:10px 0 0;padding-left:18px;line-height:1.7">
             <li><b>La referencia del botón de pago</b> (<code>?ref=</code>): la más segura.</li>
             <li><b>El @usuario de Instagram</b> del pedido.</li>
+            <li><b>El correo</b>, si el cliente lo escribió en el chat.</li>
             <li><b>El teléfono</b>, si el cliente lo escribió en el chat.</li></ol>
           <div class="info small" style="margin-top:12px">Si nada coincide, la venta cuenta como <b>«sin anuncio»</b>: no inventamos. Si ya la habías marcado como pagada en el chat, se une en una sola venta.</div></div>
       </div>
@@ -4779,8 +4792,24 @@ async function renderStoreConn(id) {
   if ($("scOn")) $("scOn").onchange = (e) => put({ active: e.target.checked }, e.target.checked ? "Conexión activada" : "Conexión apagada");
   box.querySelectorAll("[data-opt]").forEach((x) => (x.onchange = () => put({ opts: { [x.dataset.opt]: x.checked } }, "Guardado")));
   if ($("scSave")) $("scSave").onclick = () => { const v = $("scS").value.trim(); if (v) put({ secret: v }, "Clave guardada"); };
-  if ($("scRegen")) $("scRegen").onclick = () => { if (confirm("¿Crear una clave nueva? La anterior deja de funcionar: tendrás que pegar la nueva en tu tienda.")) put({ regenerate: true }, "Clave nueva creada"); };
+  if ($("scRegen")) $("scRegen").onclick = async () => { if (await confirmDel({ title: "¿Crear una clave nueva?", text: "La anterior deja de funcionar: tendrás que pegar la nueva en tu tienda.", yes: "Sí, crear otra", trash: false })) put({ regenerate: true }, "Clave nueva creada"); };
   if ($("scNameSave")) $("scNameSave").onclick = () => put({ name: $("scName").value }, "Nombre guardado");
+  if ($("apiGo")) $("apiGo").onclick = async () => {
+    const b = { url: $("apiU").value.trim(), key: $("apiK").value.trim(), secret: $("apiS").value.trim() };
+    if (!b.url || !b.key || !b.secret) return toast("Pega los 3 datos");
+    $("apiGo").disabled = true; $("apiOut").innerHTML = `<span class="muted">Conectando…</span>`;
+    try { await api(`/api/stores/${st.id}/api`, { method: "POST", body: b }); toast("Tienda conectada ✓"); renderStoreConn(st.id); }
+    catch (e) { $("apiOut").innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; $("apiGo").disabled = false; }
+  };
+  if ($("apiPing")) $("apiPing").onclick = async () => {
+    $("apiOut").innerHTML = `<span class="muted">Probando…</span>`;
+    try { const r = await api(`/api/stores/${st.id}/ping`, { method: "POST" }); const me = r.me || {}; $("apiOut").innerHTML = `<span style="color:var(--ok);font-weight:600">✓ La clave funciona${me.name || me.store ? ` · ${esc(me.name || me.store)}` : ""}</span>`; }
+    catch (e) { $("apiOut").innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
+  };
+  if ($("apiOff")) $("apiOff").onclick = async () => {
+    if (!(await confirmDel({ title: "¿Seguro que deseas quitar la conexión automática?", text: "Se borra el aviso registrado en tu tienda. Las ventas ya registradas se conservan. Luego puedes conectarla de nuevo o a mano.", yes: "Sí, quitar", trash: false }))) return;
+    try { await api(`/api/stores/${st.id}/api`, { method: "DELETE" }); toast("Conexión automática quitada"); renderStoreConn(st.id); } catch (e) { toast(e.message); }
+  };
   if ($("scTest")) $("scTest").onclick = async () => { try { await api(`/api/stores/${st.id}/test`, { method: "POST" }); toast("Prueba registrada ✓"); renderStoreConn(st.id); } catch (e) { toast(e.message); } };
   if ($("scDel")) $("scDel").onclick = async () => { if (!(await confirmDel({ title: `¿Seguro que deseas desconectar ${st.name}?`, text: "Sus ventas ya registradas se conservan.", yes: "Sí, desconectar" }))) return; try { const r = await api(`/api/stores/${st.id}`, { method: "DELETE" }); go("integraciones"); undoToast(`${st.name} desconectada`, r.trash_id, () => render()); } catch (e) { toast(e.message); } };
 }
@@ -4930,6 +4959,11 @@ async function renderAds(force, cached) {
       <div class="adtools"><div class="search adsearch">${ICON.search}<input id="adQ" type="search" placeholder="Buscar anuncio…" value="${esc(ADS_PERIOD.q)}"></div><div class="chips" id="adChips" style="margin:0"></div></div>
       <div id="adList"></div>
       ${!r.pro ? `<div class="info" style="margin-top:12px">Con el <b>Asesor de anuncios</b> cada anuncio trae semáforo y una recomendación de qué cambiar, y te llega un resumen cada lunes.${isMaestro() ? ' Actívalo en Integraciones → Meta Ads.' : ""}</div>` : ""}</div>
+    ${SL.has && (SL.campaigns || []).length ? `<div class="card"><div class="card-h"><div><h2>Ventas por campaña</h2><p>Ingresos de pedidos atribuidos a cada campaña ÷ lo que gastaste en ella.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Campaña</th><th style="text-align:right">Gasto</th><th style="text-align:right">Ingresos</th><th style="text-align:right">Pedidos</th><th style="text-align:right">ROAS</th></tr></thead><tbody>
+      ${SL.campaigns.map((c) => `<tr><td>${esc(c.name)}</td><td style="text-align:right">${$$(c.spend)}</td><td style="text-align:right">${$$(c.sold)}</td><td style="text-align:right">${nf(c.orders)}</td><td style="text-align:right"><b style="color:${c.roas == null ? "var(--muted)" : c.roas >= R.roas_good ? "var(--ok)" : c.roas < 1 ? "var(--bad)" : "var(--ink)"}">${c.roas != null ? roasF(c.roas) : "—"}</b></td></tr>`).join("")}
+      <tr><td class="muted">Sin atribuir <span class="small">(sin anuncio ni chat)</span></td><td style="text-align:right" class="muted">—</td><td style="text-align:right">${$$(SL.no_ad)}</td><td style="text-align:right">${nf(SL.no_ad_n)}</td><td style="text-align:right" class="muted">—</td></tr></tbody></table></div>
+      ${SL.cancelled && SL.cancelled.n ? `<p class="small muted" style="margin:10px 0 0">Cancelaciones en el periodo: <b style="color:var(--bad)">${nf(SL.cancelled.n)} · ${$$(SL.cancelled.total)}</b> (ya restadas).</p>` : ""}</div>` : ""}
     <div class="grid2">
       <div class="card"><div class="card-h"><div><h2>Del anuncio a la venta</h2></div></div>
         ${[["Lo vieron", r.funnel.reach], ["Tocaron el anuncio", r.funnel.clicks], ["Escribieron (según Meta)", r.funnel.chats], ["Llegaron al bot", r.funnel.bot_chats], ["Mandaron pago", r.funnel.handoff_pay]].map(([l, v], i, arr) => `<div class="hbar wide"><span class="small">${l}</span><span class="track"><span class="fill" style="display:block;width:${Math.max(2, i ? Math.min(100, Math.sqrt(v / Math.max(1, arr[0][1])) * 100) : 100)}%"></span></span><span class="n">${nf(v)}</span></div>`).join("")}</div>
