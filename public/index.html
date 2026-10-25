@@ -3466,6 +3466,11 @@ function openUser(x) {
   const dlg = $("userDlg");
   const levelOf = (perms) => ["parcial", "medio", "completo"].find((k) => LV[k] && LV[k].length === perms.length && LV[k].every((p) => perms.includes(p))) || "";
   let plans = null, brandPlan = {};
+  const planNamed = (n) => (plans || []).find((q) => q.name === n) || null;
+  const permsOfPlan = (n) => { const p = planNamed(n); return p ? p.perms : (LV.dueno || []); };
+  const planNameOf = (id) => (brandPlan[id] !== undefined ? brandPlan[id] : (brandById(id) || {}).plan || "");
+  // Cambiar de plan: lo del plan nuevo + lo que tenía aparte − lo que se le quitó a mano
+  const movePerms = (from, to) => { const o = permsOfPlan(from), n = permsOfPlan(to), extra = d.perms.filter((k) => !o.includes(k)), removed = o.filter((k) => !d.perms.includes(k)); d.perms = [...new Set([...n.filter((k) => !removed.includes(k)), ...extra])]; };
   const draw = () => {
     const cli = d.role === "cliente", all = d.brands.includes("*"), lvl = levelOf(d.perms), bid = d.brands[0] || "";
     const b = brandById(bid);
@@ -3479,7 +3484,10 @@ function openUser(x) {
         <div><label class="f" for="uPlan">Plan de la tienda</label><select id="uPlan" ${bid ? "" : "disabled"}><option value="">Sin plan (todo incluido)</option>${(plans || []).map((p) => `<option value="${esc(p.name)}" ${(brandPlan[bid] ?? (b && b.plan)) === p.name ? "selected" : ""}>${esc(p.name)} · ${money(p.price)}/mes</option>`).join("")}</select>
           <div class="help" id="uPlanHelp">${(() => { const p = (plans || []).find((q) => q.name === (brandPlan[bid] ?? (b && b.plan))); return p ? `${p.users} persona${p.users === 1 ? "" : "s"} · ${p.ai === "pro" ? "IA pro" : p.ai === "vision" ? "texto e imágenes" : "solo texto"}` : bid ? "Cambiarlo aquí cambia el plan de toda la tienda." : ""; })()}</div></div></div>
         <details class="det" ${x ? "open" : ""}><summary><b>Darle más acceso</b> <span class="muted small">(por defecto ve lo de su tienda y maneja su equipo)</span></summary>
-          <div class="checks" id="uPerms">${Object.entries(P).map(([k, l]) => `<label class="check"><input type="checkbox" value="${k}" ${d.perms.includes(k) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div></details>`
+          ${(() => { const pn = planNameOf(bid), pp = permsOfPlan(pn), pl = planNamed(pn);
+            return `<div class="help" style="margin:0 0 6px">${plans ? (pl ? `Marcado según el plan <b>${esc(pl.name)}</b>. Lo que marques aparte queda como <span class="pill warn" style="font-size:10.5px">extra</span>.` : "Sin plan: tiene todo; marca lo que puede tocar.") : "Cargando planes…"}</div>
+            <div class="checks" id="uPerms">${Object.entries(P).map(([k, l]) => { const off = pl && k === "anuncios" && !pl.inc.ads, on = d.perms.includes(k) && !off, ext = plans && pl && on && !pp.includes(k);
+              return `<label class="check ${off ? "muted" : ""}"><input type="checkbox" value="${k}" ${on ? "checked" : ""} ${off ? "disabled" : ""}> ${esc(l)}${ext ? ` <span class="pill warn" style="font-size:10.5px">extra</span>` : ""}${off ? ` <span class="small muted">· no incluido en el plan ${esc(pl.name)}</span>` : ""}</label>`; }).join("")}</div>`; })()}</details>`
       : `<label class="f">Tiendas</label>
         <div class="uchips" id="uBrands"><button type="button" class="uchip ${all ? "on" : ""}" data-all>Todas${all ? " ✓" : ""}</button>${S.brands.map((y) => `<button type="button" class="uchip ${!all && d.brands.includes(y.id) ? "on" : ""}" data-b="${esc(y.id)}">${esc(y.name)}${!all && d.brands.includes(y.id) ? " ✓" : ""}</button>`).join("")}</div>
         <div class="help">«Todas» incluye las tiendas que agregues después.</div>
@@ -3500,8 +3508,9 @@ function openUser(x) {
       $("uBrands").querySelector("[data-all]").onclick = () => { keep(); d.brands = d.brands.includes("*") ? [] : ["*"]; draw(); };
       $("uBrands").querySelectorAll("[data-b]").forEach((bt) => (bt.onclick = () => { keep(); const id = bt.dataset.b; d.brands = d.brands.filter((y) => y !== "*"); d.brands = d.brands.includes(id) ? d.brands.filter((y) => y !== id) : [...d.brands, id]; draw(); }));
     }
-    if ($("uStore")) $("uStore").onchange = (e) => { keep(); d.brands = e.target.value ? [e.target.value] : []; draw(); };
-    if ($("uPlan")) $("uPlan").onchange = (e) => { keep(); brandPlan[bid] = e.target.value; draw(); };
+    if ($("uStore")) $("uStore").onchange = (e) => { keep(); d.brands = e.target.value ? [e.target.value] : []; if (!x) d.perms = permsOfPlan(planNameOf(d.brands[0] || "")).slice(); draw(); };
+    if ($("uPlan")) $("uPlan").onchange = (e) => { keep(); const from = planNameOf(bid); brandPlan[bid] = e.target.value; if (d.perms.includes("equipo") || !x) movePerms(from, e.target.value); draw(); };
+    $("uPerms").querySelectorAll("input").forEach((i) => (i.onchange = () => { keep(); if (d.role === "cliente") draw(); }));
     $("uClose").onclick = $("uCancel").onclick = () => dlg.close();
     $("uSave").onclick = async () => {
       keep();
@@ -3523,8 +3532,9 @@ function openUser(x) {
       } catch (e) { toast(e.message, 6000); btn.disabled = false; }
     };
   };
+  const keepNow = () => { if ($("uName")) { d.name = $("uName").value; d.login = $("uLogin").value; } };
   draw(); dlg.showModal();
-  api("/api/plans").then((r) => { plans = r.plans; if (dlg.open && $("uPlan")) { const sv = { name: $("uName").value, login: $("uLogin").value }; draw(); $("uName").value = sv.name; $("uLogin").value = sv.login; } }).catch(() => {});
+  api("/api/plans").then((r) => { plans = r.plans; if (dlg.open && $("uPlan")) { keepNow(); if (!x && d.brands[0]) d.perms = permsOfPlan(planNameOf(d.brands[0])).slice(); draw(); } }).catch(() => {});
 }
 
 
@@ -4384,12 +4394,16 @@ function drawPlanTable(r) {
       ${grp("bot").map((f) => `<tr><td>${esc(f.label)}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
       <tr class="grp"><td colspan="${P.length + 1}">Ventas y reportes</td></tr>
       ${grp("ventas").map((f) => `<tr><td>${esc(f.label)}${f.k === "advisor" ? `<span class="hint">semáforo, recomendaciones, resumen y preguntas a la IA</span>` : ""}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
+      <tr class="grp"><td colspan="${P.length + 1}">Qué puede hacer el cliente (dueño de la tienda)</td></tr>
+      ${Object.entries(S.session.perm_labels).map(([k, l]) => `<tr><td>${esc(l)}</td>${cols((i) => { const off = k === "anuncios" && !P[i].inc.ads; return `<input type="checkbox" class="pl-ck" data-perm="${k}" data-i="${i}" ${!off && (P[i].perms || []).includes(k) ? "checked" : ""} ${off ? 'disabled title="El plan no incluye Anuncios"' : ""} aria-label="${esc(P[i].name)} · ${esc(l)}">`; })}</tr>`).join("")}
     </table></div></div>
+    <p class="help">«Qué puede hacer el cliente» es lo que se le marca al dueño al crearlo. Si cambias esto o el plan de una tienda, su gente se actualiza sola (lo que le diste aparte se mantiene).</p>
     <p class="help">Si una tienda ya usaba algo que su plan no incluye, se le dejó como extra para que no pierda nada (lo ves en «Tiendas y su plan»). Las tiendas sin plan tienen todo.</p>`;
     box.querySelectorAll("[data-k]").forEach((x) => (x.oninput = () => { const p = P[x.dataset.i]; p[x.dataset.k] = x.dataset.k === "price" ? Number(x.value) : x.value; ch(); }));
     box.querySelectorAll("[data-n]").forEach((x) => (x.oninput = () => { P[x.dataset.i][x.dataset.n] = Math.max(1, parseInt(x.value, 10) || 1); ch(); }));
-    box.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { P[x.dataset.i].inc[x.dataset.f] = x.checked; ch(); }));
+    box.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { const p = P[x.dataset.i]; p.inc[x.dataset.f] = x.checked; if (x.dataset.f === "ads") { p.perms = (p.perms || []).filter((k) => k !== "anuncios"); if (x.checked) p.perms.push("anuncios"); draw(); } ch(); }));
     box.querySelectorAll("[data-ai]").forEach((x) => (x.onchange = () => { P[x.dataset.ai].ai = x.value; ch(); }));
+    box.querySelectorAll("[data-perm]").forEach((x) => (x.onchange = () => { const p = P[x.dataset.i]; p.perms = (p.perms || []).filter((k) => k !== x.dataset.perm); if (x.checked) p.perms.push(x.dataset.perm); ch(); }));
     box.querySelectorAll("[data-pop]").forEach((x) => (x.onchange = () => { P.forEach((p, i) => (p.popular = i === +x.dataset.pop)); ch(); draw(); }));
     box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = () => {
       const p = P[+x.dataset.del], n = r.brands.filter((b) => b.plan === p._orig).length;
@@ -4401,7 +4415,7 @@ function drawPlanTable(r) {
     try { await api("/api/plans", { method: "PUT", body: { plans: P.map(({ _orig, features, ...p }) => p), renames: P.filter((p) => p._orig && p._orig !== p.name).map((p) => ({ from: p._orig, to: p.name })) } });
       setDirty(false); await loadData(); toast("Planes guardados"); renderPlanes("incluye"); } catch (e) { toast(e.message, 6000); }
   };
-  $("plNew").onclick = () => { if (P.length >= 6) return toast("Máximo 6 planes"); const last = P[P.length - 1] || {}; P.push({ name: "", desc: "", price: (last.price || 0) + 20, replies: last.replies || 1000, users: last.users || 2, brands: last.brands || 1, popular: false, ai: last.ai || "text", inc: { ...(last.inc || {}) } }); ch(); draw(); };
+  $("plNew").onclick = () => { if (P.length >= 6) return toast("Máximo 6 planes"); const last = P[P.length - 1] || {}; P.push({ name: "", desc: "", price: (last.price || 0) + 20, replies: last.replies || 1000, users: last.users || 2, brands: last.brands || 1, popular: false, ai: last.ai || "text", inc: { ...(last.inc || {}) }, perms: (last.perms || []).slice() }); ch(); draw(); };
   draw();
 }
 function drawPlanBrands(r) {
