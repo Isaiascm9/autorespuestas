@@ -244,6 +244,11 @@ dialog::backdrop{background:rgba(17,24,39,.45)}
 .det{border:1px dashed var(--line2);border-radius:10px;padding:9px 12px;margin-top:12px}.det summary{cursor:pointer;font-size:13.5px}.det[open] summary{margin-bottom:8px}
 @media (max-width:560px){.utypes,.ulv{grid-template-columns:1fr}}
 .mt-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}.mt-row:last-child{border-bottom:0}.mt-av{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+.conf{max-width:440px}.conf-h{display:flex;align-items:center;gap:12px}.conf-h h2{font-size:17px;margin:0;line-height:1.3}.conf-ic{width:38px;height:38px;border-radius:10px;background:var(--bad-soft);color:var(--bad);display:grid;place-items:center;flex:none}.conf-ic svg{width:18px;height:18px}
+.conf-f{justify-content:space-between!important}.btn.danger-solid{background:var(--bad);border-color:var(--bad);color:#fff}.btn.danger-solid:disabled{opacity:.45}
+.toast.undo{display:flex;align-items:center;gap:14px;padding:10px 12px 10px 16px;overflow:hidden}.toast.undo button{background:none;border:0;color:#c9cbeb;font-weight:800;cursor:pointer;padding:4px 6px}.toast.undo i{position:absolute;left:0;bottom:0;height:3px;background:#c9cbeb;animation:undoBar 10s linear forwards}
+@keyframes undoBar{from{width:100%}to{width:0}}
+.tr-row .grow,.mt-row .grow{flex:1}.tr-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}.tr-row:last-child{border-bottom:0}
 .lknote{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px}.lknote svg{flex:none;margin-top:2px}
 .adhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dl-wrap{position:relative}.dl-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:45;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 28px rgba(17,24,39,.14);padding:6px;min-width:150px;display:flex;flex-direction:column}
@@ -974,6 +979,33 @@ function toast(msg, ms = 3000) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), ms);
 }
+/** Confirmación del panel antes de borrar. typeName: hay que escribir ese nombre para poder borrar. */
+function confirmDel({ title, text = "", yes = "Sí, borrar", typeName = "", trash = true }) {
+  return new Promise((resolve) => {
+    let dlg = $("confDlg"); if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "confDlg"; dlg.className = "modal conf"; document.body.appendChild(dlg); }
+    dlg.innerHTML = `<div class="modal-h"><div class="conf-h"><span class="conf-ic">${ICON.trash}</span><h2>${esc(title)}</h2></div></div>
+      <div class="modal-b">${text ? `<p style="margin:0 0 8px">${esc(text)}</p>` : ""}${trash ? `<p class="small muted" style="margin:0">Queda en la papelera 5 días por si quieres restaurarlo.</p>` : `<p class="small" style="margin:0;color:var(--bad);font-weight:600">Esto no se puede deshacer.</p>`}
+        ${typeName ? `<label class="f" for="confT">Para confirmar, escribe <b>${esc(typeName)}</b></label><input id="confT" autocomplete="off">` : ""}</div>
+      <div class="modal-f conf-f"><button type="button" class="btn" id="confNo">Cancelar</button><button type="button" class="btn danger-solid" id="confYes" ${typeName ? "disabled" : ""}>${esc(yes)}</button></div>`;
+    const done = (v) => { dlg.close(); resolve(v); };
+    $("confNo").onclick = () => done(false); $("confYes").onclick = () => done(true);
+    dlg.oncancel = (e) => { e.preventDefault(); done(false); };
+    if (typeName) $("confT").oninput = (e) => { $("confYes").disabled = normalize(e.target.value) !== normalize(typeName); };
+    dlg.showModal(); (typeName ? $("confT") : $("confNo")).focus();
+  });
+}
+/** Aviso de 10 segundos con «Deshacer» después de borrar algo que fue a la papelera. */
+function undoToast(msg, trashId, after) {
+  document.querySelectorAll(".toast.undo").forEach((x) => x.remove());
+  const t = document.createElement("div");
+  t.className = "toast undo"; t.innerHTML = `<span>${esc(msg)}</span><button type="button">Deshacer</button><i></i>`;
+  document.body.appendChild(t);
+  const tm = setTimeout(() => t.remove(), 10000);
+  t.querySelector("button").onclick = async () => {
+    clearTimeout(tm); t.remove();
+    try { await api(`/api/trash/${trashId}/restore`, { method: "POST" }); toast("Restaurado"); if (after) after(); } catch (e) { toast(e.message, 6000); }
+  };
+}
 
 async function api(path, { method = "GET", body } = {}) {
   if (window.demoApi) return window.demoApi(path, { method, body }); // solo en la vista previa
@@ -1258,7 +1290,7 @@ $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); aw
 
 /* ================= navegación ================= */
 const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
-  clientes: "Clientes y cobros", plan: "Plan y uso", planes: "Planes", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
+  clientes: "Clientes y cobros", plan: "Plan y uso", planes: "Planes", papelera: "Papelera", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
 // rutas viejas → nuevas (enlaces guardados y notificaciones)
 const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", redes: "asistentes", "redes/catalogo": "catalogo", "redes/historias": "catalogo/historias",
   "redes/prompts": "asistentes", "redes/reglas": "asistentes/reglas", "redes/actividad": "metricas/actividad", resumen: "metricas", estadisticas: "metricas/redes", usuarios: "equipo", clientes_leads: "clientes" };
@@ -1267,7 +1299,7 @@ const anyCan = (list) => list.some((p) => can(p));
 const VIEW_OK = {
   inicio: () => true, conversaciones: () => can("conversaciones"), asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
   metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
-  equipo: () => isMaestro() || can("equipo"), planes: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
+  equipo: () => isMaestro() || can("equipo"), planes: () => isMaestro(), papelera: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
 };
 const viewOk = (v) => !!(VIEW_OK[v] && VIEW_OK[v]());
 const defaultRoute = () => "inicio";
@@ -1336,7 +1368,7 @@ function renderNav() {
       + item("asistentes", NI.bot, "Asistentes") + item("catalogo", NI.bag, "Catálogo"))
     + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()))
     + group("Mi negocio", item("clientes", NI.money, "Clientes y cobros", S.leadsNew ? `<span class="cnt">${S.leadsNew}</span>` : ""))
-    + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, isMaestro() ? "Equipo" : "Mi equipo") + item("planes", NI.tiers, "Planes")
+    + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, isMaestro() ? "Equipo" : "Mi equipo") + item("planes", NI.tiers, "Planes") + item("papelera", ICON.trash, "Papelera")
       + item("plan", NI.card, isMaestro() ? "Plan y uso" : "Mi plan", (() => { const b = curBrand(); return b && b.bill_state && b.bill_state.cls === "bad" ? flag : ""; })()) + item("configuracion", ICON.gear, "Configuración", isMaestro() && cfgIssue ? flag : "") + item("guia", NI.guide, "Guía", (() => { const b = curBrand(); if (!b) return ""; const g = guideFor(b); return `<span class="prog">${g.done}/${g.total}</span>`; })()) + item("ayuda", NI.help, "Ayuda"));
   drawStoreSwitch();
 }
@@ -1411,7 +1443,7 @@ function render() {
   ({
     inicio: () => renderHome(), conversaciones: () => renderInbox(), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
     metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
-    equipo: () => (isMaestro() ? renderUsers() : renderMyTeam()), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
+    equipo: () => (isMaestro() ? renderUsers() : renderMyTeam()), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), papelera: () => renderTrash(), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
   })[view]();
   closeGuidePanel(); drawGuideFab();
@@ -1780,8 +1812,8 @@ function renderStoreCfg(sections) {
     catch (e) { toast(e.message, 6000); }
   };
   if ($("cDelete")) $("cDelete").onclick = async () => {
-    if (!confirm(`¿Eliminar "${b.name}"? Se borran sus prompts, reglas, catálogo y actividad. Sus cuentas quedan sin asignar.`)) return;
-    try { await api(`/api/brands/${b.id}`, { method: "DELETE" }); changed = false; setDirty(false); await loadData(); S.selBrand = S.brands[0]?.id || null; go("tiendas"); render(); toast("Tienda eliminada"); }
+    if (!(await confirmDel({ title: `¿Seguro que deseas borrar la tienda ${b.name}?`, text: "Se borran sus prompts, reglas, catálogo, contactos y actividad. Sus cuentas quedan sin asignar.", typeName: b.name }))) return;
+    try { const r = await api(`/api/brands/${b.id}`, { method: "DELETE" }); changed = false; setDirty(false); await loadData(); S.selBrand = S.brands[0]?.id || null; go("tiendas"); render(); undoToast(`Tienda ${b.name} borrada`, r.trash_id, async () => { await loadData(); render(); }); }
     catch (e) { toast(e.message); }
   };
 }
@@ -1852,8 +1884,8 @@ function tabAccounts() {
   }));
   $("tabBody").querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
     const a = S.accounts.find((x) => x.id === b.dataset.del);
-    if (!confirm(`¿Quitar ${a.name}? El bot deja de responder en esa cuenta y se borran sus contactos.`)) return;
-    try { await api(`/api/accounts/${a.id}`, { method: "DELETE" }); await loadData(); render(); toast("Cuenta quitada"); } catch (e) { toast(e.message); }
+    if (!(await confirmDel({ title: `¿Seguro que deseas quitar la cuenta ${a.name}?`, text: "El bot deja de responder en esa cuenta y se borran sus contactos y mensajes.", yes: "Sí, quitar" }))) return;
+    try { const r = await api(`/api/accounts/${a.id}`, { method: "DELETE" }); await loadData(); render(); undoToast(`Cuenta ${a.name} quitada`, r.trash_id, async () => { await loadData(); render(); }); } catch (e) { toast(e.message); }
   }));
 }
 $("mCancel").onclick = () => $("manualDlg").close();
@@ -2167,7 +2199,7 @@ function tabRules() {
         q('[data-f="publicReply"]').oninput = (e) => { r.publicReply = e.target.value; changed(); };
         q('[data-f="mediaId"]').onchange = (e) => { r.mediaId = e.target.value; r.mediaLabel = e.target.value ? e.target.selectedOptions[0].textContent : ""; changed(); };
       }
-      q('[data-a="del"]').onclick = () => { if (confirm("¿Eliminar esta regla?")) { rules.splice(i, 1); changed(); draw(); } };
+      q('[data-a="del"]').onclick = async () => { if (await confirmDel({ title: "¿Seguro que deseas borrar esta regla?", text: "Se borra cuando guardes los cambios.", trash: false })) { rules.splice(i, 1); changed(); draw(); } };
       q('[data-a="up"]').onclick = () => { [rules[i - 1], rules[i]] = [rules[i], rules[i - 1]]; changed(); draw(); };
       q('[data-a="down"]').onclick = () => { [rules[i + 1], rules[i]] = [rules[i], rules[i + 1]]; changed(); draw(); };
       upd(); wrap.appendChild(el);
@@ -2765,14 +2797,14 @@ function drawFicha(d, meta) {
     <div class="sec"><h4>Notas del equipo</h4>${notes.length ? notes.map((n, i) => `<div class="note">${esc(n.text)}<small>${esc(n.by || "")} · ${esc(fmt(n.at))} <button type="button" class="linkbtn" data-ndel="${i}">Borrar</button></small></div>`).join("") : `<p class="small muted" style="margin:0">Sin notas. Solo las ve tu equipo, nunca el cliente.</p>`}
       <textarea id="fNote" placeholder="Escribe una nota…" style="min-height:56px;margin-top:8px"></textarea><button class="btn small" id="fNoteAdd" style="margin-top:6px">Guardar nota</button></div>
     ${can("tienda") ? `<div class="sec"><h4>Privacidad</h4><button class="btn small danger" id="fWipe">Borrar todos sus datos</button><div class="help">Para cuando un cliente pide que eliminen su información. No se puede deshacer.</div></div>` : ""}`;
-  el.querySelectorAll("[data-sdel]").forEach((b) => (b.onclick = async () => { if (!confirm("¿Quitar este pago? Deja de contar en tus ventas.")) return; try { await api(`/api/sales/${b.dataset.sdel}`, { method: "DELETE" }); toast("Pago quitado"); loadThread(); loadInboxList(true); } catch (e) { toast(e.message); } }));
+  el.querySelectorAll("[data-sdel]").forEach((b) => (b.onclick = async () => { if (!(await confirmDel({ title: "¿Seguro que deseas quitar este pago?", text: "Deja de contar en tus ventas.", yes: "Sí, quitar" }))) return; try { const r = await api(`/api/sales/${b.dataset.sdel}`, { method: "DELETE" }); loadThread(); loadInboxList(true); undoToast("Pago quitado", r.trash_id, () => { loadThread(); loadInboxList(true); }); } catch (e) { toast(e.message); } }));
   $("fClose").onclick = () => { S.inbox.ficha = false; $("inbox").classList.remove("with-ficha"); el.innerHTML = ""; };
   $("fTag").onkeydown = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); meta({ tags: [...tags, e.target.value.trim()] }); } };
   el.querySelectorAll("[data-tdel]").forEach((b) => (b.onclick = () => meta({ tags: tags.filter((_, i) => i !== +b.dataset.tdel) })));
   $("fNoteAdd").onclick = () => { const t = $("fNote").value.trim(); if (t) meta({ note: { text: t } }, "Nota guardada"); };
-  el.querySelectorAll("[data-ndel]").forEach((b) => (b.onclick = () => { if (confirm("¿Borrar esta nota?")) meta({ delete_note: +b.dataset.ndel }); }));
+  el.querySelectorAll("[data-ndel]").forEach((b) => (b.onclick = async () => { if (await confirmDel({ title: "¿Seguro que deseas borrar esta nota?", trash: false })) meta({ delete_note: +b.dataset.ndel }); }));
   if ($("fWipe")) $("fWipe").onclick = async () => {
-    if (!confirm(`¿Borrar todos los datos de ${contactName(c)}? Se eliminan sus mensajes, notas, etiquetas y registro. No se puede deshacer.`)) return;
+    if (!(await confirmDel({ title: `¿Seguro que deseas borrar todos los datos de ${contactName(c)}?`, text: "Se eliminan sus mensajes, notas, etiquetas y registro. Es para cuando el cliente pide que borren su información.", trash: false, typeName: "BORRAR" }))) return;
     try { await api(`/api/conversations/${S.inbox.sel.acc}/${encodeURIComponent(S.inbox.sel.user)}`, { method: "DELETE" }); toast("Datos del cliente borrados"); S.inbox.sel = null; renderInbox(); refreshBell(); } catch (e) { toast(e.message); }
   };
 }
@@ -3408,8 +3440,8 @@ async function renderUsers() {
   }));
   $("uBody").querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
     const x = list.find((y) => y.id === b.dataset.del);
-    if (!confirm(`¿Eliminar a ${x.name}? Ya no podrá entrar al panel.`)) return;
-    try { await api(`/api/users/${x.id}`, { method: "DELETE" }); toast("Usuario eliminado"); renderUsers(); } catch (e) { toast(e.message); }
+    if (!(await confirmDel({ title: `¿Seguro que deseas borrar a ${x.name}?`, text: "Ya no podrá entrar al panel. Sus conversaciones y ventas se conservan." }))) return;
+    try { const r = await api(`/api/users/${x.id}`, { method: "DELETE" }); renderUsers(); undoToast(`${x.name} borrado`, r.trash_id, renderUsers); } catch (e) { toast(e.message); }
   }));
 }
 function showInvite(name, link, after = renderUsers) {
@@ -3422,6 +3454,29 @@ function showInvite(name, link, after = renderUsers) {
   $("uiClose").onclick = $("uiOk").onclick = () => { dlg.close(); after(); };
   if (!dlg.open) dlg.showModal();
 }
+/* ---------- Papelera: lo borrado se guarda 5 días ---------- */
+async function trashRows(list, kinds, after, canPurge) {
+  const today = Date.now();
+  return list.map((x) => { const left = Math.max(0, Math.ceil((Date.parse(x.until) - today) / 864e5));
+    return `<div class="tr-row"><div class="grow"><b>${esc(x.label)}</b> <span class="pill gray">${esc(kinds[x.kind] || x.kind)}</span>${x.brand_id && brandById(x.brand_id) && x.kind !== "brand" ? ` <span class="small muted">· ${esc(brandById(x.brand_id).name)}</span>` : ""}
+      <div class="small muted">Borrado ${esc(agoText(x.at))}${x.by_name ? ` por ${esc(x.by_name)}` : ""} · se borra de verdad ${left <= 1 ? "mañana" : `en ${left} días`}</div></div>
+      <button class="btn small" data-res="${x.id}">Restaurar</button>${canPurge ? ` <button class="icon-btn danger" data-purge="${x.id}" aria-label="Borrar ya">${ICON.trash}</button>` : ""}</div>`; }).join("");
+}
+function bindTrash(box, list, after) {
+  box.querySelectorAll("[data-res]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/api/trash/${b.dataset.res}/restore`, { method: "POST" }); await loadData(); toast("Restaurado"); after(); } catch (e) { toast(e.message, 6000); b.disabled = false; } }));
+  box.querySelectorAll("[data-purge]").forEach((b) => (b.onclick = async () => { const x = list.find((y) => String(y.id) === b.dataset.purge);
+    if (!(await confirmDel({ title: `¿Seguro que deseas borrar ${x.label} para siempre?`, trash: false, yes: "Sí, borrar para siempre" }))) return;
+    try { await api(`/api/trash/${x.id}`, { method: "DELETE" }); after(); } catch (e) { toast(e.message); } }));
+}
+async function renderTrash() {
+  shell({ title: "Papelera", sub: "Lo que se borra queda aquí 5 días. Después se borra de verdad." });
+  const box = $("tabBody"); box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  let r; try { r = await api("/api/trash"); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("tabBody")) return;
+  box.innerHTML = r.list.length ? `<div class="card">${await trashRows(r.list, r.kinds, renderTrash, true)}</div>` : `<div class="card empty">La papelera está vacía.</div>`;
+  bindTrash(box, r.list, renderTrash);
+}
+
 /* ---------- Mi equipo (lo ve el dueño de la tienda) ---------- */
 async function renderMyTeam() {
   const b = curBrand();
@@ -3439,7 +3494,9 @@ async function renderMyTeam() {
       ${x.owner || x.me ? "" : `<select data-lv="${x.id}" style="width:auto">${Object.entries(LVL).map(([k, l]) => `<option value="${k}" ${x.level === k ? "selected" : ""}>${l}</option>`).join("")}</select>
         ${x.pending ? `<button class="btn small" data-link="${x.id}">Enlace</button>` : ""}<button class="icon-btn danger" data-del="${x.id}" aria-label="Quitar">${ICON.trash}</button>`}</div>`).join("")}
   </div>
-  <p class="help">«Ver y responder»: conversaciones y pausar el bot. «Todo lo de la tienda»: lo mismo que puedes ver tú, menos manejar el equipo.</p>`;
+  <p class="help">«Ver y responder»: conversaciones y pausar el bot. «Todo lo de la tienda»: lo mismo que puedes ver tú, menos manejar el equipo.</p><div id="mtTrash"></div>`;
+  api("/api/trash").then(async (t) => { const el = $("mtTrash"); if (!el) return; const list = t.list.filter((x) => x.brand_id === b.id);
+    if (!list.length) return; el.innerHTML = `<div class="card"><h2 style="font-size:15px;margin:0 0 4px">Quitados recientemente</h2><p class="small muted" style="margin:0 0 6px">Puedes traerlos de vuelta durante 5 días.</p>${await trashRows(list, t.kinds, renderMyTeam, false)}</div>`; bindTrash(el, list, renderMyTeam); }).catch(() => {});
   $("mtNew").onclick = () => {
     if (full) return toast(`Tu plan permite ${lim} personas. Mejora tu plan para agregar más.`, 6000);
     const dlg = $("userDlg");
@@ -3457,7 +3514,7 @@ async function renderMyTeam() {
   };
   box.querySelectorAll("[data-lv]").forEach((x) => (x.onchange = async () => { try { await api(`/api/myteam/${x.dataset.lv}`, { method: "PUT", body: { level: x.value } }); toast("Guardado"); renderMyTeam(); } catch (e) { toast(e.message); } }));
   box.querySelectorAll("[data-link]").forEach((x) => (x.onclick = async () => { try { const y = await api(`/api/myteam/${x.dataset.link}/invite`, { method: "POST" }); showInvite(r.list.find((z) => z.id === x.dataset.link).name, y.invite_url, renderMyTeam); } catch (e) { toast(e.message); } }));
-  box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => { const z = r.list.find((q) => q.id === x.dataset.del); if (!confirm(`¿Quitar a ${z.name} de tu equipo? Ya no podrá entrar.`)) return; try { await api(`/api/myteam/${z.id}`, { method: "DELETE" }); toast("Listo"); renderMyTeam(); } catch (e) { toast(e.message); } }));
+  box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => { const z = r.list.find((q) => q.id === x.dataset.del); if (!(await confirmDel({ title: `¿Seguro que deseas quitar a ${z.name} de tu equipo?`, text: "Ya no podrá entrar al panel.", yes: "Sí, quitar" }))) return; try { const y = await api(`/api/myteam/${z.id}`, { method: "DELETE" }); renderMyTeam(); undoToast(`${z.name} quitado de tu equipo`, y.trash_id, renderMyTeam); } catch (e) { toast(e.message); } }));
 }
 
 function openUser(x) {
@@ -3621,7 +3678,7 @@ async function loadDevices() {
     el.innerHTML = list.length ? list.map((d) => `<div class="dev-row"><span><strong style="color:var(--ink)">${esc(d.label || "Teléfono")}</strong>${d.endpoint === mine ? ' <span class="pill ok">Este</span>' : ""}<br><span class="muted">Activado ${esc(fmt(d.created_at))}</span></span>
       <button class="btn small danger" data-dev="${esc(d.endpoint)}">Quitar</button></div>`).join("") : "Ninguno todavía. Actívalas arriba desde tu teléfono.";
     el.querySelectorAll("[data-dev]").forEach((b) => (b.onclick = async () => {
-      if (!confirm("¿Quitar los avisos de este teléfono?")) return;
+      if (!(await confirmDel({ title: "¿Seguro que deseas quitar los avisos de este teléfono?", yes: "Sí, quitar", trash: false }))) return;
       try { await api("/api/me/devices", { method: "DELETE", body: { endpoint: b.dataset.dev } }); toast("Teléfono quitado"); if (b.dataset.dev === mine) setupPush(); loadDevices(); } catch (e) { toast(e.message); }
     }));
   } catch (e) { el.textContent = e.message; }
@@ -3715,7 +3772,7 @@ async function drawPTPLCard() {
   }));
   box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
     const t = list.find((x) => x.id === b.dataset.del);
-    if (!confirm(`¿Eliminar la plantilla «${t.name}»? Las tiendas que ya la usaron no cambian.`)) return;
+    if (!(await confirmDel({ title: `¿Seguro que deseas borrar la plantilla «${t.name}»?`, text: "Las tiendas que ya la usaron no cambian.", trash: false }))) return;
     try { await savePTPL(list.filter((x) => x.id !== t.id)); drawPTPLCard(); toast("Plantilla eliminada"); } catch (e) { toast(e.message); }
   }));
 }
@@ -3836,7 +3893,7 @@ async function renderConfig() {
   };
   $("dsTest").onclick = async () => { try { const r = await api("/api/config/deepseek/test", { method: "POST", body: {} }); ok("dsOut", "La clave funciona." + saldo(r)); } catch (e) { bad("dsOut", e.message); } };
   if ($("dsDel")) $("dsDel").onclick = async () => {
-    if (!confirm("¿Quitar la clave? Las tiendas sin clave propia dejarán de responder con IA.")) return;
+    if (!(await confirmDel({ title: "¿Seguro que deseas quitar la clave de DeepSeek?", text: "Las tiendas sin clave propia dejarán de responder con IA.", yes: "Sí, quitar", trash: false }))) return;
     try { await api("/api/config/deepseek", { method: "PUT", body: { key: "" } }); await refreshSession(); renderConfig(); toast("Clave quitada"); } catch (e) { toast(e.message); }
   };
 }
@@ -4059,7 +4116,7 @@ async function renderLeads() {
   const put = async (id, body) => { try { await api(`/api/leads/${id}`, { method: "PUT", body }); toast("Guardado"); loadLeadsCount(); } catch (e) { toast(e.message); } };
   box.querySelectorAll("[data-st]").forEach((x) => (x.onchange = () => put(x.dataset.st, { status: x.value })));
   box.querySelectorAll("[data-note]").forEach((x) => (x.onchange = () => put(x.dataset.note, { note: x.value })));
-  box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => { if (!confirm("¿Borrar esta solicitud?")) return; try { await api(`/api/leads/${x.dataset.del}`, { method: "DELETE" }); renderLeads(); } catch (e) { toast(e.message); } }));
+  box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => { if (!(await confirmDel({ title: "¿Seguro que deseas borrar esta solicitud?" }))) return; try { const r = await api(`/api/leads/${x.dataset.del}`, { method: "DELETE" }); renderLeads(); undoToast("Solicitud borrada", r.trash_id, renderLeads); } catch (e) { toast(e.message); } }));
 }
 const SITE_DEFAULT = {
   brand: "Feedback", whatsapp: "", trial_days: 7, setup_price: "$50", badge_tag: "Nuevo", badge: "Ahora también te explica tus anuncios",
@@ -4325,7 +4382,7 @@ async function renderBilling() {
     </div>`;
   box.querySelectorAll("[data-pay]").forEach((x) => (x.onclick = () => openPayment(r.brands.find((b) => b.id === x.dataset.pay))));
   box.querySelectorAll("[data-edit]").forEach((x) => (x.onclick = () => openBillingEdit(r.brands.find((b) => b.id === x.dataset.edit), r.plans)));
-  box.querySelectorAll("[data-pdel]").forEach((x) => (x.onclick = async () => { if (!confirm("¿Borrar este pago? No cambia la fecha de cobro.")) return; try { await api(`/api/payments/${x.dataset.pdel}`, { method: "DELETE" }); renderBilling(); } catch (e) { toast(e.message); } }));
+  box.querySelectorAll("[data-pdel]").forEach((x) => (x.onclick = async () => { if (!(await confirmDel({ title: "¿Seguro que deseas borrar este pago?", text: "No cambia la fecha de cobro." }))) return; try { const r = await api(`/api/payments/${x.dataset.pdel}`, { method: "DELETE" }); renderBilling(); undoToast("Pago borrado", r.trash_id, renderBilling); } catch (e) { toast(e.message); } }));
   $("aiSave").onclick = async () => { try { await api("/api/ai-prices", { method: "PUT", body: { in: $("aiIn").value, out: $("aiOut").value } }); toast("Guardado"); renderBilling(); } catch (e) { toast(e.message); } };
 }
 function openPayment(b) {
@@ -4405,9 +4462,9 @@ function drawPlanTable(r) {
     box.querySelectorAll("[data-ai]").forEach((x) => (x.onchange = () => { P[x.dataset.ai].ai = x.value; ch(); }));
     box.querySelectorAll("[data-perm]").forEach((x) => (x.onchange = () => { const p = P[x.dataset.i]; p.perms = (p.perms || []).filter((k) => k !== x.dataset.perm); if (x.checked) p.perms.push(x.dataset.perm); ch(); }));
     box.querySelectorAll("[data-pop]").forEach((x) => (x.onchange = () => { P.forEach((p, i) => (p.popular = i === +x.dataset.pop)); ch(); draw(); }));
-    box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = () => {
+    box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => {
       const p = P[+x.dataset.del], n = r.brands.filter((b) => b.plan === p._orig).length;
-      if (n && !confirm(`${n} tienda${n === 1 ? " tiene" : "s tienen"} el plan ${p.name}. Si lo quitas, quedan sin plan (con todo incluido) hasta que les asignes otro. ¿Quitarlo?`)) return;
+      if (!(await confirmDel({ title: `¿Seguro que deseas quitar el plan ${p.name || "nuevo"}?`, text: (n ? `${n} tienda${n === 1 ? " lo tiene" : "s lo tienen"}: quedan sin plan (con todo incluido) hasta que les asignes otro. ` : "") + "Se quita cuando guardes los cambios.", yes: "Sí, quitar", trash: false }))) return;
       P.splice(+x.dataset.del, 1); ch(); draw(); }));
   };
   const save = async () => {
@@ -4725,7 +4782,7 @@ async function renderStoreConn(id) {
   if ($("scRegen")) $("scRegen").onclick = () => { if (confirm("¿Crear una clave nueva? La anterior deja de funcionar: tendrás que pegar la nueva en tu tienda.")) put({ regenerate: true }, "Clave nueva creada"); };
   if ($("scNameSave")) $("scNameSave").onclick = () => put({ name: $("scName").value }, "Nombre guardado");
   if ($("scTest")) $("scTest").onclick = async () => { try { await api(`/api/stores/${st.id}/test`, { method: "POST" }); toast("Prueba registrada ✓"); renderStoreConn(st.id); } catch (e) { toast(e.message); } };
-  if ($("scDel")) $("scDel").onclick = async () => { if (!confirm(`¿Desconectar ${st.name}? Sus ventas ya registradas se conservan.`)) return; try { await api(`/api/stores/${st.id}`, { method: "DELETE" }); toast("Tienda desconectada"); go("integraciones"); } catch (e) { toast(e.message); } };
+  if ($("scDel")) $("scDel").onclick = async () => { if (!(await confirmDel({ title: `¿Seguro que deseas desconectar ${st.name}?`, text: "Sus ventas ya registradas se conservan.", yes: "Sí, desconectar" }))) return; try { const r = await api(`/api/stores/${st.id}`, { method: "DELETE" }); go("integraciones"); undoToast(`${st.name} desconectada`, r.trash_id, () => render()); } catch (e) { toast(e.message); } };
 }
 
 function openAdsConnect(b) {
