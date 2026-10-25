@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Autorespuestas · Tu Instagram atiende y vende solo</title>
+<title>Feedback · Tu Instagram atiende y vende solo</title>
 <meta name="description" content="Un asistente con inteligencia artificial que responde tus mensajes, comentarios e historias de Instagram y Facebook en segundos, con la voz de tu marca.">
-<meta name="theme-color" content="#06181b">
+<meta name="theme-color" content="#12123a">
 <meta property="og:title" content="Tu Instagram atiende, responde y vende mientras tú vives">
 <meta property="og:description" content="Mensajes, comentarios e historias respondidos en segundos, con la voz de tu marca.">
-<link rel="icon" href="/icon-192.png">
+<link rel="icon" href="/favicon.png">
 <link rel="preload" href="/web/fonts/montserrat.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/web/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 @font-face{font-family:"Montserrat";src:url(/web/fonts/montserrat.woff2) format("woff2");font-weight:100 900;font-display:swap}
 @font-face{font-family:"Inter";src:url(/web/fonts/inter.woff2) format("woff2");font-weight:100 900;font-display:swap}
-:root{--ink:#06181b;--ink2:#0b2428;--teal:#0e7c86;--teal2:#17a7a3;--mint:#7ee2d4;--cream:#fbf8f3;--sand:#efe8dd;--muted:#5b6b6e;--line:#e7e1d7;--head:"Montserrat",system-ui,sans-serif}
+:root{--ink:#12123a;--ink2:#1b1b4d;--teal:#28286c;--teal2:#4a4aa8;--mint:#dfe0f6;--cream:#f7f7fa;--sand:#ececf1;--muted:#5d5f78;--line:#e2e2ea;--head:"Montserrat",system-ui,sans-serif}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 html,body{margin:0}
@@ -33,8 +33,8 @@ h1,h2,h3,.logo,.pr,.n,.big{font-family:var(--head)}
 .btn.ghost:hover{background:rgba(255,255,255,.1)}
 .btn.ghost.dk{border-color:var(--line);color:var(--ink);background:#fff}
 .btn.dark{background:var(--ink);color:#fff}
-.btn.mint{background:var(--mint);color:var(--ink);box-shadow:0 10px 30px -10px rgba(126,226,212,.7)}
-.btn.mint:hover{box-shadow:0 16px 36px -10px rgba(126,226,212,.85)}
+.btn.mint{background:var(--mint);color:var(--ink);box-shadow:0 10px 30px -10px rgba(223,224,246,.7)}
+.btn.mint:hover{box-shadow:0 16px 36px -10px rgba(223,224,246,.85)}
 .btn svg{width:18px;height:18px;flex:none}
 .btn .arr{transition:transform .2s}.btn:hover .arr{transform:translateX(3px)}
 :focus-visible{outline:2px solid var(--mint);outline-offset:3px}
@@ -49,13 +49,13 @@ h1,h2,h3,.logo,.pr,.n,.big{font-family:var(--head)}
 .hero{position:relative;background:var(--ink);color:#fff;overflow:hidden;padding-bottom:120px}
 .aurora{position:absolute;inset:-25% -15% auto -15%;height:1000px;pointer-events:none;filter:blur(14px)}
 .aurora i{position:absolute;border-radius:50%;opacity:.75;animation:drift 18s ease-in-out infinite alternate}
-.aurora i:nth-child(1){width:46%;height:52%;left:6%;top:12%;background:radial-gradient(closest-side,rgba(23,167,163,.7),transparent)}
-.aurora i:nth-child(2){width:40%;height:46%;right:4%;top:2%;background:radial-gradient(closest-side,rgba(126,226,212,.38),transparent);animation-duration:22s;animation-delay:-6s}
-.aurora i:nth-child(3){width:50%;height:50%;left:42%;top:46%;background:radial-gradient(closest-side,rgba(14,124,134,.6),transparent);animation-duration:26s;animation-delay:-12s}
+.aurora i:nth-child(1){width:46%;height:52%;left:6%;top:12%;background:radial-gradient(closest-side,rgba(74,74,168,.7),transparent)}
+.aurora i:nth-child(2){width:40%;height:46%;right:4%;top:2%;background:radial-gradient(closest-side,rgba(223,224,246,.38),transparent);animation-duration:22s;animation-delay:-6s}
+.aurora i:nth-child(3){width:50%;height:50%;left:42%;top:46%;background:radial-gradient(closest-side,rgba(40,40,108,.6),transparent);animation-duration:26s;animation-delay:-12s}
 @keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(6%,4%) scale(1.08)}100%{transform:translate(-5%,-3%) scale(.96)}}
 .grid-bg{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:radial-gradient(70% 60% at 50% 30%,#000 30%,transparent 80%);mask-image:radial-gradient(70% 60% at 50% 30%,#000 30%,transparent 80%)}
 nav.top{position:sticky;top:0;z-index:30;transition:background .3s,box-shadow .3s,backdrop-filter .3s}
-nav.top.scrolled{background:rgba(6,24,27,.78);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 1px 0 rgba(255,255,255,.08)}
+nav.top.scrolled{background:rgba(18,18,58,.78);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 1px 0 rgba(255,255,255,.08)}
 nav.top .wrap{display:flex;align-items:center;justify-content:space-between;padding-top:18px;padding-bottom:18px;color:#fff}
 .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.03em}
 .logo i{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-style:normal;background:linear-gradient(135deg,var(--mint),var(--teal2));color:var(--ink);font-weight:800}
@@ -108,7 +108,7 @@ h1 .hl{position:relative;display:inline-block;background:linear-gradient(100deg,
 .f2 .big{font-size:26px;font-weight:800;letter-spacing:-.03em}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .rubros{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);display:flex;gap:6px;z-index:4}
-.rubros button{font-size:12.5px;font-weight:600;color:rgba(255,255,255,.65);border:1px solid rgba(255,255,255,.16);background:rgba(6,24,27,.4);border-radius:999px;padding:6px 12px;cursor:pointer;transition:all .3s}
+.rubros button{font-size:12.5px;font-weight:600;color:rgba(255,255,255,.65);border:1px solid rgba(255,255,255,.16);background:rgba(18,18,58,.4);border-radius:999px;padding:6px 12px;cursor:pointer;transition:all .3s}
 .rubros button.on{background:#fff;color:var(--ink);border-color:#fff}
 
 /* franja */
@@ -129,12 +129,12 @@ h2{font-size:52px;line-height:1.05;letter-spacing:-.04em;margin:14px 0 0;font-we
 /* bento */
 .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-top:54px}
 .b{background:#fff;border:1px solid var(--line);border-radius:28px;padding:30px;position:relative;overflow:hidden;transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s}
-.b:hover{transform:translateY(-6px);box-shadow:0 30px 60px -30px rgba(6,24,27,.35)}
+.b:hover{transform:translateY(-6px);box-shadow:0 30px 60px -30px rgba(18,18,58,.35)}
 .b h3{font-size:22px;letter-spacing:-.03em;margin:0 0 8px;font-weight:800}
 .b p{margin:0;color:var(--muted);line-height:1.5}
 .b.c4{grid-column:span 4}.b.c2{grid-column:span 2}.b.c3{grid-column:span 3}
 .b.dark{background:var(--ink);color:#fff;border-color:var(--ink)}.b.dark p{color:rgba(255,255,255,.65)}
-.b.teal{background:linear-gradient(160deg,#0e7c86,#0a5d66);color:#fff;border:0}.b.teal p{color:rgba(255,255,255,.78)}
+.b.teal{background:linear-gradient(160deg,#28286c,#0a5d66);color:#fff;border:0}.b.teal p{color:rgba(255,255,255,.78)}
 .mini{margin-top:24px;background:var(--cream);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:8px}
 .mini .q{align-self:flex-start;background:#fff;border:1px solid var(--line);border-radius:16px;padding:8px 12px;font-size:14px}
 .mini .a{align-self:flex-end;background:var(--teal);color:#fff;border-radius:16px;padding:8px 12px;font-size:14px;max-width:80%}
@@ -181,7 +181,7 @@ h2{font-size:52px;line-height:1.05;letter-spacing:-.04em;margin:14px 0 0;font-we
 
 /* planes */
 .pricing{background:var(--ink);color:#fff;position:relative;overflow:hidden}
-.pricing:before{content:"";position:absolute;left:50%;top:45%;width:1000px;height:560px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(23,167,163,.35),transparent);filter:blur(20px);pointer-events:none}
+.pricing:before{content:"";position:absolute;left:50%;top:45%;width:1000px;height:560px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(74,74,168,.35),transparent);filter:blur(20px);pointer-events:none}
 .pricing .kick{color:var(--mint)}
 .pricing .sh p{color:rgba(255,255,255,.6)}
 .tog{display:inline-flex;background:rgba(255,255,255,.08);border-radius:999px;padding:4px;font-size:14px;font-weight:600}
@@ -191,8 +191,8 @@ h2{font-size:52px;line-height:1.05;letter-spacing:-.04em;margin:14px 0 0;font-we
 .tog button:not(.on) em{color:var(--mint)}
 .plans{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:54px;align-items:stretch}
 .plan{border-radius:28px;padding:32px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;transition:transform .35s,border-color .35s}
-.plan:hover{border-color:rgba(126,226,212,.4)}
-.plan.pop{background:#fff;color:var(--ink);box-shadow:0 40px 80px -30px rgba(23,167,163,.6)}
+.plan:hover{border-color:rgba(223,224,246,.4)}
+.plan.pop{background:#fff;color:var(--ink);box-shadow:0 40px 80px -30px rgba(74,74,168,.6)}
 .js .plan.pop.in{transform:translateY(-14px)}
 .plan .tag{align-self:flex-start;background:var(--mint);color:var(--ink);font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;margin-bottom:14px}
 .plan h3{margin:0;font-size:20px;font-weight:800}
@@ -204,7 +204,7 @@ h2{font-size:52px;line-height:1.05;letter-spacing:-.04em;margin:14px 0 0;font-we
 .plan li:before{content:"";width:18px;height:18px;border-radius:50%;flex:none;margin-top:1px;background:var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306181b' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/11px no-repeat}
 .plan.pop li:before{background-color:var(--teal);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E")}
 .addon{position:relative;margin-top:22px;border:1px dashed rgba(255,255,255,.2);border-radius:22px;padding:20px 26px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-.addon .ic{width:46px;height:46px;border-radius:14px;background:rgba(126,226,212,.15);color:var(--mint);display:grid;place-items:center;flex:none}
+.addon .ic{width:46px;height:46px;border-radius:14px;background:rgba(223,224,246,.15);color:var(--mint);display:grid;place-items:center;flex:none}
 .addon p{margin:2px 0 0;color:rgba(255,255,255,.6);font-size:14px}
 .addon .setup{color:rgba(255,255,255,.7);font-size:14px}.addon .setup b{color:#fff}
 
@@ -220,7 +220,7 @@ h2{font-size:52px;line-height:1.05;letter-spacing:-.04em;margin:14px 0 0;font-we
 
 /* cierre */
 .final{margin:0 32px 32px;border-radius:40px;background:var(--ink);color:#fff;text-align:center;padding:110px 30px;position:relative;overflow:hidden}
-.final:before{content:"";position:absolute;inset:0;background:radial-gradient(50% 70% at 50% 110%,rgba(23,167,163,.7),transparent 70%);animation:breathe 8s ease-in-out infinite}
+.final:before{content:"";position:absolute;inset:0;background:radial-gradient(50% 70% at 50% 110%,rgba(74,74,168,.7),transparent 70%);animation:breathe 8s ease-in-out infinite}
 @keyframes breathe{50%{opacity:.6;transform:scale(1.08)}}
 .final h2{font-size:68px;position:relative}
 .final p{position:relative;color:rgba(255,255,255,.7);font-size:18px;margin:18px 0 34px}
@@ -231,7 +231,7 @@ footer .lk a:hover{color:var(--ink)}
 
 /* formulario */
 dialog{border:0;padding:0;border-radius:28px;width:min(480px,94vw);box-shadow:0 40px 80px rgba(0,0,0,.35);color:var(--ink)}
-dialog::backdrop{background:rgba(6,24,27,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+dialog::backdrop{background:rgba(18,18,58,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 dialog[open]{animation:pop .35s cubic-bezier(.2,.8,.2,1)}
 @keyframes pop{from{opacity:0;transform:translateY(16px) scale(.97)}}
 .dlg-h{padding:28px 30px 4px;position:relative}
@@ -241,7 +241,7 @@ dialog[open]{animation:pop .35s cubic-bezier(.2,.8,.2,1)}
 form.leadf{padding:14px 30px 28px;display:grid;gap:12px}
 .fld label{display:block;font-weight:600;font-size:13.5px;margin-bottom:6px}
 .fld input,.fld select{width:100%;font:inherit;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;transition:border-color .2s,box-shadow .2s}
-.fld input:focus,.fld select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 4px rgba(14,124,134,.12)}
+.fld input:focus,.fld select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 4px rgba(40,40,108,.12)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .form-err{color:#b91c1c;font-size:14px;min-height:0}
@@ -283,7 +283,7 @@ form.leadf{padding:14px 30px 28px;display:grid;gap:12px}
   <div class="grid-bg" aria-hidden="true"></div>
   <nav class="top" id="nav">
     <div class="wrap">
-      <a class="logo" href="#top"><i data-k="initial">A</i><span data-k="brand">Autorespuestas</span></a>
+      <a class="logo" href="#top"><img src="/brand/feedback-white.svg" alt="Feedback" style="height:30px;width:auto;display:block"></a>
       <div class="links"><a href="#producto">Producto</a><a href="#como">Cómo funciona</a><a href="#planes">Planes</a><a href="#preguntas">Preguntas</a></div>
       <div class="nav-cta"><a class="btn ghost" href="/">Entrar</a><button class="btn light" data-open="trial">Probar gratis</button></div>
     </div>
@@ -347,7 +347,7 @@ form.leadf{padding:14px 30px 28px;display:grid;gap:12px}
   <div class="sh"><div data-r><div class="kick">La diferencia</div><h2>Responder tarde<br>es <span class="hl">perder</span> la venta.</h2></div><p data-r style="--d:.15s">La mayoría de la gente le escribe a varias tiendas a la vez. Gana la que responde primero.</p></div>
   <div class="vs">
     <div class="side no" data-r="left"><h3>Sin asistente</h3><ul><li>Tiempo de respuesta<b>Horas</b></li><li>Mensajes de noche y fines de semana<b>Se pierden</b></li><li>Comentarios “precio?”<b>Sin responder</b></li><li>Tu tiempo<b>Pegada al teléfono</b></li></ul></div>
-    <div class="side yes" data-r style="--d:.15s"><h3>Con <span data-k="brand">Autorespuestas</span></h3><ul><li>Tiempo de respuesta<b>Segundos</b></li><li>Mensajes de noche y fines de semana<b>Atendidos</b></li><li>Comentarios “precio?”<b>Respuesta + DM</b></li><li>Tu tiempo<b>Solo lo importante</b></li></ul></div>
+    <div class="side yes" data-r style="--d:.15s"><h3>Con <span data-k="brand">Feedback</span></h3><ul><li>Tiempo de respuesta<b>Segundos</b></li><li>Mensajes de noche y fines de semana<b>Atendidos</b></li><li>Comentarios “precio?”<b>Respuesta + DM</b></li><li>Tu tiempo<b>Solo lo importante</b></li></ul></div>
   </div>
 </div></section>
 
@@ -373,7 +373,7 @@ form.leadf{padding:14px 30px 28px;display:grid;gap:12px}
 </div></section>
 
 <div class="final" data-r="scale"><h2>Deja de perder ventas<br>por <span class="hl">responder tarde.</span></h2><p><span data-k="trial_days">7</span> días gratis. Sin tarjeta. Lo activas hoy.</p><div class="ctas"><button class="btn mint" data-open="trial">Probar gratis <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><a class="btn ghost" data-wa href="#">Hablar por WhatsApp</a></div></div>
-<footer><span class="logo" style="font-size:15px"><i style="width:26px;height:26px;font-size:12px;border-radius:8px" data-k="initial">A</i><span data-k="brand">Autorespuestas</span></span><span class="lk"><a href="/terminos">Términos</a><a href="/privacidad">Privacidad</a><a href="/eliminar-datos">Eliminar mis datos</a><a href="/">Entrar</a><span>© <span id="yr">2026</span></span></span></footer>
+<footer><span class="logo" style="font-size:14px;gap:14px"><img src="/brand/feedback.svg" alt="Feedback" style="height:24px;width:auto;display:block"><a href="https://instagram.com/feedbackproduccionesve" target="_blank" rel="noopener" style="font-family:Inter,system-ui,sans-serif;font-weight:600;color:var(--muted)">@feedbackproduccionesve</a></span><span class="lk"><a href="/terminos">Términos</a><a href="/privacidad">Privacidad</a><a href="/eliminar-datos">Eliminar mis datos</a><a href="/">Entrar</a><span>© <span id="yr">2026</span></span></span></footer>
 
 <dialog id="trial">
   <div id="trialForm">
@@ -395,7 +395,7 @@ form.leadf{padding:14px 30px 28px;display:grid;gap:12px}
     </form>
   </div>
   <div class="ok-box" id="trialOk" hidden>
-    <div class="ck"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#06181b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <div class="ck"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#12123a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
     <h3>¡Listo, <span id="okName">gracias</span>!</h3><p>Te escribimos por WhatsApp en las próximas horas para activarlo contigo.</p>
     <button class="btn dark" type="button" data-close>Cerrar</button>
   </div>
@@ -405,7 +405,7 @@ form.leadf{padding:14px 30px 28px;display:grid;gap:12px}
 (() => {
   /* ---------- contenido (lo puedes cambiar desde tu panel) ---------- */
   const D = {
-    brand: "Autorespuestas", whatsapp: "", trial_days: 7, setup_price: "$50",
+    brand: "Feedback", whatsapp: "", trial_days: 7, setup_price: "$50",
     badge_tag: "Nuevo", badge: "Ahora también te explica tus anuncios",
     h1_pre: "Tu Instagram atiende, responde y", h1_hl: "vende", h1_post: "mientras tú vives.",
     lead: "Un asistente con inteligencia artificial que contesta tus mensajes, comentarios e historias en segundos, con la voz de tu marca. Cuando hace falta una persona, te avisa al teléfono.",

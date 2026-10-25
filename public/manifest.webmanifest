@@ -1,11 +1,11 @@
 {
-  "name": "Autorespuestas",
-  "short_name": "Autorespuestas",
+  "name": "Feedback",
+  "short_name": "Feedback",
   "start_url": "/#resumen",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f6f7f9",
-  "theme_color": "#0e7c86",
+  "theme_color": "#28286c",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }

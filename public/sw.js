@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
     data.badge && self.navigator.setAppBadge ? self.navigator.setAppBadge(data.badge).catch(() => {}) : null,
     // Avisa al panel abierto para que actualice la campanita
     self.clients.matchAll({ type: "window" }).then((cs) => cs.forEach((c) => c.postMessage({ type: "pending" }))),
-    self.registration.showNotification(data.title || "Autorespuestas", {
+    self.registration.showNotification(data.title || "Feedback", {
     body: data.body || "Tienes un cliente por atender",
     icon: "/icon-192.png",
     badge: "/icon-192.png",

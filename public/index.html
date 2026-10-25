@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Autorespuestas</title>
+<title>Feedback</title>
+<link rel="icon" href="/favicon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Autorespuestas">
-<meta name="theme-color" content="#0e7c86">
+<meta name="apple-mobile-web-app-title" content="Feedback">
+<meta name="theme-color" content="#28286c">
 <style>
 :root{
   --bg:#f6f7f9;--card:#fff;--ink:#111827;--ink2:#374151;--muted:#6b7280;--line:#e5e7eb;--line2:#d1d5db;
-  --accent:#0e7c86;--accent-soft:#e6f4f5;--ok:#15803d;--ok-soft:#dcfce7;--bad:#dc2626;--bad-soft:#fef2f2;
+  --accent:#28286c;--accent-soft:#ececf6;--ok:#15803d;--ok-soft:#dcfce7;--bad:#dc2626;--bad-soft:#fef2f2;
   --warn-soft:#fffbeb;--warn-line:#fcd34d;--warn-ink:#92400e;--radius:12px;
   --series-1:#2a78d6;--series-2:#eb6834;--grid:#eceff3;--cmp:#8b93a1;
 }
@@ -28,6 +29,8 @@ a{color:var(--accent)}
 .crumbs{display:flex;gap:8px;align-items:center;color:var(--muted);min-width:0;white-space:nowrap;overflow:hidden}
 .crumbs b{color:var(--ink);font-weight:500}
 .brandmark{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink)}
+.fb-wm{height:38px;width:auto;display:block}.fb-wm-m{height:40px;width:auto;margin-bottom:4px}.fb-wm-top{height:22px;width:auto;display:block}.fb-fd-top{height:20px;width:auto;display:none}
+@media (max-width:800px){.fb-fd-top{display:block}}
 .brandmark i{width:26px;height:26px;border-radius:7px;background:var(--accent);display:grid;place-items:center;color:#fff;font-style:normal;font-size:13px}
 .shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:calc(100vh - 52px)}
 .side{background:var(--card);border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
@@ -55,7 +58,7 @@ main{padding:28px 32px 110px;max-width:1280px;width:100%;min-width:0}
 .btn:hover:not(:disabled){background:#f9fafb}
 .btn:disabled{opacity:.55;cursor:default}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.primary:hover:not(:disabled){background:#0b6b74}
+.btn.primary:hover:not(:disabled){background:#1f1f58}
 .btn.danger{color:var(--bad)}
 .btn.small{padding:5px 10px;font-size:13px}
 .btn.block{width:100%}
@@ -68,7 +71,7 @@ main{padding:28px 32px 110px;max-width:1280px;width:100%;min-width:0}
 .bell{position:relative;padding:7px 12px 7px 7px}
 .bell svg{width:21px;height:21px;color:var(--ink2)}
 .bell-count{position:absolute;top:0;left:19px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;border:2px solid var(--card);box-sizing:content-box}
-.bell.ring svg{animation:ring .9s ease-in-out}
+.bell.bell-shake svg{animation:ring .9s ease-in-out}
 @keyframes ring{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}75%{transform:rotate(3deg)}}
 .bellpanel{position:absolute;top:44px;right:0;width:min(360px,calc(100vw - 24px));max-height:70vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 12px 32px rgba(17,24,39,.14);z-index:40}
 .bellpanel .bp-h{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:700}
@@ -118,7 +121,7 @@ textarea.big{min-height:240px}
 .warnbox .note{color:#b45309;font-size:12.5px;margin-top:8px}
 .chip{font-family:ui-monospace,Menlo,Consolas,monospace;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;padding:1px 6px;font-size:12px;color:#78350f}
 .alert{background:var(--bad-soft);border:1px solid #fecaca;color:var(--bad);padding:10px 14px;border-radius:10px;margin-top:14px}
-.info{background:var(--accent-soft);border:1px solid #b9e3e7;color:#0b5961;padding:10px 14px;border-radius:10px;margin-top:14px}
+.info{background:var(--accent-soft);border:1px solid #d3d4ee;color:#28286c;padding:10px 14px;border-radius:10px;margin-top:14px}
 .empty{padding:40px 10px;text-align:center;color:var(--muted)}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#f3f4f6;color:var(--ink2);white-space:nowrap;border:1px solid transparent}
 .pill.ig{background:var(--accent);color:#fff}
@@ -223,6 +226,36 @@ dialog::backdrop{background:rgba(17,24,39,.45)}
 .hbar.wide{grid-template-columns:130px 1fr 150px}
 /* selector de fechas */
 .dp-wrap{position:relative}
+.dp-wrap.r .dp-pop{left:auto;right:0}
+.lockc{border:1px dashed #cbd5e1;border-radius:14px;padding:22px 18px;background:var(--card);text-align:center;margin:6px 0}.lockc .lk-ic{width:46px;height:46px;border-radius:12px;background:var(--accent-soft,#e6f4f2);color:var(--accent);display:grid;place-items:center;margin:0 auto 10px}
+.lockc b{font-size:16px}.lockc p{color:var(--muted);margin:6px auto 14px;max-width:420px}
+.pl-card{padding:6px 8px}.pl-scroll{overflow-x:auto}.pl-t{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+.pl-t th,.pl-t td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}.pl-t td:first-child,.pl-t th:first-child{text-align:left;width:32%}
+.pl-t .hl{background:#f4f4fb}.pl-t .grp td{background:var(--bg);font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;padding:6px 10px}
+.pl-t .hint{display:block;font-size:11.5px;color:var(--muted)}
+.pl-name{font-weight:800;font-size:16px;text-align:center;padding:5px 6px}.pl-price{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px;color:var(--muted);margin-top:6px}.pl-price input{width:76px;text-align:center;padding:4px 6px}
+.pl-cnt{font-size:11px;color:var(--muted);margin-top:4px}.pl-act{display:flex;justify-content:center;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--muted);margin-top:4px}
+.pl-num{width:96px;text-align:center;padding:5px 6px;font-weight:700}.pl-desc{font-size:12.5px;padding:5px 6px}.pl-ck{width:20px;height:20px;accent-color:var(--accent)}
+.pb-x{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.pb-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}.pb-row:last-child{border-bottom:0}
+.btn.pulse{box-shadow:0 0 0 3px #c9cbeb}
+.lknote{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px}.lknote svg{flex:none;margin-top:2px}
+.adhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dl-wrap{position:relative}.dl-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:45;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 28px rgba(17,24,39,.14);padding:6px;min-width:150px;display:flex;flex-direction:column}
+.dl-menu button{display:flex;gap:8px;align-items:center;background:none;border:0;padding:9px 10px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;text-align:left;color:var(--ink)}.dl-menu button:hover{background:var(--bg)}.dl-menu svg{width:15px;height:15px}
+.live1{display:none}.sum-t{display:none}
+@media (max-width:640px){
+  .adhead{width:100%;flex-wrap:nowrap}.adhead .dp-wrap{flex:1;min-width:0}.adhead .dp-btn{width:100%;justify-content:space-between}.adhead .dp-btn .pill{display:none}.adhead .bl{display:none}
+  .adwrap .adcalc{order:0}.adwrap .live1{order:1}.adwrap .srcbar{order:2}.adwrap #adAsk{order:3}.adwrap #adSum{order:4}.adwrap > .kpis{order:5}.adwrap .sem-h{order:6}.adwrap #semG{order:6}.adwrap > .card:not(.srcbar):not(.live-ads){order:7}.adwrap .grid2{order:8}.adwrap > .help{order:9}
+  .adwrap{display:flex;flex-direction:column}.adwrap > *{margin-top:0!important;margin-bottom:12px!important}.adwrap .sem-h{margin:6px 0 8px}
+  .adwrap .live-ads{display:none}
+  .live1{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13.5px}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px #dcfce7;flex:none}
+  .srcbar{padding:10px 12px;gap:6px}.srcbar .src{font-size:12px}.srcbar > .row:last-child > span{display:none}.srcbar #adCross{padding:5px 10px;font-size:12.5px}
+  .sum-t{color:var(--accent)!important}
+  #adSum{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}#adSum h2{font-size:15px;margin:0}
+  .sum-t{display:inline;font-weight:600;color:var(--accent);margin:0}#adSum .sum-b{display:none;width:100%}#adSum.open .sum-b{display:block}
+}
+.sem-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:18px 0 8px}.sem-h b{font-size:14px}
 .dp-btn{gap:8px}
 .dp-btn svg{width:16px;height:16px}
 .dp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(17,24,39,.18);width:min(760px,calc(100vw - 32px))}
@@ -340,7 +373,7 @@ table.posts td{vertical-align:middle}
 /* acceso */
 .auth{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);background:var(--card)}
 .auth-art{position:relative;overflow:hidden;color:#fff;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;
-  background:radial-gradient(120% 90% at 10% 0%,#17a7a3 0%,rgba(23,167,163,0) 60%),linear-gradient(150deg,#0e7c86 0%,#0a5d66 55%,#073f47 100%)}
+  background:radial-gradient(120% 90% at 10% 0%,#4a4aa8 0%,rgba(74,74,168,0) 60%),linear-gradient(150deg,#28286c 0%,#1f1f58 55%,#14143d 100%)}
 .auth-art .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.01em;position:relative;z-index:2}
 .auth-art .logo i{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);display:grid;place-items:center;font-style:normal;backdrop-filter:blur(6px)}
 .auth-art h1{font-size:clamp(28px,3.2vw,40px);line-height:1.12;letter-spacing:-.02em;margin:0 0 12px;max-width:460px;position:relative;z-index:2}
@@ -352,14 +385,14 @@ table.posts td{vertical-align:middle}
 @keyframes floaty{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-14px) rotate(4deg)}}
 .chatdemo{position:relative;z-index:2;display:flex;flex-direction:column;gap:10px;max-width:360px;margin:34px 0 10px}
 .chatdemo .b{max-width:85%;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.35;opacity:0;transform:translateY(10px) scale(.98);animation:bubble 12s ease-in-out infinite}
-.chatdemo .in{align-self:flex-start;background:rgba(255,255,255,.95);color:#0f2f33;border-bottom-left-radius:6px}
-.chatdemo .out{align-self:flex-end;background:#06343a;color:#e6fbfb;border:1px solid rgba(255,255,255,.18);border-bottom-right-radius:6px}
+.chatdemo .in{align-self:flex-start;background:rgba(255,255,255,.96);color:#1b1b4d;border-bottom-left-radius:6px}
+.chatdemo .out{align-self:flex-end;background:rgba(255,255,255,.1);color:#f1f1fb;border:1px solid rgba(255,255,255,.18);border-bottom-right-radius:6px}
 .chatdemo .out small{display:block;font-size:10.5px;opacity:.7;margin-top:3px}
 .chatdemo .b:nth-child(1){animation-delay:0s}.chatdemo .b:nth-child(2){animation-delay:.9s}.chatdemo .b:nth-child(3){animation-delay:2.2s}.chatdemo .b:nth-child(4){animation-delay:3.1s}
 @keyframes bubble{0%{opacity:0;transform:translateY(10px) scale(.98)}6%,82%{opacity:1;transform:none}90%,100%{opacity:0;transform:translateY(-6px)}}
-.auth-art .foot{font-size:12.5px;opacity:.65;position:relative;z-index:2}
+.auth-art .foot{font-size:12.5px;opacity:.7;position:relative;z-index:2;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .auth-side{display:flex;align-items:center;justify-content:center;padding:40px 24px;background:var(--bg)}
-.auth-box{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:34px 32px;box-shadow:0 24px 60px -24px rgba(14,124,134,.28);animation:rise .5s ease-out}
+.auth-box{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:34px 32px;box-shadow:0 24px 60px -24px rgba(40,40,108,.28);animation:rise .5s ease-out}
 @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 .auth-box.shake{animation:shake .42s}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
@@ -385,8 +418,8 @@ table.posts td{vertical-align:middle}
 .strength i{display:block;height:100%;width:0;border-radius:4px;transition:width .25s,background .25s}
 .strength-t{font-size:12px;color:var(--muted);margin-top:4px}
 .auth-btn{position:relative;width:100%;height:50px;margin-top:20px;border:0;border-radius:12px;font-weight:700;font-size:15.5px;color:#fff;cursor:pointer;
-  background:linear-gradient(135deg,#12989f,#0e7c86 55%,#0b6670);box-shadow:0 10px 24px -10px rgba(14,124,134,.7);transition:transform .12s,box-shadow .2s,filter .2s;overflow:hidden}
-.auth-btn:hover:not(:disabled){filter:brightness(1.06);box-shadow:0 14px 28px -12px rgba(14,124,134,.8)}
+  background:linear-gradient(135deg,#3a3a8c,#28286c 55%,#1f1f58);box-shadow:0 10px 24px -10px rgba(40,40,108,.7);transition:transform .12s,box-shadow .2s,filter .2s;overflow:hidden}
+.auth-btn:hover:not(:disabled){filter:brightness(1.06);box-shadow:0 14px 28px -12px rgba(40,40,108,.8)}
 .auth-btn:active:not(:disabled){transform:scale(.985)}
 .auth-btn:disabled{cursor:default}
 .auth-btn .lbl{display:inline-flex;align-items:center;gap:8px;transition:opacity .15s}
@@ -407,8 +440,8 @@ table.posts td{vertical-align:middle}
 .auth-err:empty{display:none}
 .auth-links{display:flex;justify-content:flex-end;margin-top:12px}
 .auth-links button{border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0;font-size:13.5px}
-.auth-help{margin-top:12px;background:var(--accent-soft);border:1px solid #b9e3e7;color:#0b5961;border-radius:12px;padding:12px 14px;font-size:13.5px;animation:rise .25s ease-out}
-.auth-biz{display:flex;align-items:center;gap:10px;margin:-8px 0 6px;padding:12px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid #b9e3e7;color:#0b5961}
+.auth-help{margin-top:12px;background:var(--accent-soft);border:1px solid #d3d4ee;color:#28286c;border-radius:12px;padding:12px 14px;font-size:13.5px;animation:rise .25s ease-out}
+.auth-biz{display:flex;align-items:center;gap:10px;margin:-8px 0 6px;padding:12px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid #d3d4ee;color:#28286c}
 .auth-biz svg{width:20px;height:20px;flex:none}
 .mobile-brand{display:none}
 @media (max-width:860px){
@@ -416,7 +449,7 @@ table.posts td{vertical-align:middle}
   .auth-art{display:none}
   .auth-side{flex-direction:column;justify-content:flex-start;padding:0 16px 32px;background:var(--bg)}
   .mobile-brand{display:flex;flex-direction:column;align-items:center;gap:10px;width:calc(100% + 32px);margin:0 -16px 0;padding:44px 20px 70px;color:#fff;text-align:center;
-    background:radial-gradient(120% 90% at 10% 0%,#17a7a3 0%,rgba(23,167,163,0) 60%),linear-gradient(150deg,#0e7c86 0%,#0a5d66 60%,#073f47 100%);position:relative;overflow:hidden}
+    background:radial-gradient(120% 90% at 10% 0%,#4a4aa8 0%,rgba(74,74,168,0) 60%),linear-gradient(150deg,#28286c 0%,#1f1f58 55%,#14143d 100%);position:relative;overflow:hidden}
   .mobile-brand i{width:52px;height:52px;border-radius:15px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:22px;animation:floaty 6s ease-in-out infinite}
   .mobile-brand b{font-size:19px}
   .mobile-brand span{opacity:.82;font-size:13.5px}
@@ -733,7 +766,7 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
 
 <section id="auth" class="auth hidden">
   <aside class="auth-art" aria-hidden="true">
-    <div class="logo"><i>A</i> Autorespuestas</div>
+    <div class="logo"><img src="/brand/feedback-white.svg" alt="Feedback" class="fb-wm"></div>
     <span class="float-ic f1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></span>
     <span class="float-ic f2"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.3 1.1 4.1 2.3h3C14.3 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z" transform="scale(.92) translate(1 1)"/></svg></span>
     <span class="float-ic f3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span>
@@ -741,18 +774,37 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
     <div>
       <h1>Tus mensajes y comentarios, respondidos solos.</h1>
       <p class="lead">Instagram y Facebook atendidos al momento, con la voz de tu marca. Tú solo entras cuando hace falta una persona.</p>
-      <div class="chatdemo">
+      <div class="chatdemo" id="chatDemo">
         <div class="b in">Hola, ¿cuánto cuesta el gorro? 😍</div>
         <div class="b out">¡Hola María! 🤎 Cuesta $8 y te regalamos 2 scrunchies.<small>Respondido al instante</small></div>
         <div class="b in">¡Lo quiero! Envían a Valencia?</div>
         <div class="b out">¡Sí! Enviamos por MRW a toda Venezuela 📦<small>Respondido al instante</small></div>
       </div>
+      <script>
+      // La conversación cambia de negocio en cada vuelta, como en la página de venta
+      (function () {
+        var D = [
+          ["Hola, ¿cuánto cuesta el gorro? 😍", "¡Hola María! 🤎 Cuesta $8 y te regalamos 2 scrunchies.", "¡Lo quiero! Envían a Valencia?", "¡Sí! Enviamos por MRW a toda Venezuela 📦"],
+          ["hola! tienen este vestido en talla M? 😍", "¡Hola Ana! ✨ Sí, en M quedan 3. Cuesta $28 y el envío es gratis esta semana.", "me lo llevo!! aceptan pago móvil?", "¡Claro! Pago móvil, Zelle o Binance. Te paso los datos 🙌"],
+          ["cuánto cuesta el sérum? sirve para piel grasa?", "¡Hola Vale! 💧 Sí, es ideal para piel grasa. Cuesta $18.", "perfecto, lo quiero ✨", "¡Genial! ¿A qué ciudad te lo enviamos? 📦"],
+          ["tienen delivery a Chacao? qué combos hay?", "¡Hola Luis! 🍔 Llegamos a Chacao en unos 35 min. El más pedido es el Doble Brasa.", "dame 2 porfa", "¡Anotado! 2 combos = $24. ¿Me pasas tu dirección? 🛵"],
+          ["hola, tienen cita para el sábado?", "¡Hola Carla! Quedan 2 horarios: 9:00 a. m. y 11:30 a. m. 🗓️", "11:30 porfa", "¡Listo! Te reservo el sábado a las 11:30 ✅"]
+        ];
+        var box = document.getElementById("chatDemo"); if (!box) return;
+        var bs = box.querySelectorAll(".b"), n = [0, 0, 0, 0];
+        // Cada burbuja cambia de texto al empezar su vuelta, cuando está oculta
+        bs.forEach(function (b, k) { b.addEventListener("animationiteration", function () { n[k] = (n[k] + 1) % D.length; b.firstChild.nodeValue = D[n[k]][k]; }); });
+        if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          var i = 0; setInterval(function () { i = (i + 1) % D.length; bs.forEach(function (b, k) { b.firstChild.nodeValue = D[i][k]; }); }, 8000);
+        }
+      })();
+      </script>
     </div>
-    <div class="foot">Mensajes · Comentarios · Historias · Estadísticas</div>
+    <div class="foot"><span>Mensajes · Comentarios · Historias · Estadísticas</span><span>@feedbackproduccionesve</span></div>
   </aside>
 
   <div class="auth-side">
-    <div class="mobile-brand" aria-hidden="true"><i>A</i><b>Autorespuestas</b><span>Tus mensajes y comentarios, respondidos solos</span></div>
+    <div class="mobile-brand" aria-hidden="true"><img src="/brand/feedback-white.svg" alt="" class="fb-wm-m"><span>Tus mensajes y comentarios, respondidos solos</span></div>
     <div class="auth-box" id="authBox">
       <form id="loginForm" novalidate>
         <h2>Hola de nuevo 👋</h2>
@@ -834,7 +886,7 @@ mark.x{background:#fde047;padding:0 3px;border-radius:3px;font-weight:700}
 
 <section id="app" class="hidden">
   <header class="topbar">
-    <div class="crumbs"><span class="brandmark"><i>A</i><span class="hide-sm">Autorespuestas</span></span><span>›</span><b id="crumb"></b></div>
+    <div class="crumbs"><span class="brandmark"><img src="/brand/feedback.svg" alt="Feedback" class="fb-wm-top hide-sm"><img src="/brand/fd.svg" alt="Feedback" class="fb-fd-top show-sm"></span><span>›</span><b id="crumb"></b></div>
     <div class="row" style="gap:12px;flex:none;position:relative">
       <div class="menu-wrap" id="storeSwWrap"></div>
       <button id="bellBtn" class="icon-btn bell" aria-label="Clientes por atender" aria-expanded="false" title="Clientes por atender">
@@ -926,7 +978,7 @@ async function api(path, { method = "GET", body } = {}) {
   });
   const d = await r.json().catch(() => ({}));
   if (r.status === 401 && !["/api/login", "/api/setup"].includes(path) && !path.startsWith("/api/invite")) { showAuth(d); throw new Error("Tu sesión expiró"); }
-  if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
+  if (!r.ok) { const e = new Error(d.error || `Error ${r.status}`); e.limit = !!d.limit; throw e; }
   return d;
 }
 
@@ -1085,7 +1137,7 @@ function showAuth(d = {}) {
       if (biz) {
         $("invBiz").innerHTML = `${ICON.store}<span>Vas a manejar: <strong>${esc(biz)}</strong></span>`;
         $("invBiz").classList.remove("hidden");
-        document.title = `Acceso a ${r.stores.includes("*") ? "Autorespuestas" : r.stores.join(", ")}`;
+        document.title = `Acceso a ${r.stores.includes("*") ? "Feedback" : r.stores.join(", ")}`;
       }
     })
       .catch((e) => { $("invError").textContent = e.message; });
@@ -1151,7 +1203,7 @@ document.querySelectorAll("[data-strength]").forEach((bar) => {
     if (v.length >= 8) sc++; if (v.length >= 12) sc++; if (/[A-Z]/.test(v) && /[a-z]/.test(v)) sc++; if (/\d/.test(v)) sc++; if (/[^A-Za-z0-9]/.test(v)) sc++;
     const lv = v.length < 8 ? 0 : sc <= 2 ? 1 : sc <= 3 ? 2 : 3;
     fill.style.width = v ? [20, 45, 72, 100][lv] + "%" : "0";
-    fill.style.background = ["#dc2626", "#f59e0b", "#0e7c86", "#16a34a"][lv];
+    fill.style.background = ["#dc2626", "#f59e0b", "#28286c", "#16a34a"][lv];
     txt.textContent = !v ? "Usa al menos 8 caracteres" : v.length < 8 ? `Te faltan ${8 - v.length} caracteres` : ["", "Aceptable", "Buena", "Muy segura"][lv];
   });
 });
@@ -1200,7 +1252,7 @@ $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); aw
 
 /* ================= navegación ================= */
 const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
-  clientes: "Clientes y cobros", plan: "Plan y uso", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
+  clientes: "Clientes y cobros", plan: "Plan y uso", planes: "Planes", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
 // rutas viejas → nuevas (enlaces guardados y notificaciones)
 const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", redes: "asistentes", "redes/catalogo": "catalogo", "redes/historias": "catalogo/historias",
   "redes/prompts": "asistentes", "redes/reglas": "asistentes/reglas", "redes/actividad": "metricas/actividad", resumen: "metricas", estadisticas: "metricas/redes", usuarios: "equipo", clientes_leads: "clientes" };
@@ -1209,7 +1261,7 @@ const anyCan = (list) => list.some((p) => can(p));
 const VIEW_OK = {
   inicio: () => true, conversaciones: () => can("conversaciones"), asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
   metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
-  equipo: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
+  equipo: () => isMaestro(), planes: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
 };
 const viewOk = (v) => !!(VIEW_OK[v] && VIEW_OK[v]());
 const defaultRoute = () => "inicio";
@@ -1248,6 +1300,7 @@ const NI = {
   bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="4"/><path d="M12 4v4"/><circle cx="12" cy="3" r="1"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/><circle cx="15" cy="14" r="1.2" fill="currentColor"/></svg>',
   bag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
   ads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a2 2 0 0 0 2 2h1l4 4V5L6 9H5a2 2 0 0 0-2 2z"/><path d="M15 8a5 5 0 0 1 0 8"/><path d="M18 5a9 9 0 0 1 0 14"/></svg>',
+  tiers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5z"/><path d="m2 13 10 5 10-5"/><path d="m2 18 10 5 10-5" opacity=".5"/></svg>',
   money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
   plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><circle cx="12" cy="17.5" r=".6" fill="currentColor"/></svg>',
@@ -1277,7 +1330,7 @@ function renderNav() {
       + item("asistentes", NI.bot, "Asistentes") + item("catalogo", NI.bag, "Catálogo"))
     + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()))
     + group("Mi negocio", item("clientes", NI.money, "Clientes y cobros", S.leadsNew ? `<span class="cnt">${S.leadsNew}</span>` : ""))
-    + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, "Equipo")
+    + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, "Equipo") + item("planes", NI.tiers, "Planes")
       + item("plan", NI.card, isMaestro() ? "Plan y uso" : "Mi plan", (() => { const b = curBrand(); return b && b.bill_state && b.bill_state.cls === "bad" ? flag : ""; })()) + item("configuracion", ICON.gear, "Configuración", isMaestro() && cfgIssue ? flag : "") + item("guia", NI.guide, "Guía", (() => { const b = curBrand(); if (!b) return ""; const g = guideFor(b); return `<span class="prog">${g.done}/${g.total}</span>`; })()) + item("ayuda", NI.help, "Ayuda"));
   drawStoreSwitch();
 }
@@ -1352,7 +1405,7 @@ function render() {
   ({
     inicio: () => renderHome(), conversaciones: () => renderInbox(), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
     metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
-    equipo: () => renderUsers(), plan: () => renderPlan(), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
+    equipo: () => renderUsers(), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
   })[view]();
   closeGuidePanel(); drawGuideFab();
@@ -1492,11 +1545,25 @@ const feature = (id, on, title, desc, inner, disabled) => `<div class="box featu
 const CFG_ROUTE = { general: "configuracion/general", ia: "configuracion/ia", mensajes: "configuracion/mensajes", avisos: "configuracion/avisos", funciones: "asistentes" };
 function openConfigure(id, startTab) { if (id && id !== S.selBrand) { S.selBrand = id; try { localStorage.setItem("ar_store", id); } catch {} } go(CFG_ROUTE[startTab] || "configuracion"); }
 
+/* ---------- planes: qué incluye la tienda ---------- */
+const LOCK_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+/** ¿La tienda tiene esta función en su plan? (la cuenta maestra ve todo) */
+const hasF = (k, b = curBrand()) => isMaestro() || !b || !b.feats || b.feats[k] !== false;
+const offF = (k, b = curBrand()) => !!(b && b.feats && b.feats[k] === false);
+const planFor = (k, b = curBrand()) => (b && b.locks && b.locks[k]) || "";
+function lockCard(k, title, text) {
+  const pl = planFor(k);
+  return `<div class="lockc"><div class="lk-ic">${LOCK_SVG}</div><b>${title}</b><p>${text}${pl ? ` Disponible en el plan <b>${esc(pl)}</b>.` : ""}</p><a class="btn primary" href="#plan">Ver planes</a></div>`;
+}
+/** A la cuenta maestra le avisa que la tienda no lo tiene (el bot no lo usará). */
+const lockNote = (k, label) => (isMaestro() && offF(k) ? `<div class="info small lknote">${LOCK_SVG.replace('width="22" height="22"', 'width="15" height="15"')} <span><b>${esc(curBrand().name)}</b> no tiene «${label}» en su plan${curBrand().plan ? ` (${esc(curBrand().plan)})` : ""}: el bot no lo usará. Puedes darle el extra en <a href="#planes/tiendas">Planes</a>.</span></div>` : "");
+const lockToast = (k, label) => { toast(`${label} no está en tu plan${planFor(k) ? `. Disponible en el plan ${planFor(k)}` : ""}.`, 5000); };
+
 function renderStoreCfg(sections) {
   const b = curBrand(); const box = $("tabBody");
   if (!b) { box.innerHTML = `<div class="card empty">Primero crea una tienda.</div>`; return; }
   const canT = can("tienda"), canP = can("prompts"), canPause = can("pausar"), M = isMaestro();
-  const d = { name: b.name, active: b.active, ai_prompt_general: b.ai_prompt_general, knowledge: b.knowledge, ai_model: b.ai_model, ai_handoff: b.ai_handoff,
+  const d = { name: b.name, active: b.active, ai_prompt_general: b.ai_prompt_general, knowledge: b.knowledge, ai_model: b.ai_model, ai_vision: b.ai_model === "deepseek-v4-pro" || !!(b.opts && b.opts.ai_vision), ai_handoff: b.ai_handoff,
     default_reply: b.default_reply, cooldown_hours: b.cooldown_hours, test_mode: b.test_mode, test_users: b.test_users, ai_api_key: "", ai_fallback: b.ai_fallback || "",
     opts: JSON.parse(JSON.stringify(b.opts)) };
   const o = d.opts;
@@ -1530,12 +1597,14 @@ function renderStoreCfg(sections) {
       ${M ? `<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small" type="button" id="cSaveTpl" title="Guarda el prompt general, la base de conocimiento y los prompts de comentarios y DMs de esta tienda">Guardar esta tienda como plantilla</button></div>` : ""}
       <div class="box"><div class="box-h"><div><strong>La IA puede llamar al cliente por su nombre</strong><p>Usa el primer nombre de su perfil al saludar (si parece un nombre de persona).</p></div>${swHtml("cUseName", o.ai_use_name, !canT)}</div></div>
       <hr>
-      <div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}">${keyReady ? "activo (texto)" : "sin clave"}</span></div>
+      <div class="section-t">DeepSeek <span class="pill ${keyReady ? "ok" : "bad"}" id="cAiPill">${keyReady ? (d.ai_vision ? "activo (texto e imágenes)" : "activo (texto)") : "sin clave"}</span></div>
       <label class="f" for="cModel">Modelo</label>
       <select id="cModel" ${roP}>
-        <option value="deepseek-flash" ${d.ai_model !== "deepseek-v4-pro" ? "selected" : ""}>deepseek-flash · rápido y económico</option>
-        <option value="deepseek-v4-pro" ${d.ai_model === "deepseek-v4-pro" ? "selected" : ""}>deepseek-v4-pro · más preciso, unas 4 veces más caro</option>
-      </select>
+        <option value="flash" ${d.ai_model !== "deepseek-v4-pro" && !d.ai_vision ? "selected" : ""}>deepseek-flash · solo texto · rápido y económico</option>
+        <option value="flash-img" ${d.ai_model !== "deepseek-v4-pro" && d.ai_vision ? "selected" : ""} ${hasF("vision") ? "" : "disabled"}>deepseek-flash · texto e imágenes${hasF("vision") ? "" : ` · plan ${esc(planFor("vision"))}`}</option>
+        <option value="pro" ${d.ai_model === "deepseek-v4-pro" ? "selected" : ""} ${hasF("pro_model") ? "" : "disabled"}>deepseek-v4-pro · texto (las fotos las lee flash)${hasF("pro_model") ? "" : ` · plan ${esc(planFor("pro_model"))}`}</option>
+      </select>${lockNote("vision", "Leer fotos")}${lockNote("pro_model", "Modelo deepseek-v4-pro")}
+      <div class="help" id="cModelHelp">${d.ai_model === "deepseek-v4-pro" ? "Más preciso, unas 4 veces más caro. Cuando llega una foto, flash la mira primero y pro responde." : d.ai_vision ? "Lee fotos: comprobantes, productos, cabello. Cada foto gasta un poco más (una llamada extra a la IA)." : "Las fotos no se leen: el bot sabe que llegó una foto y responde según el texto."}</div>
       ${M ? `<label class="f" for="cKey">API Key</label>
       <div class="row">
         <input id="cKey" class="grow" type="password" autocomplete="off" placeholder="${b.ai_key_tail ? `Propia de esta tienda · termina en …${esc(b.ai_key_tail)}` : "Vacío = usa la clave general de Configuración"}">
@@ -1607,7 +1676,9 @@ function renderStoreCfg(sections) {
   };
 
   const TITLES = { general: "General", ia: "IA y conocimiento", mensajes: "Mensajes", respuestas: "Respuestas guardadas", avisos: "Avisos", stories: "", hours: "", human: "", follow: "", links: "" };
-  dlg.innerHTML = sections.map((k) => `<div class="card">${TITLES[k] ? `<h2 style="font-size:16px;margin:0 0 4px">${TITLES[k]}</h2>` : ""}${panes[k]}</div>`).join("")
+  const PLAN_LOCK = { links: ["paylink", "Botón de pago", "Manda tus links de pago como botón y sabe quién ya pagó."], follow: ["follow", "Seguimiento a quien no compró", "El bot le vuelve a escribir a quien preguntó y no compró."] };
+  const paneOf = (k) => { const L = PLAN_LOCK[k]; if (!L) return panes[k]; if (!hasF(L[0])) return lockCard(L[0], L[1], L[2]) + `<div class="hidden">${panes[k]}</div>`; return lockNote(L[0], L[1]) + panes[k]; };
+  dlg.innerHTML = sections.map((k) => `<div class="card">${TITLES[k] ? `<h2 style="font-size:16px;margin:0 0 4px">${TITLES[k]}</h2>` : ""}${paneOf(k)}</div>`).join("")
     + (M && sections.includes("general") ? `<div class="card" style="border-color:#fecaca"><div class="card-h"><div><h2 style="color:var(--bad)">Eliminar tienda</h2><p>Se borran sus prompts, reglas, catálogo y actividad. Sus cuentas quedan sin asignar.</p></div><button class="btn danger" type="button" id="cDelete">${ICON.trash} Eliminar</button></div></div>` : "");
   const q = (s) => dlg.querySelector(s);
   let saveNow;
@@ -1618,7 +1689,11 @@ function renderStoreCfg(sections) {
   val("cName", (v) => (d.name = v)); val("cGeneral", (v) => (d.ai_prompt_general = v)); val("cKb", (v) => (d.knowledge = v)); val("cHandoff", (v) => (d.ai_handoff = v));
   val("cDefault", (v) => (d.default_reply = v)); val("cCool", (v) => (d.cooldown_hours = v)); val("cTestUsers", (v) => (d.test_users = v)); val("cFallback", (v) => (d.ai_fallback = v));
   chk("cActive", (v) => (d.active = v)); chk("cTest", (v) => (d.test_mode = v)); chk("cUseName", (v) => (o.ai_use_name = v));
-  on("cModel", "onchange", (t) => (d.ai_model = t.value));
+  on("cModel", "onchange", (t) => {
+    d.ai_model = t.value === "pro" ? "deepseek-v4-pro" : "deepseek-flash"; d.ai_vision = t.value !== "flash";
+    if ($("cAiPill") && keyReady) $("cAiPill").textContent = d.ai_vision ? "activo (texto e imágenes)" : "activo (texto)";
+    $("cModelHelp").textContent = t.value === "pro" ? "Más preciso, unas 4 veces más caro. Cuando llega una foto, flash la mira primero y pro responde." : t.value === "flash-img" ? "Lee fotos: comprobantes, productos, cabello. Cada foto gasta un poco más (una llamada extra a la IA)." : "Las fotos no se leen: el bot sabe que llegó una foto y responde según el texto.";
+  });
   chk("lbRef", (v) => (o.link_ref = v)); val("lbThanks", (v) => (o.pay_thanks = v));
   // enlaces como botón
   if ($("lbList")) {
@@ -1684,7 +1759,7 @@ function renderStoreCfg(sections) {
     const body = {};
     if (canT) Object.assign(body, { name: d.name, ai_handoff: d.ai_handoff, default_reply: d.default_reply, cooldown_hours: d.cooldown_hours, test_mode: d.test_mode, test_users: d.test_users, ai_fallback: d.ai_fallback,
       opts: { ...o, templates: o.templates.filter((t) => t.title.trim() || t.text.trim()) } });
-    if (canP) Object.assign(body, { ai_prompt_general: d.ai_prompt_general, knowledge: d.knowledge, ai_model: d.ai_model });
+    if (canP) Object.assign(body, { ai_prompt_general: d.ai_prompt_general, knowledge: d.knowledge, ai_model: d.ai_model, ai_vision: d.ai_vision });
     if (canPause) body.active = d.active;
     if (M) { if (clearKey) body.ai_api_key = ""; else if (d.ai_api_key.trim()) body.ai_api_key = d.ai_api_key.trim(); }
     const long = [["respuesta por defecto", d.default_reply], ["mensaje al pasar a una persona", d.ai_handoff], ["mensaje si la IA falla", d.ai_fallback], ["mensaje fuera de horario", o.hours.off_message],
@@ -2131,7 +2206,8 @@ function drawRich(box, r, b, changed) {
   const dmOk = r.channel !== "comment";
   const any = r.buttons.length || r.quick.length || r.carousel.length;
   const draw = () => {
-    box.innerHTML = `<details class="richbox" ${any || box.dataset.open ? "open" : ""}><summary><b>Botones${dmOk ? ", opciones y carrusel" : ""}</b> <span class="muted small">${[r.buttons.length && r.buttons.length + " botón" + (r.buttons.length > 1 ? "es" : ""), r.quick.length && r.quick.length + " opciones", r.carousel.length && r.carousel.length + " tarjetas"].filter(Boolean).join(" · ") || "opcional"}</span></summary>
+    if (!hasF("buttons")) { box.innerHTML = `<details class="richbox"><summary><b>Botones${dmOk ? ", opciones y carrusel" : ""}</b> <span class="muted small">${LOCK_SVG.replace('width="22" height="22"', 'width="13" height="13"')} plan ${esc(planFor("buttons") || "superior")}</span></summary>${lockCard("buttons", "Botones y carruseles", "Agrega botones, opciones y tarjetas con foto a tus respuestas.")}</details>`; return; }
+    box.innerHTML = (any ? lockNote("buttons", "Botones y carruseles") : "") + `<details class="richbox" ${any || box.dataset.open ? "open" : ""}><summary><b>Botones${dmOk ? ", opciones y carrusel" : ""}</b> <span class="muted small">${[r.buttons.length && r.buttons.length + " botón" + (r.buttons.length > 1 ? "es" : ""), r.quick.length && r.quick.length + " opciones", r.carousel.length && r.carousel.length + " tarjetas"].filter(Boolean).join(" · ") || "opcional"}</span></summary>
       <div class="rich-g"><div>
         <div class="rich-h">Botones <span class="muted small">· máximo 3, hasta 20 letras</span></div>
         ${r.buttons.map((x, i) => `<div class="btnrow"><select data-bt="${i}" data-k="type">${Object.entries(BTN_TYPES).map(([k, l]) => `<option value="${k}" ${x.type === k ? "selected" : ""}>${l}</option>`).join("")}</select>
@@ -2196,7 +2272,7 @@ async function pickFromCatalog(b, onPick) {
 /* ---------- Actividad ---------- */
 const KIND = { rule: ["Regla", "rule"], ai: ["IA", "ai"], default: ["Por defecto", "warn"], handoff: ["Pasó a una persona", "warn"], fallback: ["Respaldo · la IA falló", "warn"], none: ["Sin respuesta", "gray"],
   paused: ["Contacto en pausa", "gray"], hidden: ["Oculto", "bad"], test: ["Modo prueba", "gray"], mention: ["Mención en historia", "ai"], reaction: ["Reacción a historia", "gray"],
-  offhours: ["Fuera de horario", "gray"], ignored: ["Cuenta ignorada", "gray"], human: ["Respondiste tú (app)", "ok"], panel: ["Respuesta desde el panel", "ok"], followup: ["Seguimiento", "ai"] };
+  offhours: ["Fuera de horario", "gray"], image: ["Foto: documento personal", "gray"], image_block: ["Foto inapropiada (bot pausado)", "bad"], ignored: ["Cuenta ignorada", "gray"], human: ["Respondiste tú (app)", "ok"], panel: ["Respuesta desde el panel", "ok"], followup: ["Seguimiento", "ai"] };
 async function tabActivity() {
   $("tabBody").innerHTML = `
     <div class="card">
@@ -2408,7 +2484,7 @@ async function refreshBell() {
     BELL.items = d.items || []; BELL.count = d.count || 0;
     drawBell();
     if (before !== BELL.items.length) renderNav();
-    if (grew) { const b = $("bellBtn"); b.classList.remove("ring"); void b.offsetWidth; b.classList.add("ring"); }
+    if (grew) { const b = $("bellBtn"); b.classList.remove("bell-shake"); void b.offsetWidth; b.classList.add("bell-shake"); setTimeout(() => b.classList.remove("bell-shake"), 1000); }
   } catch {}
 }
 function toggleBell(open) {
@@ -2467,7 +2543,7 @@ async function setupPush() {
 
   if (Notification.permission === "denied") {
     setPill("bad", "Bloqueadas");
-    info.textContent = isIOS() ? "Las bloqueaste. Actívalas en Ajustes → Notificaciones → Autorespuestas." : "Las bloqueaste. Actívalas en los permisos del sitio en tu navegador.";
+    info.textContent = isIOS() ? "Las bloqueaste. Actívalas en Ajustes → Notificaciones → Feedback." : "Las bloqueaste. Actívalas en los permisos del sitio en tu navegador.";
     return;
   }
   if (sub && Notification.permission === "granted") {
@@ -2502,7 +2578,7 @@ async function setupPush() {
 
 /* ================= CONVERSACIONES ================= */
 const SRC = { cliente: "Cliente", comentario: "Comentario", ia: "IA", rule: "Regla", regla: "Regla", handoff: "Pase a una persona", fallback: "Respaldo (la IA falló)",
-  default: "Por defecto", mention: "Agradecimiento por mención", reaction: "Reacción a historia", offhours: "Fuera de horario", seguimiento: "Seguimiento automático", humano: "Tú, desde la app", pago: "Confirmación de pago" };
+  default: "Por defecto", mention: "Agradecimiento por mención", reaction: "Reacción a historia", offhours: "Fuera de horario", seguimiento: "Seguimiento automático", humano: "Tú, desde la app", pago: "Confirmación de pago", image: "Respuesta a una foto" };
 const REASON_PILL = (r) => (r ? `<span class="pill ${r === "pago" ? "ok" : r === "reclamo" ? "bad" : "warn"}">${esc((S.session.reasons || {})[r] || (r === "respondiste" ? "Respondiste tú" : r === "pausado" ? "En pausa" : r))}</span>` : `<span class="pill warn">En pausa</span>`);
 const PAY_PILL = (c) => c.pay_state === "probable" ? `<span class="pill warn">🕓 Por confirmar pago</span>` : c.pay_state === "paid" ? `<span class="pill ok">✓ Pagado</span>` : c.pay_state === "link" ? `<span class="pill gray">Link de pago enviado</span>` : "";
 const todayCcs = () => new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
@@ -2889,8 +2965,8 @@ function cmpName(d) {
   return "el periodo anterior";
 }
 
-function openDatePicker(anchor, onApply) {
-  const I = S.ins, t = todayLocal(), minD = dAdd(t, -730);
+function openDatePicker(anchor, onApply, I = S.ins) {
+  const t = todayLocal(), minD = dAdd(t, -730);
   const st = { from: I.from, to: I.to, preset: I.preset, cmp: I.cmp, picking: false, view: I.to.slice(0, 7) };
   document.querySelectorAll(".dp-pop").forEach((x) => x.remove());
   const pop = document.createElement("div");
@@ -2979,8 +3055,8 @@ async function renderInsights(force) {
   $("inRange").onclick = () => { if (document.querySelector(".dp-pop")) return; openDatePicker($("inRange"), (r) => { Object.assign(I, r); renderInsights(); }); };
   MAIN().querySelectorAll("[data-g]").forEach((b) => (b.onclick = () => { I.group = b.dataset.g; if (I.data) drawInsights(I.data); MAIN().querySelectorAll("[data-g]").forEach((x) => x.classList.toggle("on", x === b)); }));
   $("inReload").onclick = () => renderInsights(true);
-  $("inPng").onclick = () => downloadReport("png", $("inPng"));
-  $("inPdf").onclick = () => downloadReport("pdf", $("inPdf"));
+  $("inPng").onclick = () => (hasF("pdf") ? downloadReport("png", $("inPng")) : lockToast("pdf", "Descargar en PDF o imagen"));
+  $("inPdf").onclick = () => (hasF("pdf") ? downloadReport("pdf", $("inPdf")) : lockToast("pdf", "Descargar en PDF o imagen"));
   const key = `${I.acc}|${I.from}|${I.to}|${I.cmp}`;
   I.data = null;
   // Se pide en 3 partes al mismo tiempo: cada una tiene su propio límite de consultas
@@ -3082,7 +3158,7 @@ function wrapLines(ctx, text, maxW, maxLines) {
 async function buildReportCanvas(d) {
   const I = S.ins, acc = d.account || {}, brand = brandById(acc.brand_id), t = d.totals, snaps = d.snapshots || [];
   const css = getComputedStyle(document.documentElement);
-  const C = { ink: "#111827", ink2: "#374151", muted: "#6b7280", line: "#e5e7eb", grid: "#eceff3", accent: css.getPropertyValue("--accent").trim() || "#0e7c86",
+  const C = { ink: "#111827", ink2: "#374151", muted: "#6b7280", line: "#e5e7eb", grid: "#eceff3", accent: css.getPropertyValue("--accent").trim() || "#28286c",
     s1: css.getPropertyValue("--series-1").trim() || "#2a78d6", s2: css.getPropertyValue("--series-2").trim() || "#eb6834", soft: "#f6f7f9" };
   const W = 1080, P = 56, SC = 2, F = "system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
   const cv = document.createElement("canvas"); cv.width = W * SC; cv.height = 6000 * SC;
@@ -3237,26 +3313,44 @@ function loadScript(src) {
 async function downloadReport(kind, btn) {
   const d = S.ins && S.ins.data; if (!d) return;
   const label = btn.innerHTML; btn.disabled = true; btn.textContent = "Preparando…";
+  try { await saveCanvas(await buildReportCanvas(d), kind, reportName(d, kind)); } catch (e) { toast(e.message || String(e), 6000); }
+  btn.disabled = false; btn.innerHTML = label;
+}
+/** Guarda un canvas como imagen PNG o como PDF A4 (corta las páginas en los saltos marcados). */
+async function saveCanvas(cv, kind, name) {
+  if (kind === "png") { const blob = await new Promise((r) => cv.toBlob(r, "image/png")); return saveFile(blob, name); }
+  if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const pw = 210, ph = 297, m = 8, iw = pw - 2 * m, pagePx = Math.floor(((ph - 2 * m) / iw) * cv.width);
+  for (let off = 0, page = 0, next; off < cv.height; off = next, page++) {
+    const fits = (cv.breaks || []).filter((b) => b > off + pagePx * 0.4 && b <= off + pagePx);
+    next = cv.height - off <= pagePx ? cv.height : fits.length ? Math.max(...fits) : off + pagePx;
+    const h = next - off, part = document.createElement("canvas");
+    part.width = cv.width; part.height = h;
+    const pc = part.getContext("2d"); pc.fillStyle = "#fff"; pc.fillRect(0, 0, part.width, h); pc.drawImage(cv, 0, off, cv.width, h, 0, 0, cv.width, h);
+    if (page) pdf.addPage();
+    pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", m, m, iw, (h / cv.width) * iw);
+  }
+  return saveFile(pdf.output("blob"), name);
+}
+/** Descarga la pantalla de Anuncios tal como se ve (imagen o PDF). */
+async function downloadAds(kind, btn) {
+  const box = $("tabBody"); if (!box || !renderAdsCached) return;
+  const label = btn.innerHTML; btn.disabled = true; btn.textContent = "Preparando…";
   try {
-    const cv = await buildReportCanvas(d);
-    if (kind === "png") {
-      const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
-      await saveFile(blob, reportName(d, "png"));
-    } else {
-      if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-      const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-      const pw = 210, ph = 297, m = 8, iw = pw - 2 * m, pagePx = Math.floor(((ph - 2 * m) / iw) * cv.width);
-      for (let off = 0, page = 0, next; off < cv.height; off = next, page++) {
-        const fits = (cv.breaks || []).filter((b) => b > off + pagePx * 0.4 && b <= off + pagePx);
-        next = cv.height - off <= pagePx ? cv.height : fits.length ? Math.max(...fits) : off + pagePx;
-        const h = next - off, part = document.createElement("canvas");
-        part.width = cv.width; part.height = h;
-        const pc = part.getContext("2d"); pc.fillStyle = "#fff"; pc.fillRect(0, 0, part.width, h); pc.drawImage(cv, 0, off, cv.width, h, 0, 0, cv.width, h);
-        if (page) pdf.addPage();
-        pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", m, m, iw, (h / cv.width) * iw);
-      }
-      await saveFile(pdf.output("blob"), reportName(d, "pdf"));
-    }
+    if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+    const b = curBrand(), r = renderAdsCached, AR = adsRangeState();
+    // Copia limpia: con título y periodo, sin botones ni la caja de preguntas
+    const wrap = document.createElement("div");
+    wrap.style.cssText = `position:absolute;left:-10000px;top:0;width:${kind === "pdf" ? 1000 : Math.max(900, box.clientWidth)}px;background:var(--bg,#fff);padding:24px`;
+    wrap.innerHTML = `<h1 class="page-title" style="margin:0">Anuncios · ${esc((b && b.name) || "")}</h1><p class="page-sub" style="margin:4px 0 14px">${esc(periodName(AR))} (${fmtD(r.from)}–${fmtD(r.to)})${AR.cmp !== "none" ? ` · comparado con ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}` : ""}</p>` + box.innerHTML;
+    wrap.querySelectorAll("button:not(.chip):not(.lt2), #adAsk, .adtools, .pop, form, .msep").forEach((x) => x.remove());
+    document.body.appendChild(wrap);
+    const parts = [...wrap.children], top = wrap.getBoundingClientRect().top;
+    const cv = await window.html2canvas(wrap, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+    cv.breaks = parts.map((x) => Math.round((x.getBoundingClientRect().top - top) * 2));
+    wrap.remove();
+    await saveCanvas(cv, kind, `anuncios-${normalize((b && b.name) || "tienda").replace(/[^a-z0-9]+/g, "-")}-${r.from}_a_${r.to}.${kind}`);
   } catch (e) { toast(e.message || String(e), 6000); }
   btn.disabled = false; btn.innerHTML = label;
 }
@@ -3354,8 +3448,11 @@ function openUser(x) {
     if (!body.brands.length) return toast("Elige al menos una tienda");
     const btn = $("uSave"); btn.disabled = true;
     try {
-      if (x) { await api(`/api/users/${x.id}`, { method: "PUT", body }); dlg.close(); toast("Usuario guardado"); renderUsers(); }
-      else { const r = await api("/api/users", { method: "POST", body }); showInvite(r.user.name, r.invite_url); }
+      // Si pasa el límite del plan, la cuenta maestra puede agregarlo igual
+      const send = (bd) => (x ? api(`/api/users/${x.id}`, { method: "PUT", body: bd }) : api("/api/users", { method: "POST", body: bd }));
+      let r; try { r = await send(body); } catch (er) { if (!er.limit || !confirm(er.message + "\n\n¿Agregarlo igual?")) throw er; r = await send({ ...body, force: true }); }
+      if (x) { dlg.close(); toast("Usuario guardado"); renderUsers(); }
+      else showInvite(r.user.name, r.invite_url);
     } catch (e) { toast(e.message, 6000); btn.disabled = false; }
   };
   dlg.showModal();
@@ -3886,7 +3983,7 @@ async function renderLeads() {
   box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = async () => { if (!confirm("¿Borrar esta solicitud?")) return; try { await api(`/api/leads/${x.dataset.del}`, { method: "DELETE" }); renderLeads(); } catch (e) { toast(e.message); } }));
 }
 const SITE_DEFAULT = {
-  brand: "Autorespuestas", whatsapp: "", trial_days: 7, setup_price: "$50", badge_tag: "Nuevo", badge: "Ahora también te explica tus anuncios",
+  brand: "Feedback", whatsapp: "", trial_days: 7, setup_price: "$50", badge_tag: "Nuevo", badge: "Ahora también te explica tus anuncios",
   h1_pre: "Tu Instagram atiende, responde y", h1_hl: "vende", h1_post: "mientras tú vives.",
   lead: "Un asistente con inteligencia artificial que contesta tus mensajes, comentarios e historias en segundos, con la voz de tu marca. Cuando hace falta una persona, te avisa al teléfono.",
   pay_note: "Sin contratos. Pagas en dólares o en bolívares a tasa BCV.", addon_title: "Asesor de anuncios", addon_price: "desde $29/mes", addon_text: "Tus anuncios con semáforo, recomendaciones y un resumen semanal. Para cualquier plan.",
@@ -3919,29 +4016,20 @@ async function renderSiteEditor() {
     <div class="card"><div class="card-h"><div><h2>Portada</h2><p>Lo primero que ve la gente. La palabra resaltada sale en verde.</p></div></div>
       <div class="grid2" style="gap:0 16px">${f("badge_tag", "Etiqueta")}${f("badge", "Novedad")}${f("h1_pre", "Título · antes de la palabra resaltada")}${f("h1_hl", "Palabra resaltada")}${f("h1_post", "Título · después")}</div>
       ${f("lead", "Texto debajo del título", "", true)}</div>
-    <div class="card"><div class="card-h"><div><h2>Planes</h2><p>Precio mensual en dólares. Una ventaja por línea. El anual se calcula solo (2 meses gratis).</p></div><button class="btn small" id="wAddPlan">${ICON.plus} Plan</button></div>
-      <div class="grid2" style="margin-top:6px">${d.plans.map((p, i) => `<div class="box" style="margin-top:8px"><div class="row" style="justify-content:space-between"><b>Plan ${i + 1}</b><span class="row"><label class="toggle-row small" style="font-weight:500;gap:6px">Más elegido <input type="checkbox" data-pp="${i}" ${p.popular ? "checked" : ""}></label><button class="icon-btn danger" data-pdel="${i}">${ICON.trash}</button></span></div>
-        <div class="row" style="flex-wrap:nowrap"><div class="grow"><label class="f">Nombre</label><input data-p="${i}" data-k="name" value="${esc(p.name)}"></div><div style="width:110px"><label class="f">Precio $</label><input data-p="${i}" data-k="price" type="number" min="0" step="1" value="${esc(p.price)}"></div></div>
-        <label class="f">Para quién es</label><input data-p="${i}" data-k="desc" value="${esc(p.desc || "")}">
-        <div class="row" style="flex-wrap:wrap"><div class="grow"><label class="f">Respuestas al mes</label><input data-p="${i}" data-k="replies" type="number" min="0" value="${esc(p.replies || "")}"></div><div class="grow"><label class="f">Personas del equipo</label><input data-p="${i}" data-k="users" type="number" min="0" value="${esc(p.users || "")}"></div></div>
-        <label class="f">Incluye</label><textarea data-p="${i}" data-k="features" style="min-height:120px">${esc((p.features || []).join("\n"))}</textarea></div>`).join("")}</div></div>
+    <div class="card"><div class="card-h"><div><h2>Planes</h2><p>Los planes, precios y lo que incluye cada uno se editan en <b>Planes</b>, y la página de venta los toma de ahí.</p></div><a class="btn small" href="#planes">Editar planes</a></div></div>
     <div class="card"><div class="card-h"><div><h2>Asesor de anuncios y forma de pago</h2></div></div>
       <div class="grid2" style="gap:0 16px">${f("addon_title", "Nombre del extra")}${f("addon_price", "Precio del extra")}</div>${f("addon_text", "Descripción del extra")}${f("pay_note", "Nota de pago")}</div>
     <div class="card"><div class="card-h"><div><h2>Preguntas frecuentes</h2></div><button class="btn small" id="wAddQ">${ICON.plus} Pregunta</button></div>
       ${d.faq.map((q, i) => `<div class="box"><div class="row" style="flex-wrap:nowrap"><input class="grow" data-q="${i}" data-k="q" value="${esc(q.q)}" placeholder="Pregunta"><button class="icon-btn danger" data-qdel="${i}">${ICON.trash}</button></div><textarea data-q="${i}" data-k="a" style="min-height:60px;margin-top:8px" placeholder="Respuesta">${esc(q.a)}</textarea></div>`).join("")}</div>`;
     const ch = () => setDirty(true, save, () => renderSiteEditor());
     box.querySelectorAll("[data-w]").forEach((x) => (x.oninput = () => { d[x.dataset.w] = x.value; ch(); }));
-    box.querySelectorAll("[data-p]").forEach((x) => (x.oninput = () => { const p = d.plans[x.dataset.p]; p[x.dataset.k] = x.dataset.k === "features" ? x.value.split("\n") : ["price", "replies", "users"].includes(x.dataset.k) ? Number(x.value) : x.value; ch(); }));
-    box.querySelectorAll("[data-pp]").forEach((x) => (x.onchange = () => { d.plans.forEach((p, i) => (p.popular = x.checked && i === +x.dataset.pp)); ch(); draw(); }));
-    box.querySelectorAll("[data-pdel]").forEach((x) => (x.onclick = () => { d.plans.splice(+x.dataset.pdel, 1); ch(); draw(); }));
     box.querySelectorAll("[data-q]").forEach((x) => (x.oninput = () => { d.faq[x.dataset.q][x.dataset.k] = x.value; ch(); }));
     box.querySelectorAll("[data-qdel]").forEach((x) => (x.onclick = () => { d.faq.splice(+x.dataset.qdel, 1); ch(); draw(); }));
-    $("wAddPlan").onclick = () => { if (d.plans.length >= 4) return toast("Máximo 4 planes"); d.plans.push({ name: "", desc: "", price: 0, features: [] }); ch(); draw(); };
     $("wAddQ").onclick = () => { d.faq.push({ q: "", a: "" }); ch(); draw(); };
   };
   const save = async () => {
     const body = {};
-    for (const [k, v] of Object.entries(d)) if (JSON.stringify(v) !== JSON.stringify(SITE_DEFAULT[k])) body[k] = v;
+    for (const [k, v] of Object.entries(d)) if (k !== "plans" && JSON.stringify(v) !== JSON.stringify(SITE_DEFAULT[k])) body[k] = v;
     try { await api("/api/site", { method: "PUT", body }); setDirty(false); toast("Página de venta guardada"); renderSiteEditor(); } catch (e) { toast(e.message, 6000); }
   };
   draw();
@@ -4175,7 +4263,7 @@ function openPayment(b) {
 }
 function openBillingEdit(b, plans) {
   const x = { ...b.billing }, dlg = $("tplDlg");
-  dlg.innerHTML = `<form id="beF"><div class="modal-h"><div><h2>Plan y cobro · ${esc(b.name)}</h2><p>Los planes y precios salen de tu página de venta.</p></div><button type="button" class="icon-btn" id="bX" aria-label="Cerrar">${ICON.x}</button></div>
+  dlg.innerHTML = `<form id="beF"><div class="modal-h"><div><h2>Plan y cobro · ${esc(b.name)}</h2><p>Los planes y lo que incluyen se editan en Planes.</p></div><button type="button" class="icon-btn" id="bX" aria-label="Cerrar">${ICON.x}</button></div>
     <div class="modal-b">
       <div class="two2"><div><label class="f">Plan</label><select id="bP"><option value="">Sin plan</option>${plans.map((p) => `<option ${p.name === x.plan ? "selected" : ""} value="${esc(p.name)}">${esc(p.name)} · ${money(p.price)} · ${nf(p.replies)} resp.</option>`).join("")}</select></div>
       <div><label class="f">Precio especial ($)</label><input id="bPr" type="number" step="0.01" min="0" value="${x.price ?? ""}" placeholder="Vacío = precio del plan"></div></div>
@@ -4192,6 +4280,96 @@ function openBillingEdit(b, plans) {
 }
 
 /* ================= MI PLAN (cada tienda) ================= */
+/* ================= PLANES (cuenta maestra) ================= */
+async function renderPlanes(tab) {
+  const t = tab === "tiendas" ? "tiendas" : "incluye";
+  shell({ title: "Planes", sub: "Qué incluye cada plan. Lo que marques aquí se cumple en el panel y se muestra en la página de venta.", base: "planes",
+    tabs: [["incluye", "Qué incluye"], ["tiendas", "Tiendas y su plan"]], active: t,
+    head: t === "incluye" ? `<button class="btn" id="plNew">${ICON.plus} Nuevo plan</button>` : "" });
+  const box = $("tabBody"); box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  let r; try { r = await api("/api/plans"); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("tabBody")) return;
+  return t === "tiendas" ? drawPlanBrands(r) : drawPlanTable(r);
+}
+function drawPlanTable(r) {
+  const box = $("tabBody"), P = r.plans.map((p) => ({ ...p, _orig: p.name, inc: { ...p.inc } }));
+  const grp = (g) => r.features.filter((f) => f.group === g);
+  const ch = () => setDirty(true, save, () => renderPlanes("incluye"));
+  const draw = () => {
+    const num = (k, i) => `<input class="pl-num" type="number" min="1" data-n="${k}" data-i="${i}" value="${P[i][k]}" aria-label="${k}">`;
+    const chk = (k, i) => `<input type="checkbox" class="pl-ck" data-f="${k}" data-i="${i}" ${P[i].inc[k] ? "checked" : ""} aria-label="${esc(P[i].name)} · ${k}">`;
+    const cols = (fn, extra = "") => P.map((p, i) => `<td class="${p.popular ? "hl" : ""}" ${extra}>${fn(i)}</td>`).join("");
+    box.innerHTML = `<div class="card pl-card"><div class="pl-scroll"><table class="pl-t">
+      <tr><th></th>${P.map((p, i) => `<th class="${p.popular ? "hl" : ""}"><input class="pl-name" data-k="name" data-i="${i}" value="${esc(p.name)}" maxlength="40" placeholder="Nombre">
+        <div class="pl-price"><input type="number" min="0" step="0.01" data-k="price" data-i="${i}" value="${p.price}" aria-label="Precio"> $/mes</div>
+        <div class="pl-cnt">${(() => { const n = r.brands.filter((b) => b.plan === p._orig).length; return `${n} tienda${n === 1 ? "" : "s"} en este plan`; })()}</div>
+        <div class="pl-act"><label title="Se destaca en la página de venta"><input type="radio" name="plPop" data-pop="${i}" ${p.popular ? "checked" : ""}> Más elegido</label>${P.length > 1 ? `<button type="button" class="icon-btn danger" data-del="${i}" aria-label="Quitar plan">${ICON.trash}</button>` : ""}</div></th>`).join("")}</tr>
+      <tr><td>Para quién es <span class="hint">sale en la página de venta</span></td>${cols((i) => `<input class="pl-desc" data-k="desc" data-i="${i}" value="${esc(P[i].desc || "")}" maxlength="90">`)}</tr>
+      <tr class="grp"><td colspan="${P.length + 1}">Límites</td></tr>
+      <tr><td>Respuestas al mes <span class="hint">al pasar del 120 % la IA se detiene</span></td>${cols((i) => num("replies", i))}</tr>
+      <tr><td>Personas del equipo <span class="hint">usuarios cliente con acceso a la tienda</span></td>${cols((i) => num("users", i))}</tr>
+      <tr><td>Tiendas por cliente</td>${cols((i) => num("brands", i))}</tr>
+      <tr class="grp"><td colspan="${P.length + 1}">Bot</td></tr>
+      <tr><td>Mensajes, comentarios e historias</td>${cols(() => `<input type="checkbox" class="pl-ck" checked disabled aria-label="Siempre incluido">`)}</tr>
+      ${grp("bot").map((f) => `<tr><td>${esc(f.label)}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
+      <tr class="grp"><td colspan="${P.length + 1}">Ventas y reportes</td></tr>
+      ${grp("ventas").map((f) => `<tr><td>${esc(f.label)}${f.k === "advisor" ? `<span class="hint">semáforo, recomendaciones, resumen y preguntas a la IA</span>` : ""}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
+    </table></div></div>
+    <p class="help">Si una tienda ya usaba algo que su plan no incluye, se le dejó como extra para que no pierda nada (lo ves en «Tiendas y su plan»). Las tiendas sin plan tienen todo.</p>`;
+    box.querySelectorAll("[data-k]").forEach((x) => (x.oninput = () => { const p = P[x.dataset.i]; p[x.dataset.k] = x.dataset.k === "price" ? Number(x.value) : x.value; ch(); }));
+    box.querySelectorAll("[data-n]").forEach((x) => (x.oninput = () => { P[x.dataset.i][x.dataset.n] = Math.max(1, parseInt(x.value, 10) || 1); ch(); }));
+    box.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { P[x.dataset.i].inc[x.dataset.f] = x.checked; ch(); }));
+    box.querySelectorAll("[data-pop]").forEach((x) => (x.onchange = () => { P.forEach((p, i) => (p.popular = i === +x.dataset.pop)); ch(); draw(); }));
+    box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = () => {
+      const p = P[+x.dataset.del], n = r.brands.filter((b) => b.plan === p._orig).length;
+      if (n && !confirm(`${n} tienda${n === 1 ? " tiene" : "s tienen"} el plan ${p.name}. Si lo quitas, quedan sin plan (con todo incluido) hasta que les asignes otro. ¿Quitarlo?`)) return;
+      P.splice(+x.dataset.del, 1); ch(); draw(); }));
+  };
+  const save = async () => {
+    if (P.some((p) => !p.name.trim())) return toast("Ponle nombre a todos los planes", 5000);
+    try { await api("/api/plans", { method: "PUT", body: { plans: P.map(({ _orig, features, ...p }) => p), renames: P.filter((p) => p._orig && p._orig !== p.name).map((p) => ({ from: p._orig, to: p.name })) } });
+      setDirty(false); await loadData(); toast("Planes guardados"); renderPlanes("incluye"); } catch (e) { toast(e.message, 6000); }
+  };
+  $("plNew").onclick = () => { if (P.length >= 6) return toast("Máximo 6 planes"); const last = P[P.length - 1] || {}; P.push({ name: "", desc: "", price: (last.price || 0) + 20, replies: last.replies || 1000, users: last.users || 2, brands: last.brands || 1, popular: false, inc: { ...(last.inc || {}) } }); ch(); draw(); };
+  draw();
+}
+function drawPlanBrands(r) {
+  const box = $("tabBody"), today = todayLocal();
+  const featL = Object.fromEntries(r.features.map((f) => [f.k, f.label]));
+  box.innerHTML = r.brands.length ? r.brands.map((b) => {
+    const p = r.plans.find((x) => x.name === b.plan), ex = b.extras || {}, rex = ex.replies_extra && ex.replies_extra.month === r.month ? ex.replies_extra.n : 0;
+    const lim = p ? p.replies + rex : 0, pc = lim ? Math.min(100, Math.round((b.usage / lim) * 100)) : 0;
+    const missing = p ? r.features.filter((f) => !p.inc[f.k]) : [];
+    return `<div class="card pb" data-b="${b.id}"><div class="row" style="justify-content:space-between;gap:10px">
+      <div class="row" style="gap:8px"><b style="font-size:16px">${esc(b.name)}</b><span class="pill ${b.state.cls}">${esc(b.state.label)}</span></div>
+      <label class="row small" style="gap:8px;font-weight:600">Plan <select data-plan style="width:auto"><option value="">Sin plan (todo incluido)</option>${r.plans.map((x) => `<option ${x.name === b.plan ? "selected" : ""}>${esc(x.name)}</option>`).join("")}${b.plan && !p ? `<option selected>${esc(b.plan)} (ya no existe)</option>` : ""}</select></label></div>
+      ${p ? `<div class="small" style="margin-top:10px">Respuestas este mes <b>${nf(b.usage)} de ${nf(lim)}</b>${rex ? ` <span class="muted">(incluye ${nf(rex)} extra)</span>` : ""}</div><div class="ubar" style="margin:6px 0"><i style="width:${pc}%;${pc >= 80 ? "background:#f59e0b" : ""}"></i></div>
+        <div class="small">Equipo <b>${b.team} de ${p.users}</b></div>` : `<p class="small muted" style="margin:8px 0 0">Sin plan: no tiene límites y tiene todas las funciones.</p>`}
+      ${p ? `<div class="pb-x"><b>Extras para esta tienda</b> <span class="muted small">sin cambiarle el plan</span>
+        ${missing.length ? missing.map((f) => { const v = ex[f.k], on = !!v && (v === "always" || v >= today);
+          return `<div class="pb-row"><span>${esc(f.label)}${v && v !== "always" ? ` <span class="pill ${v >= today ? "warn" : "gray"}">${v >= today ? "hasta " + dShort(v) : "venció " + dShort(v)}</span>` : ""}</span>
+          <span class="row" style="gap:8px;flex-wrap:nowrap"><input type="date" data-until="${f.k}" value="${v && v !== "always" ? v : ""}" title="Hasta (vacío = siempre)" style="width:auto;${on ? "" : "display:none"}">${swHtml("x_" + b.id + "_" + f.k, on).replace("<input", `<input data-x="${f.k}"`)}</span></div>`; }).join("")
+          : `<p class="small muted" style="margin:6px 0">Su plan ya incluye todo.</p>`}
+        <div class="pb-row"><span>Respuestas extra este mes</span><input type="number" min="0" data-rex value="${rex || 0}" style="width:110px"></div></div>
+        <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small primary" data-save>Guardar ${esc(b.name)}</button></div>` : `<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small primary" data-save>Guardar ${esc(b.name)}</button></div>`}
+    </div>`; }).join("") : `<div class="card empty">Todavía no hay tiendas.</div>`;
+  box.querySelectorAll("[data-x]").forEach((x) => (x.onchange = () => { const d = x.closest(".pb-row").querySelector("[data-until]"); d.style.display = x.checked ? "" : "none"; }));
+  box.querySelectorAll(".pb").forEach((el) => {
+    const b = r.brands.find((x) => x.id === el.dataset.b);
+    el.querySelector("[data-plan]").onchange = () => el.querySelector("[data-save]").classList.add("pulse");
+    el.querySelector("[data-save]").onclick = async () => {
+      const plan = el.querySelector("[data-plan]").value.replace(/ \(ya no existe\)$/, "");
+      const extras = {};
+      el.querySelectorAll("[data-x]").forEach((x) => { if (x.checked) { const u = x.closest(".pb-row").querySelector("[data-until]").value; extras[x.dataset.x] = u || "always"; } });
+      // Lo que el plan nuevo ya incluye no hace falta como extra; lo que no se ve en pantalla se conserva
+      for (const [k, v] of Object.entries(b.extras || {})) if (k !== "replies_extra" && !el.querySelector(`[data-x="${k}"]`) && !extras[k]) extras[k] = v;
+      const n = el.querySelector("[data-rex]") ? parseInt(el.querySelector("[data-rex]").value, 10) || 0 : 0;
+      if (n > 0) extras.replies_extra = { month: r.month, n };
+      try { await api(`/api/billing/${b.id}`, { method: "PUT", body: { plan, extras } }); await loadData(); toast(`${b.name} guardada`); renderPlanes("tiendas"); } catch (e) { toast(e.message, 6000); }
+    };
+  });
+}
+
 async function renderPlan() {
   const b = curBrand();
   if (!b) return ($("main").innerHTML = `<div class="card empty">Sin tienda.</div>`);
@@ -4212,8 +4390,9 @@ async function renderPlan() {
         ${pc != null ? `<p class="help">${pc < 80 ? "Vas bien." : pc < 100 ? "Te queda poco este mes." : "Llegaste al límite: el bot sigue un poco más y luego solo responde con reglas."} El conteo se reinicia el día 1.</p>` : ""}</div>
       <div class="card"><h2 style="font-size:16px;margin:0 0 6px">Incluye</h2>
         ${p && p.features.length ? p.features.map((f) => `<div class="list-row"><span class="row" style="gap:8px;flex-wrap:nowrap"><span style="color:var(--ok);font-weight:800">✓</span>${esc(f)}</span></div>`).join("") : `<p class="muted">Tu plan todavía no está configurado.</p>`}
+        ${(r.extras || []).map((x) => `<div class="list-row"><span class="row" style="gap:8px;flex-wrap:nowrap"><span style="color:var(--accent);font-weight:800">+</span>${esc(x.label)} <span class="pill warn">extra${x.until ? " hasta " + dShort(x.until) : ""}</span></span></div>`).join("")}
         ${better.length && !isMaestro() ? `<label class="f">¿Necesitas más?</label><div class="row"><select id="upP" style="width:auto">${better.map((x) => `<option>${esc(x.name)}</option>`).join("")}</select><button class="btn primary" id="upB">Quiero mejorar mi plan</button></div>` : ""}
-        ${isMaestro() ? `<a class="btn" href="#clientes/cobros" style="margin-top:14px">Editar en Clientes y cobros</a>` : ""}</div>
+        ${isMaestro() ? `<a class="btn" href="#planes/tiendas" style="margin-top:14px">Cambiar plan o extras</a>` : ""}</div>
     </div>`;
   if ($("upB")) $("upB").onclick = async () => { try { await api("/api/plan/upgrade", { method: "POST", body: { brand: b.id, plan: $("upP").value } }); toast("¡Listo! Te escribimos para cambiar tu plan."); } catch (e) { toast(e.message); } };
 }
@@ -4359,19 +4538,21 @@ const STORE_UI = {
   shopify: { t: "Shopify", bg: "#5e8e3e", icon: '<b style="color:#fff">S</b>', p: "Los pedidos pagados llegan solos. Se conecta con un webhook desde tu Shopify." },
   woo: { t: "WooCommerce", bg: "#7f54b3", icon: '<b style="color:#fff">W</b>', p: "Para tiendas en WordPress. Pegas un enlace en tu tienda y listo." },
   tiendanube: { t: "Tiendanube", bg: "#2c3357", icon: '<b style="color:#fff">N</b>', p: "Conexión con un clic desde la tienda de apps de Tiendanube.", soon: 1 },
-  custom: { t: "Otra tienda", bg: "#0e7c86", icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>', p: "Cualquier sistema que mande avisos (webhook): tu propia app de pedidos, Wix u otra plataforma." },
+  custom: { t: "Otra tienda", bg: "#28286c", icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>', p: "Cualquier sistema que mande avisos (webhook): tu propia app de pedidos, Wix u otra plataforma." },
 };
 async function drawStoreCards(b, card) {
   const el = $("storeCards"); if (!el) return;
   let list = [];
   if (b) { try { list = await api(`/api/stores?brand=${encodeURIComponent(b.id)}`); } catch {} }
   if (!$("storeCards")) return;
+  if (b && !hasF("store", b) && !list.length) { el.innerHTML = `<div style="grid-column:1/-1">${lockCard("store", "Conexión con tu tienda online", "Cruza tus ventas de Shopify, WooCommerce u otra tienda con tus chats y anuncios.")}</div>`; return; }
+  if (b && isMaestro() && offF("store", b)) el.insertAdjacentHTML("beforebegin", `<div id="storeNote">${lockNote("store", "Conexión con tienda online")}</div>`);
   const T = can("tienda");
   const conn = list.map((x) => { const ui = STORE_UI[x.kind] || STORE_UI.custom; return card({ t: esc(x.name), sub: x.kind === "custom" ? "Otra tienda" : ui.t, bg: ui.bg, icon: ui.icon, on: x.active, pill: x.active ? (x.has_secret ? ["ok", "● Conectada"] : ["warn", "Falta la clave"]) : ["gray", "Apagada"],
     p: x.last_at ? `Último aviso ${esc(agoText(x.last_at))}` : "Todavía no llega ningún aviso.", btns: `<a class="btn small" href="#integraciones/tienda/${x.id}">Ver detalles</a>` }); });
   const add = ["shopify", "woo", "tiendanube", "custom"].map((k) => { const ui = STORE_UI[k]; return card({ t: ui.t, bg: ui.bg, icon: ui.icon, soon: ui.soon, pill: ui.soon ? ["gray", "Pronto"] : ["gray", list.some((x) => x.kind === k) ? "Agregar otra" : "Sin conectar"], p: ui.p,
     btns: !ui.soon && T && b ? `<button class="btn small ${list.length ? "" : "primary"}" data-store="${k}">Conectar</button>` : "" }); });
-  el.innerHTML = conn.join("") + add.join("");
+  el.innerHTML = conn.join("") + (b && !hasF("store", b) ? `<div style="grid-column:1/-1">${lockCard("store", "Conectar otra tienda online", "Cruza tus ventas de Shopify, WooCommerce u otra tienda con tus chats y anuncios.")}</div>` : add.join(""));
   el.querySelectorAll("[data-store]").forEach((x) => (x.onclick = () => openStoreNew(b, x.dataset.store)));
 }
 function openStoreNew(b, kind) {
@@ -4411,7 +4592,7 @@ async function renderStoreConn(id) {
       <li>Copia la clave que Shopify muestra debajo de la lista y pégala aquí.</li></ol>`
     : st.kind === "woo" ? `<ol class="steps-ol">
       <li>En WordPress: <b>WooCommerce → Ajustes → Avanzado → Webhooks</b> y toca <b>Añadir webhook</b>.</li>
-      <li>Nombre: «Autorespuestas». Estado: <b>Activo</b>. Tema: <b>Pedido actualizado</b>.</li>
+      <li>Nombre: «Feedback». Estado: <b>Activo</b>. Tema: <b>Pedido actualizado</b>.</li>
       <li>URL de entrega: el enlace de arriba. Secreto: la clave de arriba. Versión de la API: <b>v3</b>. Guarda.</li>
       <li>Cuando un pedido pasa a <b>Procesando</b> o <b>Completado</b> cuenta como pagado; <b>Cancelado</b> o <b>Reembolsado</b> se resta.</li></ol>`
     : `<ol class="steps-ol">
@@ -4487,27 +4668,28 @@ const budgetTxt = (bd, $$) => { if (!bd) return ""; const v = bd.daily != null ?
 const dec = (n) => Number(n || 0).toLocaleString("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const addD = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const fmtD = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("es-VE", { day: "numeric", month: "short", timeZone: "UTC" }).replace(".", "");
+/** Periodo elegido en Anuncios (mismo selector que Estadísticas). Abre en «Hoy». */
+function adsRangeState() { if (!S.adsR) { const t = todayLocal(); S.adsR = { from: t, to: t, preset: "today", cmp: "prev" }; } return S.adsR; }
 /** Fechas del periodo elegido y del que se compara. */
-function adRange(mode) {
-  const today = todayCcs(), y = addD(today, -1);
-  if (mode === "month") {
-    let from = today.slice(0, 8) + "01", to = y;
-    if (from > y) { to = y; from = y.slice(0, 8) + "01"; }
-    const pEnd = addD(from, -1), pFrom = pEnd.slice(0, 8) + "01";
-    const day = Math.min(Number(to.slice(8)), Number(pEnd.slice(8)));
-    return { from, to, pfrom: pFrom, pto: pEnd.slice(0, 8) + String(day).padStart(2, "0") };
+function adRange(I) {
+  const { from, to } = I, n = dDays(from, to);
+  if (I.cmp === "month") {
+    const back = (d) => { const [y, m, dd] = d.split("-").map(Number), py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1; return `${py}-${String(pm).padStart(2, "0")}-${String(Math.min(dd, Number(monthEnd(py, pm).slice(8)))).padStart(2, "0")}`; };
+    return { from, to, pfrom: back(from), pto: back(to), cmp: "month" };
   }
-  const n = Number(mode) || 7;
-  return { from: addD(y, -(n - 1)), to: y, pfrom: addD(y, -(2 * n - 1)), pto: addD(y, -n) };
+  return { from, to, pfrom: addD(from, -n), pto: addD(from, -1), cmp: I.cmp };
 }
+/** Las recomendaciones y el semáforo siempre miran los últimos 7 días completos. */
+const adWeek = () => { const y = addD(todayLocal(), -1); return { from: addD(y, -6), to: y }; };
 const roasF = (v) => Number(v).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fold = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 let renderAdsCached = null;
 async function renderAds(force, cached) {
-  const b = curBrand();
+  const b = curBrand(), AR = adsRangeState();
   shell({ title: `Anuncios${b && b.ads.pro ? ' <span class="probadge">PRO</span>' : ""}`, sub: "Lo que gastas en Meta y cuánto te trae, explicado en palabras simples.",
-    head: b && b.ads.connected ? `<select id="adP" class="adsel" aria-label="Periodo">${AD_PERIODS.map(([k, l]) => `<option value="${k}" ${ADS_PERIOD.mode === k ? "selected" : ""}>${l}</option>`).join("")}</select><button class="btn small" id="adR">${ICON.refresh} Actualizar ahora</button>` : "" });
+    head: b && b.ads.connected && hasF("ads", b) ? `<div class="adhead"><div class="dp-wrap r"><button class="btn small dp-btn" id="adP" aria-haspopup="dialog" aria-expanded="false">${ICON.cal}<span>${esc(periodName(AR))}</span>${AR.cmp !== "none" ? `<span class="pill gray" style="font-size:11px">vs. ${AR.cmp === "month" ? "mes anterior" : "periodo anterior"}</span>` : ""}<span aria-hidden="true">▾</span></button></div><button class="btn small" id="adR" title="Actualizar" aria-label="Actualizar">${ICON.refresh}<span class="bl"> Actualizar</span></button><div class="dl-wrap"><button class="btn small" id="adDl" title="Descargar" aria-label="Descargar" aria-expanded="false">${ICON.down}<span class="bl"> Descargar</span></button><div class="dl-menu hidden" id="adDlM"><button type="button" id="adPng">${ICON.down} Imagen</button><button type="button" id="adPdf">${ICON.down} PDF</button></div></div></div>` : "" });
   const box = $("tabBody");
+  if (b && !hasF("ads", b)) { box.innerHTML = lockCard("ads", "Anuncios", "Mira cuánto gastas en Meta y cuánto te trae cada anuncio, en palabras simples."); return; }
   if (!b || !b.ads.connected) {
     box.innerHTML = `<div class="card empty" style="padding:44px 20px"><div class="ag-ic" style="margin:0 auto 12px;width:56px;height:56px">${NI.ads}</div><h2 style="margin:0">Conecta tu cuenta de anuncios</h2>
       <p class="muted" style="max-width:520px;margin:8px auto 16px">Vas a ver el gasto, el costo por conversación y qué anuncio trae más ventas, con un semáforo y recomendaciones de qué cambiar.</p>
@@ -4515,30 +4697,43 @@ async function renderAds(force, cached) {
     if ($("adGo")) $("adGo").onclick = () => openAdsConnect(b);
     return;
   }
-  $("adP").onchange = (e) => { ADS_PERIOD.mode = e.target.value; ADS_PERIOD.ask.hist = []; renderAds(); };
+  $("adP").onclick = () => { if (document.querySelector(".dp-pop")) return; openDatePicker($("adP"), (x) => { Object.assign(AR, x); ADS_PERIOD.ask.hist = []; renderAds(); }, AR); };
   $("adR").onclick = () => renderAds(true);
-  const R0 = adRange(ADS_PERIOD.mode), { from, to } = R0;
+  $("adDl").onclick = (e) => { e.stopPropagation(); const m = $("adDlM"), open = m.classList.toggle("hidden") === false; $("adDl").setAttribute("aria-expanded", String(open));
+    if (open) setTimeout(() => document.addEventListener("click", function off() { m.classList.add("hidden"); $("adDl") && $("adDl").setAttribute("aria-expanded", "false"); document.removeEventListener("click", off); }), 0); };
+  if (!hasF("pdf")) $("adDl").onclick = (e) => { e.stopPropagation(); lockToast("pdf", "Descargar en PDF o imagen"); };
+  $("adPng").onclick = () => { $("adDlM").classList.add("hidden"); downloadAds("png", $("adDl")); };
+  $("adPdf").onclick = () => { $("adDlM").classList.add("hidden"); downloadAds("pdf", $("adDl")); };
+  const R0 = adRange(AR), { from, to } = R0, W7 = adWeek(), live = to >= todayLocal();
+  clearTimeout(renderAds.tm);
+  if (live) renderAds.tm = setTimeout(() => { if ($("adP") && curBrand() === b && !document.querySelector(".dp-pop")) renderAds(); }, 3600e3);
   if (!cached) box.innerHTML = `<div class="card"><div class="empty">Cargando los datos de Meta…</div></div>`;
-  let r = cached; if (!r) try { r = await api(`/api/ads?brand=${encodeURIComponent(b.id)}&from=${from}&to=${to}&pfrom=${R0.pfrom}&pto=${R0.pto}${force ? "&force=1" : ""}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  let r = cached; if (!r) try { r = await api(`/api/ads?brand=${encodeURIComponent(b.id)}&from=${from}&to=${to}&pfrom=${R0.pfrom}&pto=${R0.pto}&advice=1${force ? "&force=1" : ""}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
   if (!$("tabBody") || curBrand() !== b) return;
   renderAdsCached = r;
   const t = r.totals, p = r.prev, $$ = (n) => money(n);
+  // Semáforo y recomendaciones: últimos 7 días completos (el servidor los manda en «advice»)
+  const AV = r.advice || { lights: r.lights, totals: r.totals, sales: r.sales, from: r.from, to: r.to };
+  const w7 = `${fmtD(AV.from)}–${fmtD(AV.to)}`;
   // Flecha y porcentaje contra el periodo anterior (verde si mejora)
-  const dl = (cur, prev, lowerBetter, neutral) => { if (cur == null) return ""; if (prev == null || !prev) return cur && prev === 0 ? `<span class="dl n">nuevo</span>` : ""; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<span class="dl n">= igual</span>`; if (d > 300) return `<span class="dl n">antes casi nada</span>`; const good = lowerBetter ? d < 0 : d > 0; return `<span class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</span>`; };
+  const noCmp = AR.cmp === "none";
+  const dl = (cur, prev, lowerBetter, neutral) => { if (cur == null || noCmp) return ""; if (prev == null || !prev) return cur && prev === 0 ? `<span class="dl n">nuevo</span>` : ""; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<span class="dl n">= igual</span>`; if (d > 300) return `<span class="dl n">antes casi nada</span>`; const good = lowerBetter ? d < 0 : d > 0; return `<span class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</span>`; };
   const LT = { g: ["g", "🟢 Bien"], y: ["y", "🟡 Atención"], r: ["r", "🔴 Mejorar"] };
   // Semáforo compacto: título, número y etiqueta; la explicación sale al tocar la etiqueta
   const semC = (l, title, val, popHtml, valStyle = "") => `<div class="smc ${l || "n"}"><div class="smc-t">${title}</div><div class="smc-r"><b ${valStyle}>${val}</b>
     <button type="button" class="lt2 ${l || "n"}" data-pop aria-expanded="false">${l ? LT[l][1] : "Ver"}<svg class="info-i" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4.9" r="1" fill="currentColor"/><path d="M8 7.2v4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div><div class="pop hidden" role="dialog">${popHtml}</div></div>`;
-  const sem = (k, title, val, ex) => { const l = r.lights && r.lights[k]; return semC(l, title, val, `<div class="pop-h">${l ? LT[l][1].split(" ")[0] + " " : ""}${title}</div><p style="margin-top:2px">${ex}</p>`); };
-  const R = r.rules;
+  const sem = (k, title, val, ex) => { const l = AV.lights && AV.lights[k]; return semC(l, title, val, `<div class="pop-h">${l ? LT[l][1].split(" ")[0] + " " : ""}${title}</div><p style="margin-top:2px">${ex}</p>`); };
+  const R = r.rules, SV = AV.sales || { has: false }, AT = AV.totals || {};
   const L = r.live, SL = r.sales || { has: false }, SP = SL.prev || {};
   const srcChips = SL.has ? [...(SL.sources || []).map((x) => `<span class="src"><i style="background:${(STORE_UI[x.kind] || STORE_UI.custom).bg}">${x.kind === "custom" ? "↔" : (STORE_UI[x.kind] || {}).t?.[0] || "T"}</i>${esc(x.name)}</span>`), SL.chat ? `<span class="src"><i style="background:var(--accent)">✓</i>Pagos marcados en el chat</span>` : ""].join("") : "";
   const cAt = r.computed_at ? new Date(r.computed_at) : null;
-  const vsTxt = `compara ${fmtD(r.from)}–${fmtD(r.to)} con ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}`;
+  const vsTxt = noCmp ? `${fmtD(r.from)}–${fmtD(r.to)}, sin comparar` : `compara ${fmtD(r.from)}–${fmtD(r.to)} con ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}`;
+  const vsShort = noCmp ? "" : ` vs. ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}`;
   const worst = r.ads.find((a) => a.action && ["cut", "off"].includes(a.action.k)), bestAd = r.ads.find((a) => a.action && a.action.k === "up");
   const sugg = [worst ? `¿Por qué está mal «${worst.name}»?` : "¿Qué anuncio está peor y por qué?", bestAd ? `¿Cuánto más le subo a «${bestAd.name}»?` : "¿A qué anuncio le subo el presupuesto?", SL.has ? "¿Cuánto debería invertir para vender el doble?" : "¿Por qué me escriben pero no compran?"];
-  box.innerHTML = `
-    <p class="small muted adcalc">${NI.clock} ${cAt ? `Calculado ${esc(agoText(r.computed_at))} (${cAt.toLocaleDateString("es-VE", { day: "numeric", month: "short" })}, ${cAt.toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })})` : ""} · ${ADS_PERIOD.mode === "7" ? "se recalcula solo a las 4:00, de lunes a viernes" : "se calcula al abrir"} · ${vsTxt}</p>
+  box.innerHTML = `<div class="adwrap">
+    <p class="small muted adcalc">${NI.clock} ${cAt ? `Calculado ${esc(agoText(r.computed_at))} (${cAt.toLocaleDateString("es-VE", { day: "numeric", month: "short" })}, ${cAt.toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })})` : ""} · ${live ? "<b>hoy parcial</b>, se actualiza cada hora" : "se calcula al abrir"} · ${vsTxt}</p>
+    ${L ? `<div class="live1"><span class="live-dot"></span><b>Ahora:</b> ${nf(L.active)} activo${L.active === 1 ? "" : "s"} · ${$$(L.daily_budget)}/día · ${$$(L.today_spend)} hoy${L.account_status && L.account_status !== 1 ? ` · <span style="color:var(--bad);font-weight:700">revisa la cuenta en Meta</span>` : ""}</div>` : ""}
     ${L ? `<div class="card live-ads"><div class="card-h"><div><h2>Ahora mismo</h2><p>Actualizado ${new Date(L.at).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}</p></div></div>
       ${L.account_status && L.account_status !== 1 ? `<div class="alert" style="margin-bottom:12px">La cuenta publicitaria tiene un problema en Meta (está desactivada o le falta un pago). Revísala en el Administrador de anuncios.</div>` : ""}
       <div class="kpis" style="margin:0">
@@ -4553,40 +4748,40 @@ async function renderAds(force, cached) {
         <div id="askLog">${ADS_PERIOD.ask.hist.map((h) => `<div class="${h.role === "user" ? "ask-q" : "ask-a"}">${esc(h.content)}</div>`).join("")}</div>
         <form class="row ask-f" id="askF" style="flex-wrap:nowrap;gap:8px;margin-top:10px"><input id="askI" maxlength="400" placeholder="Escribe tu pregunta…" style="flex:1;min-width:0"><button class="btn primary" id="askS">Preguntar</button></form>
         <div class="help" style="margin:6px 0 0">Responde con los números de esta pantalla. Cada pregunta gasta un poco de saldo de la IA.</div></div></div>` : ""}
-    ${r.pro ? `<div class="ai-sum" id="adSum"><h2>${NI.brain.replace("<svg", '<svg width="18" height="18"')} Resumen ${ADS_PERIOD.mode === "7" ? "de la semana" : ADS_PERIOD.mode === "month" ? "del mes" : `de ${ADS_PERIOD.mode} días`}</h2><div id="adSumT" class="muted" style="margin-top:8px">Escribiendo el resumen…</div></div>` : ""}
+    ${r.pro ? `<div class="ai-sum" id="adSum"><h2>${NI.brain.replace("<svg", '<svg width="18" height="18"')} Resumen de los últimos 7 días</h2><button type="button" class="linkbtn sum-t" id="adSumB" aria-expanded="false">Ver resumen ▾</button><div class="sum-b"><p class="small muted" style="margin:2px 0 0">${w7} · se recalcula solo a las 4:00, de lunes a viernes</p><div id="adSumT" class="muted" style="margin-top:8px">Escribiendo el resumen…</div></div></div>` : ""}
     ${SL.has ? `<div class="kpis">
-      <div class="kpi"><div class="l">Invertido</div><div class="v">${$$(t.spend)}</div><div class="s">${dl(t.spend, p && p.spend, false, true)} vs. ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}</div></div>
+      <div class="kpi"><div class="l">Invertido</div><div class="v">${$$(t.spend)}</div><div class="s">${dl(t.spend, p && p.spend, false, true)}${vsShort}</div></div>
       <div class="kpi"><div class="l">Vendido por anuncios</div><div class="v">${$$(SL.sold)}</div><div class="s">${dl(SL.sold, SP.sold)} · ${nf(SL.orders)} pedido${SL.orders === 1 ? "" : "s"}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada pedido</div><div class="v">${SL.cpo != null ? $$(SL.cpo) : "—"}</div><div class="s">${dl(SL.cpo, SP.cpo, true)}${SL.net_po != null ? ` · te quedan <b style="color:${SL.net_po < 0 ? "var(--bad)" : "var(--ok)"}">${$$(SL.net_po)}</b> por pedido` : SL.ticket != null ? ` · pedido promedio ${$$(SL.ticket)}` : ""}</div></div>
       <div class="kpi"><div class="l">ROAS · por cada $1, vendes</div><div class="v">${SL.roas != null ? $$(SL.roas) : "—"}</div><div class="s">${SL.roas != null ? `<b style="color:var(--ink)">ROAS ${roasF(SL.roas)}</b> ` : ""}${dl(SL.roas, SP.roas)}${t.roas != null ? ` · Meta dice ${roasF(t.roas)}` : ""}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada clic</div><div class="v">${r.cpc != null ? $$(r.cpc) : "—"}</div><div class="s">${dl(r.cpc, r.cpc_prev, true)} · CPC</div></div>
-      <div class="kpi"><div class="l">Ganancia</div><div class="v">${SL.profit != null ? $$(SL.profit) : "—"}</div><div class="s">${SL.margin != null ? `con tu margen de ${SL.margin}% · ` : ""}${can("tienda") ? `<button class="linkbtn" id="adMargin" style="color:var(--accent);font-weight:600;margin:0">${SL.margin != null ? "cambiar" : "pon tu margen"}</button>` : ""}</div></div>
+      <div class="kpi"><div class="l">Ganancia</div><div class="v">${SL.profit != null ? $$(SL.profit) : "—"}</div><div class="s">${SL.margin != null ? `con tu margen de ${SL.margin}%<span class="msep"> · </span>` : ""}${can("tienda") ? `<button class="linkbtn" id="adMargin" style="color:var(--accent);font-weight:600;margin:0">${SL.margin != null ? "cambiar" : "pon tu margen"}</button>` : ""}</div></div>
       <div class="kpi"><div class="l">Ventas sin anuncio</div><div class="v">${$$(SL.no_ad)}</div><div class="s">${nf(SL.no_ad_n)} · orgánico y clientes fijos</div></div>
     </div>` : `<div class="kpis">
-      <div class="kpi"><div class="l">Gastado</div><div class="v">${$$(t.spend)}</div><div class="s">${dl(t.spend, p && p.spend, false, true)} vs. ${fmtD(r.prev_from)}–${fmtD(r.prev_to)}</div></div>
+      <div class="kpi"><div class="l">Gastado</div><div class="v">${$$(t.spend)}</div><div class="s">${dl(t.spend, p && p.spend, false, true)}${vsShort}</div></div>
       <div class="kpi"><div class="l">Conversaciones</div><div class="v">${nf(t.chats)}</div><div class="s">${dl(t.chats, p && p.chats)}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada chat</div><div class="v">${t.cost_chat != null ? $$(t.cost_chat) : "—"}</div><div class="s">${dl(t.cost_chat, p && p.cost_chat, true)}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada clic</div><div class="v">${r.cpc != null ? $$(r.cpc) : "—"}</div><div class="s">${dl(r.cpc, r.cpc_prev, true)} · CPC</div></div>
       <div class="kpi"><div class="l">Llegaron al bot</div><div class="v">${nf(r.funnel.bot_chats)}</div><div class="s">${nf(r.funnel.handoff_pay)} mandaron pago</div></div>
     </div>`}
-    ${r.pro ? `<div class="smg" id="semG">
-      ${SL.has && SL.cpo != null ? (() => {
-        if (SL.ppo == null) return semC(null, "Lo que te queda por cada venta", "—", `<p style="margin:0">Pon tu margen en la tarjeta Ganancia para saber cuánto te queda por venta.</p>`);
-        const net = SL.net_po, l = net < 0 ? "r" : net >= SL.ppo * 0.5 ? "g" : "y";
+    ${r.pro ? `<div class="sem-h"><b>Salud de los últimos 7 días</b><span class="small muted">${w7} · no cambia con el periodo de arriba</span></div><div class="smg" id="semG">
+      ${SV.has && SV.cpo != null ? (() => {
+        if (SV.ppo == null) return semC(null, "Lo que te queda por cada venta", "—", `<p style="margin:0">Pon tu margen en la tarjeta Ganancia para saber cuánto te queda por venta.</p>`);
+        const net = SV.net_po, l = net < 0 ? "r" : net >= SV.ppo * 0.5 ? "g" : "y";
         const head = l === "g" ? "🟢 Vas bien" : l === "y" ? "🟡 Ganas, pero poco" : "🔴 Estás perdiendo";
         const fin = l === "g" ? "Te queda más de la mitad. Puedes invertir un poco más en anuncios." : l === "y" ? "El anuncio se está comiendo más de la mitad de lo que deja cada venta." : `Pierdes ${$$(Math.abs(net))} en cada venta: el anuncio cuesta más de lo que te deja el producto.`;
         return semC(l, "Lo que te queda por cada venta", $$(net), `<div class="pop-h">${head}</div>
-          <div class="pop-l"><span>Cada cliente te compró en promedio</span><b>${$$(SL.ticket)}</b></div>
-          <div class="pop-l"><span>Después de pagar el producto (margen ${SL.margin} %)</span><b>${$$(SL.ppo)}</b></div>
-          <div class="pop-l"><span>Menos lo que pagaste en anuncios por venta</span><b class="neg">− ${$$(SL.cpo)}</b></div>
+          <div class="pop-l"><span>Cada cliente te compró en promedio</span><b>${$$(SV.ticket)}</b></div>
+          <div class="pop-l"><span>Después de pagar el producto (margen ${SV.margin} %)</span><b>${$$(SV.ppo)}</b></div>
+          <div class="pop-l"><span>Menos lo que pagaste en anuncios por venta</span><b class="neg">− ${$$(SV.cpo)}</b></div>
           <div class="pop-l tot"><span>Te queda por venta</span><b ${net < 0 ? 'class="neg"' : ""}>${$$(net)}</b></div><p>${fin}</p>`, net < 0 ? 'style="color:var(--bad)"' : ""); })() : ""}
-      ${sem("cost_chat", "Cuánto te cuesta que te escriban", t.cost_chat != null ? $$(t.cost_chat) : "—", `Por cada persona que te escribe. Menos de $${R.cpc_good} es bueno para tu negocio.`)}
-      ${sem("ctr", "De cada 100 que lo ven, cuántos lo tocan", dec(t.ctr), `Más de ${R.ctr_good} es bueno.`)}
-      ${sem("frequency", "Veces que la misma persona lo vio", dec(t.frequency), `Pasando de ${R.freq_warn} la gente se cansa y toca renovar.`)}
-      ${SL.has ? sem("roas", "ROAS · por cada $1, vendes (real)", SL.roas != null ? $$(SL.roas) : "—", SL.roas != null ? `<b>ROAS ${roasF(SL.roas)}</b>: por cada $1 en anuncios vendiste ${$$(SL.roas)}, según las ventas de tu tienda. Lo ideal es ${roasF(R.roas_good)} o más.` : `Según las ventas de tu tienda. Lo ideal es $${R.roas_good} o más.`)
-        : sem("roas", "Por cada $1 que pones, vendes", t.roas != null ? $$(t.roas) : "—", t.roas != null ? `Lo ideal es $${R.roas_good} o más.` : "Aparece cuando Meta registra compras.")}
+      ${sem("cost_chat", "Cuánto te cuesta que te escriban", AT.cost_chat != null ? $$(AT.cost_chat) : "—", `Por cada persona que te escribe. Menos de $${R.cpc_good} es bueno para tu negocio.`)}
+      ${sem("ctr", "De cada 100 que lo ven, cuántos lo tocan", dec(AT.ctr), `Más de ${R.ctr_good} es bueno.`)}
+      ${sem("frequency", "Veces que la misma persona lo vio", dec(AT.frequency), `Pasando de ${R.freq_warn} la gente se cansa y toca renovar.`)}
+      ${SV.has ? sem("roas", "ROAS · por cada $1, vendes (real)", SV.roas != null ? $$(SV.roas) : "—", SV.roas != null ? `<b>ROAS ${roasF(SV.roas)}</b>: por cada $1 en anuncios vendiste ${$$(SV.roas)}, según las ventas de tu tienda. Lo ideal es ${roasF(R.roas_good)} o más.` : `Según las ventas de tu tienda. Lo ideal es $${R.roas_good} o más.`)
+        : sem("roas", "Por cada $1 que pones, vendes", AT.roas != null ? $$(AT.roas) : "—", AT.roas != null ? `Lo ideal es $${R.roas_good} o más.` : "Aparece cuando Meta registra compras.")}
     </div>` : ""}
-    <div class="card"><div class="card-h"><div><h2>${r.pro ? "Diagnóstico por anuncio" : "Tus anuncios"}</h2><p>${r.pro ? "Lo que recomendamos cambiar en cada uno, comparado con el periodo anterior." : "Ordenados por gasto."}</p></div>
+    <div class="card"><div class="card-h"><div><h2>${r.pro ? "Diagnóstico por anuncio" : "Tus anuncios"}</h2><p>${r.pro ? `Los números son del periodo elegido; <b>la recomendación, según los últimos 7 días</b> (${w7}).` : "Ordenados por gasto."}</p></div>
       ${L ? `<nav class="seg"><button data-only="0" class="${ADS_PERIOD.only ? "" : "on"}">Todos</button><button data-only="1" class="${ADS_PERIOD.only ? "on" : ""}">Solo activos</button></nav>` : ""}</div>
       <div class="adtools"><div class="search adsearch">${ICON.search}<input id="adQ" type="search" placeholder="Buscar anuncio…" value="${esc(ADS_PERIOD.q)}"></div><div class="chips" id="adChips" style="margin:0"></div></div>
       <div id="adList"></div>
@@ -4597,8 +4792,9 @@ async function renderAds(force, cached) {
       <div class="card"><div class="card-h"><div><h2>Lo que preguntan quienes vienen de anuncios</h2><p>Sale de los chats del bot.</p></div></div>
         ${r.asks.length ? r.asks.map((a) => `<div class="hbar wide"><span class="small">${esc(a.label)}</span><span class="track"><span class="fill" style="display:block;width:${a.pct}%"></span></span><span class="n">${a.pct}%</span></div>`).join("") + (r.asks[0] && /cuesta/.test(r.asks[0].label) && r.asks[0].pct > 40 ? `<div class="info small" style="margin-top:12px">💡 Muchos preguntan el precio: ponlo en el anuncio y te escribirá gente más lista para comprar.</div>` : "") : `<p class="muted">Todavía no hay chats que lleguen marcados desde un anuncio.</p>`}</div>
     </div>
-    <p class="help" style="margin-top:14px">Las recomendaciones son orientativas, según los criterios de tu agencia y los datos de Meta. No modificamos tus anuncios: los cambios los haces tú en el Administrador de anuncios.</p>`;
+    <p class="help" style="margin-top:14px">Las recomendaciones son orientativas, según los criterios de tu agencia y los datos de Meta. No modificamos tus anuncios: los cambios los haces tú en el Administrador de anuncios.</p></div>`;
   drawAdList(r);
+  if ($("adSumB")) $("adSumB").onclick = () => { const o = $("adSum").classList.toggle("open"); $("adSumB").setAttribute("aria-expanded", String(o)); $("adSumB").textContent = o ? "Ocultar ▴" : "Ver resumen ▾"; };
   // Mini tarjetas del semáforo
   const closePops = () => box.querySelectorAll(".smc .pop").forEach((x) => { x.classList.add("hidden"); x.parentElement.querySelector("[data-pop]").setAttribute("aria-expanded", "false"); });
   box.querySelectorAll("[data-pop]").forEach((btn) => (btn.onclick = (e) => {
@@ -4643,7 +4839,7 @@ async function renderAds(force, cached) {
     dlg.showModal(); $("mgX").onclick = $("mgC").onclick = () => dlg.close();
     $("mgF").onsubmit = async (e) => { e.preventDefault(); try { await api(`/api/ads/${b.id}`, { method: "PUT", body: { margin: $("mgV").value } }); dlg.close(); await loadData(); renderAds(true); } catch (er) { $("mgOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; } };
   };
-  if (r.pro) api("/api/ads/summary", { method: "POST", body: { brand: b.id, from, to } }).then((x) => { const el = $("adSumT"); if (el) { el.classList.remove("muted"); el.innerHTML = `<ul>${x.text.split("\n").filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^[-•*]\s*/, ""))}</li>`).join("")}</ul>`; } })
+  if (r.pro) api("/api/ads/summary", { method: "POST", body: { brand: b.id, from: W7.from, to: W7.to } }).then((x) => { const el = $("adSumT"); if (el) { el.classList.remove("muted"); el.innerHTML = `<ul>${x.text.split("\n").filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^[-•*]\s*/, ""))}</li>`).join("")}</ul>`; } })
     .catch((e) => { const el = $("adSumT"); if (el) el.textContent = e.message; });
 }
 /** Filtros, buscador y lista de anuncios (se redibuja sin recargar la página). */
@@ -4660,7 +4856,8 @@ function drawAdList(r) {
   const list = ADS_PERIOD.act === "alert" ? base.filter(alertOf) : ADS_PERIOD.act ? base.filter((a) => a.action && a.action.k === ADS_PERIOD.act) : base;
   const spark = (pts, col) => { if (!pts || pts.length < 2 || !pts.some((v) => v)) return ""; const w = 76, h = 26, mx = Math.max(...pts), mn = Math.min(...pts); const xy = pts.map((v, i) => [4 + (i / (pts.length - 1)) * (w - 8), h - 4 - ((v - mn) / (mx - mn || 1)) * (h - 8)]);
     return `<svg class="spk" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="Tendencia de conversaciones por día"><polyline points="${xy.map((q) => q.join(",")).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/><circle cx="${xy[xy.length - 1][0]}" cy="${xy[xy.length - 1][1]}" r="2.6" fill="${col}"/></svg>`; };
-  const dl = (cur, prev, lowerBetter, neutral) => { if (cur == null) return `<i class="dl n">—</i>`; if (prev == null || !prev) return cur && prev === 0 ? `<i class="dl n">nuevo</i>` : `<i class="dl n">—</i>`; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<i class="dl n">= igual</i>`; if (d > 300) return `<i class="dl n">antes casi nada</i>`; const good = lowerBetter ? d < 0 : d > 0; return `<i class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</i>`; };
+  const noCmp = S.adsR && S.adsR.cmp === "none";
+  const dl = (cur, prev, lowerBetter, neutral) => { if (noCmp) return ""; if (cur == null) return `<i class="dl n">—</i>`; if (prev == null || !prev) return cur && prev === 0 ? `<i class="dl n">nuevo</i>` : `<i class="dl n">—</i>`; const d = ((cur - prev) / prev) * 100; if (Math.abs(d) < 1) return `<i class="dl n">= igual</i>`; if (d > 300) return `<i class="dl n">antes casi nada</i>`; const good = lowerBetter ? d < 0 : d > 0; return `<i class="dl ${neutral ? "n" : good ? "g" : "b"}">${d > 0 ? "↑" : "↓"} ${Math.abs(Math.round(d))}%</i>`; };
   const bTxt = (bd) => (bd ? (bd.to === bd.from ? `${$$(bd.from)}/día` : `${$$(bd.from)} → ${bd.to ? $$(bd.to) + "/día" : "$0"}`) : "");
   const bx = (label, val, d, sub) => `<div><span>${label}</span><b>${val}</b>${d || ""}${sub ? `<em>${sub}</em>` : ""}</div>`;
   el.innerHTML = list.length ? list.map((a) => {
@@ -4675,7 +4872,7 @@ function drawAdList(r) {
       <div class="adsub"><span class="small muted">${esc(a.campaign || "")}${a.budget && budgetTxt(a.budget, $$) ? ` · Presupuesto <b style="color:var(--ink)">${budgetTxt(a.budget, $$)}</b>` : ""}${a.today ? ` · Hoy ${$$(a.today)}` : ""}</span>${spark(a.trend, a.action ? ACOL[a.action.k] : "#6b7280")}</div>
       <div class="mx">${boxes}</div>
       <div class="small muted" style="margin-top:6px">${SL.has ? `Vendió <b style="color:var(--ink)">${$$(a.sales.total)}</b> en ${nf(a.sales.n)} pedido${a.sales.n === 1 ? "" : "s"} · ` : ""}Lo vio ${dec(a.m.frequency)} veces · Llegaron al bot ${nf(a.bot_chats)}${a.m.roas != null ? ` · Meta dice ${$$(a.m.roas)} por cada $1` : ""}</div>
-      ${a.action && (SL.has || r.pro) ? `<div class="rec"><span class="act ${a.action.k}">${a.action.label}</span>${a.action.budget && bTxt(a.action.budget) ? ` <b style="margin-left:4px">${bTxt(a.action.budget)}</b>` : ""}<div style="margin-top:5px">${esc(a.action.why)}</div>${a.action.rule ? `<small class="rule">${esc(a.action.rule)}</small>` : ""}</div>`
+      ${a.action && (SL.has || r.pro) ? `<div class="rec"><span class="act ${a.action.k}">${a.action.label}</span>${a.action.budget && bTxt(a.action.budget) ? ` <b style="margin-left:4px">${bTxt(a.action.budget)}</b>` : ""}<span class="small muted" style="margin-left:6px">· según los últimos 7 días</span><div style="margin-top:5px">${esc(a.action.why)}</div>${a.action.rule ? `<small class="rule">${esc(a.action.rule)}</small>` : ""}</div>`
         : a.dx ? `<div class="rec"><b class="t">👉 ${esc(a.dx.act)}</b>${esc(a.dx.why)}</div>` : ""}</div></div>`;
   }).join("") : `<div class="empty">${ADS_PERIOD.q ? "Ningún anuncio con ese nombre." : ADS_PERIOD.act ? "Ningún anuncio con esa acción." : ADS_PERIOD.only ? "No hay anuncios activos ahora." : "No hubo anuncios con gasto en este periodo."}</div>`;
 }
