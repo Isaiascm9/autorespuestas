@@ -604,6 +604,54 @@ a.btn.primary{color:#fff}
 .ficha .tag{display:inline-flex;align-items:center;gap:4px;background:#ede9fe;color:#5b21b6;border-radius:99px;padding:2px 4px 2px 10px;font-size:12px;font-weight:600}
 .ficha .tag button{border:0;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .ficha .tags input{width:110px;padding:3px 8px;font-size:12.5px;border-radius:99px}
+/* agenda */
+.ag-kpis{margin:6px 0 14px}
+.ag-bar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.ag-range{font-size:15px;margin-left:6px}
+.ag-wrap{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:14px;align-items:start}
+@media (max-width:1050px){.ag-wrap{grid-template-columns:1fr}}
+.ag-cal{border:1px solid var(--line);border-radius:12px;overflow:auto;background:var(--card);max-height:72vh}
+.ag-head,.ag-body{display:grid;grid-template-columns:52px repeat(var(--cols),minmax(108px,1fr))}
+.ag-head{position:sticky;top:0;background:#fafafd;border-bottom:1px solid var(--line);z-index:3}
+.ag-head>div{padding:8px 4px;text-align:center;font-weight:700;font-size:13px}
+.ag-head small{display:block;color:var(--muted);font-weight:500;font-size:11.5px}
+.ag-head .today{background:var(--accent-soft);color:var(--accent)}.ag-head .off{color:var(--muted)}
+.ag-hours div{height:52px;font-size:11px;color:var(--muted);text-align:right;padding:2px 6px 0 0;border-right:1px solid var(--line);white-space:nowrap}
+.ag-col{position:relative;border-right:1px solid #f1f1f5;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 51px,#f0f0f4 51px,#f0f0f4 52px);cursor:copy}
+.ag-col.today{background-color:#fafaff}.ag-col.closed{background-color:#f6f6f8;cursor:default}
+.ag-lunch{position:absolute;left:0;right:0;background:repeating-linear-gradient(45deg,#f1f2f5,#f1f2f5 6px,transparent 6px,transparent 12px)}
+.ag-ev{position:absolute;border:0;text-align:left;border-radius:7px;padding:3px 6px;font:inherit;font-size:11.5px;line-height:1.25;color:#1b1b4d;background:#e3e4f7;border-left:3px solid var(--accent);overflow:hidden;cursor:pointer;z-index:1}
+.ag-ev:hover{filter:brightness(.97);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.ag-ev b,.ag-ev span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-ev span{color:#4b4b7a}
+.ag-ev.pending{background:#fff7e6;border-left-color:#f59e0b}
+.ag-ev.done{background:#f3f4f6;border-left-color:#9ca3af;color:#4b5563}
+.ag-ev.no_show{background:#fef2f2;border-left-color:var(--bad)}.ag-ev.no_show b{text-decoration:line-through}
+.ag-ad{position:absolute;right:4px;top:3px;font-style:normal;font-size:9px;font-weight:800;color:var(--accent);background:#fff;border-radius:4px;padding:0 3px}
+.ag-side{display:flex;flex-direction:column;gap:12px}.ag-side .card{margin:0;padding:14px}
+.ag-h3{margin:0 0 6px;font-size:14.5px}.ag-h2{margin:0;font-size:17px}
+.ag-it{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border:0;border-bottom:1px solid var(--line);cursor:pointer;width:100%;background:none;text-align:left;font:inherit;color:inherit}
+.ag-it:last-child{border-bottom:0}
+.ag-legend{display:flex;flex-wrap:wrap;gap:6px 12px}.ag-legend span{display:inline-flex;align-items:center;gap:5px}
+.ag-dot{width:10px;height:10px;border-radius:3px;display:inline-block;background:#e3e4f7;border-left:3px solid var(--accent)}
+.ag-dot.pending{background:#fff7e6;border-color:#f59e0b}.ag-dot.done{background:#f3f4f6;border-color:#9ca3af}.ag-dot.no_show{background:#fef2f2;border-color:var(--bad)}
+#agDlg .kv2{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:14px}#agDlg .kv2 span{color:var(--muted)}
+.ag-mv{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fafafa}
+.ag-svc-row{display:grid;grid-template-columns:minmax(150px,1.6fr) 100px 100px minmax(120px,1.2fr) 44px 34px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.ag-svc-h{font-size:12px;font-weight:700;color:var(--muted);padding:4px 0}
+.ag-svc .ag-desc{grid-column:1/-1;font-size:13px;padding:6px 10px}
+.ag-num{display:flex;align-items:center;gap:6px}.ag-num input{width:100%;min-width:60px}.ag-num span{color:var(--muted);font-size:13px;white-space:nowrap}
+.ag-who{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px}.ag-who label{display:inline-flex;gap:4px;align-items:center;font-weight:500}
+@media (max-width:760px){.ag-svc-row{grid-template-columns:1fr 1fr;}.ag-svc-h{display:none}.ag-svc-row>input:first-child{grid-column:1/-1}}
+.ag-day{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f1f5;flex-wrap:wrap}
+.ag-day input[type=time]{width:auto}
+#tabBody .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#tabBody .tag{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--accent);border-radius:99px;padding:3px 4px 3px 11px;font-size:13px;font-weight:600}
+#tabBody .tag button{border:0;background:none;color:inherit;cursor:pointer;font-size:15px;line-height:1;padding:0 5px}
+#tabBody .tags input{width:150px;padding:5px 10px;font-size:13px;border-radius:99px}
+.ag-prev{margin-top:12px;background:#f7f7f9;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.ag-prev .bo{background:#efefef;border-radius:18px 18px 18px 4px;padding:9px 13px;max-width:360px;white-space:pre-wrap;font-size:13.5px}
+.ag-prev .qrs{display:flex;gap:6px;flex-wrap:wrap}.ag-prev .qrs span{border:1.5px solid #3797f0;color:#3797f0;border-radius:99px;padding:4px 11px;font-weight:700;font-size:12.5px}
+.ficha .ag-c{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer}
 .ficha .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:6px;white-space:pre-wrap}
 .ficha .note small{display:block;color:var(--muted);margin-top:3px}
 .linkbtn{border:0;background:none;color:var(--bad);cursor:pointer;font-size:12px;padding:0;margin-left:4px}
@@ -1290,7 +1338,7 @@ $("setupForm").addEventListener("submit", (e) => {
 $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
 
 /* ================= navegación ================= */
-const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
+const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", agenda: "Agenda", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
   clientes: "Clientes y cobros", plan: "Plan y uso", planes: "Planes", papelera: "Papelera", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
 // rutas viejas → nuevas (enlaces guardados y notificaciones)
 const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", redes: "asistentes", "redes/catalogo": "catalogo", "redes/historias": "catalogo/historias",
@@ -1298,7 +1346,7 @@ const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", rede
 const ASSIST_PERM = ["prompts", "reglas", "tienda", "catalogo"];
 const anyCan = (list) => list.some((p) => can(p));
 const VIEW_OK = {
-  inicio: () => true, conversaciones: () => can("conversaciones"), asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
+  inicio: () => true, conversaciones: () => can("conversaciones"), agenda: () => can("conversaciones") && S.brands.length > 0, asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
   metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
   equipo: () => isMaestro() || can("equipo"), planes: () => isMaestro(), papelera: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
 };
@@ -1347,6 +1395,7 @@ const NI = {
   dm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
   comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   story: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="4 2.5"/><path d="M10 9l5 3-5 3z"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 17h2"/></svg>',
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>',
   key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>',
@@ -1366,6 +1415,7 @@ function renderNav() {
   const flag = '<span class="dot" title="Hay algo por revisar"></span>';
   $("side").innerHTML =
     group("Principal", item("inicio", NI.home, "Inicio") + item("conversaciones", ICON.chat, "Conversaciones", pending ? `<span class="cnt">${pending > 99 ? "99+" : pending}</span>` : "")
+      + item("agenda", NI.cal, "Agenda", (() => { const b = curBrand(); const n = b && AG.d && AG.brand === b.id ? AG.d.pending.length : 0; return n ? `<span class="cnt" style="background:#f59e0b">${n}</span>` : ""; })())
       + item("asistentes", NI.bot, "Asistentes") + item("catalogo", NI.bag, "Catálogo"))
     + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()))
     + group("Mi negocio", item("clientes", NI.money, "Clientes y cobros", S.leadsNew ? `<span class="cnt">${S.leadsNew}</span>` : ""))
@@ -1442,7 +1492,7 @@ function render() {
   $("main").innerHTML = "";
   const r = rest || [];
   ({
-    inicio: () => renderHome(), conversaciones: () => renderInbox(), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
+    inicio: () => renderHome(), conversaciones: () => renderInbox(), agenda: () => renderAgenda(r[0]), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
     metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
     equipo: () => (isMaestro() ? renderUsers() : renderMyTeam()), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), papelera: () => renderTrash(), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
@@ -1572,7 +1622,7 @@ NUNCA
 
 const DAY_LABELS = { lun: "Lunes", mar: "Martes", mie: "Miércoles", jue: "Jueves", vie: "Viernes", sab: "Sábado", dom: "Domingo" };
 const REASON_HINT = { pago: "Envió el pago, la referencia o la captura", reclamo: "Producto dañado, pedido que no llegó…", persona: "Pide hablar con alguien o está molesto", mayor: "Quiere comprar al mayor o revender", otro: "Cualquier otro motivo" };
-const NOTIFY_LABELS = { handoff: ["Cliente pasado a una persona", "Pago enviado, reclamo, pide una persona…"], ai_fail: ["La IA no respondió", "DeepSeek caído o saturado (máximo un aviso cada 10 min)"],
+const NOTIFY_LABELS = { handoff: ["Cliente pasado a una persona", "Pago enviado, reclamo, pide una persona…"], agenda: ["Citas de la agenda", "Cita nueva, cambios, cancelaciones y recordatorios que no se pudieron enviar"], ai_fail: ["La IA no respondió", "DeepSeek caído o saturado (máximo un aviso cada 10 min)"],
   mention: ["Te mencionaron en una historia", ""], offensive: ["Comentario ofensivo", "Solo si «Comentarios ofensivos» está activo en el Moderador"],
   billing: ["Plan y pagos", "Cuándo vence el plan y el uso del mes"], ads: ["Anuncios", "Anuncio rechazado, chats más caros y resumen semanal"], sales: ["Ventas de tu tienda online", "Cuando tu tienda avisa un pedido pagado"] };
 const SYSTEM_NOTIFY = { system: ["Alertas del sistema (solo cuenta maestra)", "Conexión caída, saldo bajo de la IA, intentos de entrada fallidos"] };
@@ -2382,7 +2432,7 @@ async function tabActivity() {
 }
 
 /* ================= RESUMEN ================= */
-const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["fallback", "Respaldo (IA falló)"], ["mention", "Menciones en historias"], ["reaction", "Reacciones a historias"], ["offhours", "Fuera de horario"], ["ignored", "Ignorados"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
+const KIND_LABELS = [["rule", "Reglas"], ["ai", "IA"], ["default", "Por defecto"], ["handoff", "Pasó a una persona"], ["fallback", "Respaldo (IA falló)"], ["mention", "Menciones en historias"], ["reaction", "Reacciones a historias"], ["offhours", "Fuera de horario"], ["agenda", "Agenda de citas"], ["reminder", "Recordatorios de citas"], ["ignored", "Ignorados"], ["hidden", "Ocultos"], ["none", "Sin respuesta"], ["paused", "En pausa"], ["test", "Modo prueba"], ["errors", "Errores"]];
 function ruleLabel(brandId, ruleId) {
   const r = (brandById(brandId)?.rules || []).find((x) => x.id === ruleId);
   if (!r) return "Regla eliminada";
@@ -2720,6 +2770,7 @@ async function loadThread(quiet) {
         <div class="menu-wrap"><button class="icon-btn" id="ibMore" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
           <div class="menu hidden" id="ibMenu">
             ${can("pausar") ? `<button data-mx="pause"><span>${c.paused ? "Reanudar el bot" : "Pausar el bot"}</span><small>${c.paused ? "El bot vuelve a responderle" : "El bot deja de responderle"}</small></button>` : ""}
+            ${d.agenda ? `<button data-mx="cita"><span>Agendar cita</span><small>Reservarle un horario a este cliente</small></button>` : ""}
             <button data-mx="unread"><span>Marcar como no leída</span></button>
             ${ig && c.username ? `<button data-mx="ig"><span>Abrir en Instagram</span></button>` : ""}
             ${can("tienda") ? `<button data-mx="ignore"><span>${d.ignored ? "Dejar de ignorar" : "Ignorar esta cuenta"}</span><small>${d.ignored ? "El bot volverá a responderle" : "El bot no le responderá nunca"}</small></button>` : ""}
@@ -2752,6 +2803,7 @@ async function loadThread(quiet) {
   $("ibMore").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); if (!menu.classList.contains("hidden")) { fitMenu(menu); document.addEventListener("click", () => menu.classList.add("hidden"), { once: true }); } };
   menu.querySelectorAll("[data-mx]").forEach((b) => (b.onclick = async () => {
     const a = b.dataset.mx;
+    if (a === "cita") return agNewDlg({ brand: c.brand_id, acc: sel.acc, user: sel.user, name: contactName(c) });
     if (a === "ig") return window.open(`https://ig.me/m/${encodeURIComponent(c.username)}`, "_blank", "noopener");
     if (a === "unread") { await meta({ unread: true }, "Marcada como no leída"); C.sel = null; $("inbox").classList.remove("has-sel"); return; }
     if (a === "pause") { try { await api("/api/contacts", { method: "PATCH", body: { account_id: sel.acc, user_id: sel.user, paused: !c.paused } }); toast(c.paused ? "Bot reanudado" : "Bot en pausa con este cliente"); loadThread(); loadInboxList(true); refreshBell(); } catch (er) { toast(er.message); } return; }
@@ -2795,10 +2847,14 @@ function drawFicha(d, meta) {
         + `<div class="small muted" style="margin-top:6px">Total pagado: <b style="color:var(--ink)">${money((d.sales || []).filter((x) => x.status === "paid").reduce((a, x) => a + x.amount, 0))}</b></div>`
       : `<p class="small muted" style="margin:0">Todavía no hay pagos registrados.</p>`}
       ${c.ad_title || c.ad_id ? `<div class="small" style="margin-top:8px">Llegó por el anuncio <b>${esc(c.ad_title || c.ad_id)}</b></div>` : ""}</div>
+    ${d.agenda || (d.appts || []).length ? `<div class="sec"><h4>Citas</h4>${(d.appts || []).length ? d.appts.map((x) => `<div class="ag-c" data-ap="${x.id}"><span><b>${esc(x.service_name)}</b><br><span class="muted">${agDay(x.start_at.slice(0, 10))} · ${agT(x.start_at.slice(11, 16))}</span></span><span class="pill ${(AG_ST[x.status] || [, "gray"])[1]}">${(AG_ST[x.status] || [x.status])[0]}</span></div>`).join("") : `<p class="small muted" style="margin:0">Todavía no tiene citas.</p>`}
+      ${d.agenda ? `<button class="btn small" id="fCita" style="margin-top:8px">${NI.cal.replace("<svg", '<svg width="15" height="15"')} Agendar cita</button>` : ""}</div>` : ""}
     <div class="sec"><h4>Notas del equipo</h4>${notes.length ? notes.map((n, i) => `<div class="note">${esc(n.text)}<small>${esc(n.by || "")} · ${esc(fmt(n.at))} <button type="button" class="linkbtn" data-ndel="${i}">Borrar</button></small></div>`).join("") : `<p class="small muted" style="margin:0">Sin notas. Solo las ve tu equipo, nunca el cliente.</p>`}
       <textarea id="fNote" placeholder="Escribe una nota…" style="min-height:56px;margin-top:8px"></textarea><button class="btn small" id="fNoteAdd" style="margin-top:6px">Guardar nota</button></div>
     ${can("tienda") ? `<div class="sec"><h4>Privacidad</h4><button class="btn small danger" id="fWipe">Borrar todos sus datos</button><div class="help">Para cuando un cliente pide que eliminen su información. No se puede deshacer.</div></div>` : ""}`;
   el.querySelectorAll("[data-sdel]").forEach((b) => (b.onclick = async () => { if (!(await confirmDel({ title: "¿Seguro que deseas quitar este pago?", text: "Deja de contar en tus ventas.", yes: "Sí, quitar" }))) return; try { const r = await api(`/api/sales/${b.dataset.sdel}`, { method: "DELETE" }); loadThread(); loadInboxList(true); undoToast("Pago quitado", r.trash_id, () => { loadThread(); loadInboxList(true); }); } catch (e) { toast(e.message); } }));
+  el.querySelectorAll("[data-ap]").forEach((x) => (x.onclick = () => { const a = d.appts.find((y) => String(y.id) === x.dataset.ap); if (a) agDetail(a); }));
+  if ($("fCita")) $("fCita").onclick = () => agNewDlg({ brand: c.brand_id, acc: c.account_id, user: c.user_id, name: contactName(c) });
   $("fClose").onclick = () => { S.inbox.ficha = false; $("inbox").classList.remove("with-ficha"); el.innerHTML = ""; };
   $("fTag").onkeydown = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); meta({ tags: [...tags, e.target.value.trim()] }); } };
   el.querySelectorAll("[data-tdel]").forEach((b) => (b.onclick = () => meta({ tags: tags.filter((_, i) => i !== +b.dataset.tdel) })));
@@ -4074,7 +4130,335 @@ function renderHelp() {
     ["¿Puedo responder yo desde el panel?", "Sí, en Conversaciones. Meta solo deja escribir hasta 24 horas después del último mensaje del cliente."],
     ["¿Cómo activo las notificaciones en mi teléfono?", "En Mi perfil (toca tu nombre arriba a la derecha) → Notificaciones. En iPhone primero agrega el panel a tu pantalla de inicio."],
   ];
-  $("tabBody").innerHTML = `<div class="card">${faq.map(([q, a]) => `<details style="border-bottom:1px solid var(--line);padding:14px 0"><summary style="font-weight:700;cursor:pointer">${q}</summary><p class="muted" style="margin:8px 0 0">${a}</p></details>`).join("")}</div>`;
+  const agenda = [
+    ["¿Qué es la Agenda?", "Para negocios que venden servicios (consultas, belleza, fisioterapia, clases…). Cuando un cliente pide una cita, el bot le muestra los horarios libres como botones, reserva el que toque y le manda la confirmación. Tú ves todo en Agenda → Calendario."],
+    ["¿Cómo la activo?", "En Agenda → Servicios agrega tus servicios (nombre, duración y precio) y quién atiende. En Horario y días libres marca tus días y horas. Luego enciende «El bot agenda citas»."],
+    ["¿Cómo sabe el bot qué horarios están libres?", "Toma tu horario, quita la pausa del almuerzo, los días libres y las citas ya agendadas (con el tiempo libre entre citas que elegiste). Si atienden varias personas, puede dar dos citas a la misma hora."],
+    ["¿Puedo agendar yo una cita?", "Sí: en Agenda toca «Nueva cita» o un espacio vacío del calendario. Desde una conversación, en el menú ⋯ o en la ficha del cliente, toca «Agendar cita»."],
+    ["¿Qué significa «Por confirmar»?", "La cita está reservada, pero el cliente todavía no confirmó. Confirma con el botón del recordatorio o la confirmas tú. Si prefieres que las del bot queden confirmadas de una vez, actívalo en Servicios."],
+    ["¿Cómo funcionan los recordatorios?", "Antes de la cita (un día antes, si no lo cambias) el bot le escribe con dos botones: «Confirmo ✅» y «Necesito cambiarla». Si quiere cambiarla, el bot le ofrece otros horarios y te avisa."],
+    ["¿Por qué un recordatorio no se envió?", "Instagram solo deja escribirle a un cliente hasta 24 horas después de su último mensaje. Si la cita es más adelante y no ha vuelto a escribir, no se puede enviar: te avisamos y aparece en «Recordatorios sin enviar» para que le escribas o llames. En Facebook sí se envía."],
+    ["¿Puedo ver cuántas citas trae cada anuncio?", "Sí. Si el cliente llegó desde un anuncio, la cita queda marcada «anuncio» y en Anuncios ves las citas de cada uno y cuánto te costó cada cita."],
+    ["¿Se conecta con Google Calendar?", "Pronto. Lo verás en Integraciones."],
+  ];
+  const block = (title, list) => `<div class="card"><h2 style="font-size:17px;margin:0 0 4px">${title}</h2>${list.map(([q, a]) => `<details style="border-bottom:1px solid var(--line);padding:14px 0"><summary style="font-weight:700;cursor:pointer">${q}</summary><p class="muted" style="margin:8px 0 0">${a}</p></details>`).join("")}</div>`;
+  $("tabBody").innerHTML = block("General", faq) + block("Agenda de citas", agenda);
+}
+
+/* ================= AGENDA DE CITAS ================= */
+const AG = { mode: null, date: null, d: null, brand: null };
+const AG_ST = { pending: ["Por confirmar", "warn"], confirmed: ["Confirmada", "ok"], done: ["Atendida", "gray"], no_show: ["No vino", "bad"], cancelled: ["Cancelada", "gray"] };
+const AG_WD = [["lun", "Lun", "Lunes"], ["mar", "Mar", "Martes"], ["mie", "Mié", "Miércoles"], ["jue", "Jue", "Jueves"], ["vie", "Vie", "Viernes"], ["sab", "Sáb", "Sábado"], ["dom", "Dom", "Domingo"]];
+const AG_MO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const AG_REM = { sent: "Enviado ✓", no_window: "No se pudo: pasaron más de 24 h desde su último mensaje (Instagram)", skip: "No hizo falta: se agendó hace poco", no_chat: "No aplica: la cita no tiene chat", error: "Meta no lo aceptó" };
+const agAdd = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+const agWd = (d) => (new Date(d + "T12:00:00Z").getUTCDay() + 6) % 7;
+const agMon = (d) => agAdd(d, -agWd(d));
+const agMin = (t) => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5);
+const agHm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const agT = (t) => { const m = agMin(t), h = Math.floor(m / 60) % 12 || 12; return `${h}:${String(m % 60).padStart(2, "0")} ${m < 720 ? "a. m." : "p. m."}`; };
+const agDay = (d, long) => { const x = new Date(d + "T12:00:00Z"); return `${AG_WD[agWd(d)][long ? 2 : 1]} ${x.getUTCDate()} ${AG_MO[x.getUTCMonth()]}`; };
+const agWho = (a) => a.customer_name || (a.username ? (a.platform === "instagram" ? "@" + a.username : a.username) : "Cliente");
+const agOnB = (b) => !!(b && b.opts && b.opts.agenda && b.opts.agenda.enabled);
+
+async function renderAgenda(tab) {
+  const t = ["servicios", "horario", "recordatorios"].includes(tab) ? tab : "calendario";
+  const b = curBrand();
+  const ok = b && hasF("agenda", b);
+  shell({ title: "Agenda", sub: "Las citas que agenda el bot y las que agregas tú.", base: "agenda",
+    tabs: ok ? [["calendario", "Calendario"], ["servicios", "Servicios"], ["horario", "Horario y días libres"], ["recordatorios", "Recordatorios"]] : [], active: t,
+    head: t === "calendario" && ok ? `<button class="btn primary" id="agNew">${ICON.plus} Nueva cita</button>` : "" });
+  const box = $("tabBody");
+  if (!b) { box.innerHTML = `<div class="card empty">Primero crea una tienda.</div>`; return; }
+  if (!ok) { box.innerHTML = lockCard("agenda", "Agenda de citas", "El bot agenda las citas solo: le ofrece al cliente los horarios libres como botones, reserva y le recuerda la cita un día antes."); return; }
+  if (!AG.mode) AG.mode = innerWidth < 760 ? "day" : "week";
+  if (AG.brand !== b.id) AG.date = null;
+  box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  const mon = AG.date ? agMon(AG.date) : null;
+  let d;
+  try { d = await api(`/api/agenda?brand=${encodeURIComponent(b.id)}${mon ? `&from=${mon}&to=${agAdd(mon, 6)}` : ""}`); }
+  catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("tabBody") || curBrand() !== b) return;
+  AG.d = d; AG.brand = b.id;
+  if (!AG.date) AG.date = d.now.date;
+  renderNav();
+  if ($("agNew")) $("agNew").onclick = () => agNewDlg({});
+  if (t === "calendario") drawAgCal(); else drawAgSet(t);
+}
+
+function drawAgCal() {
+  const d = AG.d, A = d.agenda, box = $("tabBody"), today = d.now.date, mon = agMon(AG.date), HH = 52;
+  const live = d.appts.filter((a) => a.status !== "cancelled");
+  let days = AG.mode === "day" ? [AG.date] : [0, 1, 2, 3, 4, 5, 6].map((i) => agAdd(mon, i));
+  if (AG.mode === "week") days = days.filter((x) => A.days[AG_WD[agWd(x)][0]].on || live.some((a) => a.start_at.startsWith(x)));
+  if (!days.length) days = [AG.date];
+  let h0 = 24, h1 = 0;
+  for (const [k] of AG_WD) if (A.days[k].on) { h0 = Math.min(h0, Math.floor(agMin(A.days[k].from) / 60)); h1 = Math.max(h1, Math.ceil(agMin(A.days[k].to) / 60)); }
+  for (const a of live) if (days.includes(a.start_at.slice(0, 10))) { h0 = Math.min(h0, +a.start_at.slice(11, 13)); h1 = Math.max(h1, Math.ceil((agMin(a.end_at.slice(11, 16)) || 1440) / 60)); }
+  if (h0 >= h1) { h0 = 8; h1 = 19; }
+  const week = live.filter((a) => a.start_at >= mon && a.start_at <= agAdd(mon, 6) + "T23:59");
+  const closed = (x) => !A.days[AG_WD[agWd(x)][0]].on || A.days_off.includes(x);
+  const col = (day) => {
+    const ev = live.filter((a) => a.start_at.startsWith(day)).map((a) => ({ a, s: agMin(a.start_at.slice(11, 16)), e: agMin(a.end_at.slice(11, 16)) || 1440 })).sort((x, y) => x.s - y.s);
+    // Citas que se cruzan van lado a lado (cada grupo con su propio ancho)
+    let grp = [], ends = [], gEnd = -1;
+    const close = () => { const n = Math.max(1, ends.length); grp.forEach((x) => (x.n = n)); grp = []; ends = []; };
+    for (const x of ev) {
+      if (x.s >= gEnd) { close(); gEnd = -1; }
+      let i = ends.findIndex((e) => e <= x.s); if (i < 0) { i = ends.length; ends.push(x.e); } else ends[i] = x.e;
+      x.l = i; grp.push(x); gEnd = Math.max(gEnd, x.e);
+    }
+    close();
+    const y = (m) => ((m - h0 * 60) / 60) * HH;
+    const lunch = A.lunch.on && !closed(day) ? `<div class="ag-lunch" style="top:${y(agMin(A.lunch.from))}px;height:${((agMin(A.lunch.to) - agMin(A.lunch.from)) / 60) * HH}px"></div>` : "";
+    return `<div class="ag-col ${closed(day) ? "closed" : ""} ${day === today ? "today" : ""}" data-day="${day}" style="height:${(h1 - h0) * HH}px">${lunch}${ev.map((x) => `<button type="button" class="ag-ev ${x.a.status}" data-a="${x.a.id}" title="${esc(agWho(x.a) + " · " + x.a.service_name)}"
+      style="top:${y(x.s) + 1}px;height:${Math.max(22, ((x.e - x.s) / 60) * HH - 3)}px;left:calc(${(x.l * 100) / x.n}% + 2px);width:calc(${100 / x.n}% - 4px)">${x.a.ad_id && x.n === 1 ? '<i class="ag-ad">anuncio</i>' : ""}<b>${esc(agWho(x.a))}</b><span>${agT(x.a.start_at.slice(11, 16))} · ${esc(x.a.service_name)}</span></button>`).join("")}</div>`;
+  };
+  const range = AG.mode === "day" ? agDay(AG.date, true) : `${agDay(mon).slice(4)} – ${agDay(agAdd(mon, 6)).slice(4)}`;
+  const kpi = (l, v, cls = "") => `<div class="kpi"><div class="l">${l}</div><div class="v" ${cls}>${v}</div></div>`;
+  const item = (a, extra = "") => `<button type="button" class="ag-it" data-a="${a.id}"><span style="min-width:0"><b class="ell" style="display:block">${esc(agWho(a))}</b><span class="small muted">${esc(a.service_name)} · ${agDay(a.start_at.slice(0, 10))} ${agT(a.start_at.slice(11, 16))}</span>${extra}</span><span class="pill ${AG_ST[a.status][1]}">${AG_ST[a.status][0]}</span></button>`;
+  box.innerHTML = `
+    ${!A.enabled ? `<div class="info">La agenda está apagada: el bot todavía no agenda citas. ${d.can_set ? `<a href="#agenda/servicios">Agrega tus servicios y actívala</a>.` : "Pídele a quien configura la tienda que la active."}</div>`
+      : !A.services.some((s) => s.active) ? `<div class="info">No hay servicios activos: el bot no puede ofrecer citas. <a href="#agenda/servicios">Agrégalos aquí</a>.</div>` : ""}
+    <div class="kpis ag-kpis">${kpi("Citas esta semana", nf(week.length))}${kpi("Agendadas por el bot", nf(week.filter((a) => a.source === "bot").length))}${kpi("Por confirmar", nf(d.pending.length), d.pending.length ? 'style="color:#b45309"' : "")}${kpi("No vinieron (este mes)", nf(d.month.no_show))}</div>
+    <div class="ag-bar"><div class="row" style="gap:6px"><button class="btn" id="agPrev" aria-label="Anterior">‹</button><button class="btn" id="agToday">Hoy</button><button class="btn" id="agNext" aria-label="Siguiente">›</button><b class="ag-range">${range}</b></div>
+      <nav class="seg"><button data-m="day" class="${AG.mode === "day" ? "on" : ""}">Día</button><button data-m="week" class="${AG.mode === "week" ? "on" : ""}">Semana</button></nav></div>
+    <div class="ag-wrap">
+      <div class="ag-cal" style="--cols:${days.length}">
+        <div class="ag-head"><div></div>${days.map((x) => `<div class="${x === today ? "today" : ""} ${closed(x) ? "off" : ""}">${AG_WD[agWd(x)][1]}<small>${+x.slice(8)} ${AG_MO[+x.slice(5, 7) - 1]}${x === today ? " · hoy" : closed(x) ? " · cerrado" : ""}</small></div>`).join("")}</div>
+        <div class="ag-body"><div class="ag-hours">${Array.from({ length: h1 - h0 }, (_, i) => `<div>${agT(agHm((h0 + i) * 60)).replace(":00", "")}</div>`).join("")}</div>${days.map(col).join("")}</div>
+      </div>
+      <aside class="ag-side">
+        <div class="card"><h3 class="ag-h3">Por confirmar <span class="muted small">${d.pending.length || ""}</span></h3>${d.pending.length ? d.pending.slice(0, 8).map((a) => item(a)).join("") : `<p class="small muted" style="margin:0">Nada pendiente. Las citas que agenda el bot quedan aquí hasta que el cliente confirme con el recordatorio o tú la confirmes.</p>`}</div>
+        ${d.unsent.length ? `<div class="card"><h3 class="ag-h3">Recordatorios sin enviar</h3><p class="small muted" style="margin:0 0 4px">Instagram solo deja escribir 24 horas después del último mensaje del cliente. Escríbeles o llámales.</p>${d.unsent.slice(0, 8).map((a) => item(a, a.phone ? `<span class="small" style="display:block">📞 ${esc(a.phone)}</span>` : "")).join("")}</div>` : ""}
+        <div class="card ag-legend small"><span><i class="ag-dot confirmed"></i>Confirmada</span><span><i class="ag-dot pending"></i>Por confirmar</span><span><i class="ag-dot done"></i>Atendida</span><span><i class="ag-dot no_show"></i>No vino</span><span class="muted">Toca un espacio vacío para agendar ahí.</span></div>
+      </aside>
+    </div>`;
+  const move = (n) => { AG.date = agAdd(AG.date, n * (AG.mode === "day" ? 1 : 7)); renderAgenda("calendario"); };
+  $("agPrev").onclick = () => move(-1); $("agNext").onclick = () => move(1);
+  $("agToday").onclick = () => { AG.date = today; renderAgenda("calendario"); };
+  box.querySelectorAll("[data-m]").forEach((x) => (x.onclick = () => { AG.mode = x.dataset.m; if (AG.mode === "day" && (AG.date < mon || AG.date > agAdd(mon, 6))) AG.date = mon; drawAgCal(); }));
+  const all = [...d.appts, ...d.pending, ...d.unsent];
+  box.querySelectorAll("[data-a]").forEach((x) => (x.onclick = (e) => { e.stopPropagation(); const a = all.find((y) => String(y.id) === x.dataset.a); if (a) agDetail(a); }));
+  box.querySelectorAll(".ag-col").forEach((c) => (c.onclick = (e) => {
+    if (e.target !== c && !e.target.classList.contains("ag-lunch")) return;
+    const m = h0 * 60 + Math.floor(((e.offsetY + (e.target === c ? 0 : e.target.offsetTop)) / HH) * 60 / (A.step || 30)) * (A.step || 30);
+    agNewDlg({ date: c.dataset.day, time: agHm(Math.min(1439, m)) });
+  }));
+  const cal = box.querySelector(".ag-cal"), nowM = agMin(d.now.time);
+  if (cal && nowM > h0 * 60) cal.scrollTop = Math.max(0, ((nowM - h0 * 60) / 60) * HH - 80);
+}
+
+function agDlg() {
+  let dlg = $("agDlg");
+  if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "agDlg"; dlg.className = "wide"; document.body.appendChild(dlg); }
+  return dlg;
+}
+/** Detalle de una cita con sus acciones. */
+function agDetail(a) {
+  const dlg = agDlg(), st = AG_ST[a.status] || [a.status, "gray"], active = ["pending", "confirmed"].includes(a.status);
+  const A = (AG.d && AG.brand === a.brand_id ? AG.d.agenda : ((brandById(a.brand_id) || {}).opts || {}).agenda) || { reminder: {} };
+  const kv = (l, v) => (v ? `<span>${l}</span><b>${v}</b>` : "");
+  dlg.innerHTML = `<div class="modal-h"><div><h2>${esc(a.service_name)}</h2><p>${agDay(a.start_at.slice(0, 10), true)} · ${agT(a.start_at.slice(11, 16))} a ${agT(a.end_at.slice(11, 16))}</p></div><button type="button" class="icon-btn" id="agX" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <div class="row" style="gap:6px;margin-bottom:12px"><span class="pill ${st[1]}">${st[0]}</span>${a.source === "bot" ? `<span class="pill ai">La agendó el bot</span>` : `<span class="pill gray">Desde el panel${a.by ? " · " + esc(a.by) : ""}</span>`}${a.ad_id ? `<span class="pill rule">Vino de un anuncio</span>` : ""}</div>
+      <div class="kv2">
+        ${kv("Cliente", esc(agWho(a)))}${a.customer_name && a.username ? kv("Usuario", esc(a.platform === "instagram" ? "@" + a.username : a.username)) : ""}
+        ${kv("Teléfono", a.phone ? `<a href="tel:${esc(a.phone)}">${esc(a.phone)}</a>` : "")}${kv("Atiende", esc(a.staff || ""))}${kv("Precio", a.price != null ? money(a.price) : "")}
+        ${kv("Recordatorio", esc(AG_REM[a.reminder_state] || (active && Date.parse(a.start_utc) > Date.now() ? (A.reminder.enabled ? `Se envía ${A.reminder.hours_before} h antes` : "Apagados") : "")))}
+        ${kv("Nota", esc(a.note || ""))}
+      </div>
+      ${a.account_id ? `<div class="row" style="margin-top:12px;gap:8px"><button type="button" class="btn small" id="agChat">${ICON.chat.replace("<svg", '<svg width="15" height="15"')} Abrir la conversación</button>
+        <label class="toggle-row small" style="font-weight:500;gap:8px;justify-content:flex-start"><input type="checkbox" id="agTell" checked> Avisarle al cliente si la cambio o cancelo</label></div>` : ""}
+      <div id="agMv" class="ag-mv hidden">
+        <label class="f">Nuevo día y hora</label>
+        <div class="row" style="gap:8px;flex-wrap:nowrap"><input type="date" id="agMvD" value="${a.start_at.slice(0, 10)}" style="width:auto"><select id="agMvT" style="flex:1"></select></div>
+        <input type="time" id="agMvO" class="hidden" style="margin-top:8px;width:auto" step="300">
+        <div class="row" style="justify-content:flex-end;margin-top:10px"><button type="button" class="btn primary" id="agMvS">Guardar el cambio</button></div>
+      </div>
+      <div class="small" id="agOut" style="margin-top:8px"></div>
+    </div>
+    <div class="modal-f"><button type="button" class="btn danger" id="agDel">${ICON.trash} Borrar</button><div class="row" style="gap:6px">
+      ${active ? `<button type="button" class="btn" data-s="cancelled">Cancelar cita</button><button type="button" class="btn" data-s="no_show">No vino</button><button type="button" class="btn" id="agMvB">Reprogramar</button>` : `<button type="button" class="btn" data-s="pending">Reactivar</button>`}
+      ${a.status === "pending" ? `<button type="button" class="btn primary" data-s="confirmed">Confirmar</button>` : a.status === "confirmed" ? `<button type="button" class="btn primary" data-s="done">Atendida ✓</button>` : ""}
+    </div></div>`;
+  dlg.showModal();
+  const tell = () => !!($("agTell") && $("agTell").checked);
+  const after = (r) => { dlg.close(); if (r && r.warn) toast(r.warn, 8000); if (S.view === "agenda") renderAgenda(parseRoute(S.route)[1][0]); else if (S.view === "conversaciones") loadThread(); };
+  $("agX").onclick = () => dlg.close();
+  if ($("agChat")) $("agChat").onclick = () => { dlg.close(); openConversation(a.account_id, a.user_id); };
+  dlg.querySelectorAll("[data-s]").forEach((x) => (x.onclick = async () => {
+    const s = x.dataset.s;
+    if (s === "cancelled" && !confirm("¿Cancelar esta cita? El horario queda libre para otro cliente.")) return;
+    x.disabled = true;
+    try { const r = await api(`/api/agenda/appointments/${a.id}`, { method: "PUT", body: { status: s, notify: s === "cancelled" && tell() } }); toast(AG_ST[s][0]); after(r); }
+    catch (e) { x.disabled = false; toast(e.message, 6000); }
+  }));
+  $("agDel").onclick = async () => {
+    if (!(await confirmDel({ title: "¿Seguro que deseas borrar esta cita?", text: `${a.service_name} · ${agDay(a.start_at.slice(0, 10))} ${agT(a.start_at.slice(11, 16))} · ${agWho(a)}. Si solo no va a venir, mejor usa «Cancelar cita».` }))) return;
+    try { const r = await api(`/api/agenda/appointments/${a.id}`, { method: "DELETE" }); dlg.close(); undoToast("Cita borrada", r.trash, () => renderAgenda()); renderAgenda(); }
+    catch (e) { toast(e.message, 6000); }
+  };
+  if ($("agMvB")) $("agMvB").onclick = () => { $("agMv").classList.remove("hidden"); loadT(); };
+  const loadT = () => agLoadSlots({ brand: a.brand_id, service: a.service_id, date: $("agMvD").value, exclude: a.id, staff: a.staff || "" }, $("agMvT"), $("agMvO"), a.start_at.slice(11, 16));
+  $("agMvD").onchange = loadT;
+  $("agMvS").onclick = async () => {
+    const other = $("agMvT").value === "_o", time = other ? $("agMvO").value : $("agMvT").value;
+    if (!time) return toast("Elige la hora");
+    $("agMvS").disabled = true;
+    try { const r = await api(`/api/agenda/appointments/${a.id}`, { method: "PUT", body: { start: `${$("agMvD").value}T${time}`, staff: a.staff || "", force: other, notify: tell() } }); toast("Cita cambiada ✓"); after(r); }
+    catch (e) { $("agMvS").disabled = false; $("agOut").innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
+  };
+}
+/** Llena un select con los horarios libres (y la opción de poner otra hora aunque esté ocupada). */
+async function agLoadSlots(q, sel, other, want) {
+  sel.innerHTML = `<option>Buscando horarios…</option>`; sel.disabled = true; other.classList.add("hidden");
+  let slots = [];
+  try { slots = (await api(`/api/agenda/slots?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== "" && v != null))}`)).slots; } catch (e) { toast(e.message); }
+  sel.disabled = false;
+  sel.innerHTML = (slots.length ? slots.map((s) => `<option value="${s.time}" ${s.time === want ? "selected" : ""}>${agT(s.time)}${s.staff ? " · " + esc(s.staff) : ""}</option>`).join("") : `<option value="">No hay horarios libres ese día</option>`)
+    + `<option value="_o">Otra hora (aunque esté ocupada)…</option>`;
+  sel.onchange = () => { other.classList.toggle("hidden", sel.value !== "_o"); if (sel.value === "_o") { other.value = want || ""; other.focus(); } };
+  if (!slots.length && want) { sel.value = "_o"; other.classList.remove("hidden"); other.value = want; }
+}
+/** Nueva cita (desde la agenda o desde una conversación). */
+function agNewDlg(pre = {}) {
+  const b = (pre.brand && brandById(pre.brand)) || curBrand();
+  if (!b) return;
+  const A = AG.d && AG.brand === b.id ? AG.d.agenda : b.opts.agenda;
+  const svcs = (A.services || []).filter((s) => s.active);
+  if (!svcs.length) { toast("Primero agrega tus servicios en Agenda → Servicios", 5000); return; }
+  const dlg = agDlg(), today = (AG.d && AG.d.now.date) || todayCcs();
+  dlg.innerHTML = `<form id="anF"><div class="modal-h"><div><h2>Nueva cita</h2><p>${pre.name ? esc(pre.name) + " · " : ""}${esc(b.name)}</p></div><button type="button" class="icon-btn" id="anX" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <label class="f" for="anS">Servicio</label><select id="anS">${svcs.map((s) => `<option value="${esc(s.id)}">${esc(s.name)} · ${s.minutes} min${s.price != null ? " · " + money(s.price) : ""}</option>`).join("")}</select>
+      ${A.staff.length ? `<label class="f" for="anP">Atiende</label><select id="anP"><option value="">Quien esté libre</option>${A.staff.map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : ""}
+      <label class="f">Día y hora</label>
+      <div class="row" style="gap:8px;flex-wrap:nowrap"><input type="date" id="anD" value="${pre.date || today}" style="width:auto"><select id="anT" style="flex:1"></select></div>
+      <input type="time" id="anO" class="hidden" style="margin-top:8px;width:auto" step="300">
+      <div class="grid2" style="gap:0 12px"><div><label class="f" for="anN">Nombre del cliente</label><input id="anN" maxlength="80" value="${esc(pre.name || "")}" ${pre.acc ? "" : "required"}></div>
+        <div><label class="f" for="anPh">Teléfono (opcional)</label><input id="anPh" maxlength="40" inputmode="tel"></div></div>
+      <label class="f" for="anNo">Nota (opcional)</label><input id="anNo" maxlength="500" placeholder="Ej: primera vez, viene con su hija">
+      <label class="toggle-row" style="margin-top:14px;justify-content:flex-start;gap:12px"><input type="checkbox" class="switch" id="anC" checked><span>Ya está confirmada</span></label>
+      ${pre.acc ? `<label class="toggle-row" style="margin-top:10px;justify-content:flex-start;gap:12px;align-items:flex-start"><input type="checkbox" class="switch" id="anTell" checked><span><b>Enviarle la confirmación por el chat</b><br><span class="small muted">Instagram solo deja escribirle si te escribió en las últimas 24 horas.</span></span></label>` : ""}
+      <div class="small" id="anOut" style="margin-top:8px"></div>
+    </div>
+    <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="anCancel">Cancelar</button><button class="btn primary" id="anSave">Agendar</button></div></div></form>`;
+  dlg.showModal();
+  const load = () => agLoadSlots({ brand: b.id, service: $("anS").value, date: $("anD").value, staff: $("anP") ? $("anP").value : "" }, $("anT"), $("anO"), pre.time);
+  load();
+  $("anS").onchange = $("anD").onchange = load; if ($("anP")) $("anP").onchange = load;
+  $("anX").onclick = $("anCancel").onclick = () => dlg.close();
+  $("anF").onsubmit = async (e) => {
+    e.preventDefault();
+    const other = $("anT").value === "_o", time = other ? $("anO").value : $("anT").value;
+    if (!time) return toast("Elige la hora");
+    $("anSave").disabled = true;
+    try {
+      const r = await api("/api/agenda/appointments", { method: "POST", body: { brand: b.id, service_id: $("anS").value, staff: $("anP") ? $("anP").value : "", start: `${$("anD").value}T${time}`, force: other,
+        name: $("anN").value, phone: $("anPh").value, note: $("anNo").value, status: $("anC").checked ? "confirmed" : "pending", account_id: pre.acc, user_id: pre.user, notify: !!($("anTell") && $("anTell").checked) } });
+      dlg.close(); toast("Cita agendada ✓"); if (r.warn) toast(r.warn, 8000);
+      AG.date = $("anD").value;
+      if (S.view === "agenda") renderAgenda("calendario"); else if (S.view === "conversaciones") loadThread();
+    } catch (er) { $("anSave").disabled = false; $("anOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; }
+  };
+}
+
+/* ---------- ajustes de la agenda ---------- */
+function drawAgSet(t) {
+  const d = AG.d, A = JSON.parse(JSON.stringify(d.agenda)), box = $("tabBody"), ro = !d.can_set;
+  const save = async () => {
+    try {
+      const r = await api("/api/agenda/settings", { method: "PUT", body: { brand: AG.brand, agenda: A } });
+      AG.d.agenda = r.agenda; const b = brandById(AG.brand); if (b && b.opts) b.opts.agenda = r.agenda;
+      setDirty(false); toast("Guardado ✓"); drawAgSet(t); renderNav();
+    } catch (e) { toast(e.message, 6000); }
+  };
+  const ch = () => setDirty(true, save, () => drawAgSet(t));
+  const roNote = ro ? `<div class="info small">Puedes ver la configuración, pero solo quien edita las reglas o la configuración de la tienda puede cambiarla.</div>` : "";
+  const sw = (path, on, title, sub = "") => `<label class="toggle-row" style="align-items:flex-start"><span><b>${title}</b>${sub ? `<br><span class="small muted" style="font-weight:400">${sub}</span>` : ""}</span><input type="checkbox" class="switch" data-p="${path}" ${on ? "checked" : ""}></label>`;
+  let html = "";
+  if (t === "servicios") {
+    const svcRow = (s, i) => `<div class="ag-svc-row">
+      <input data-sv="${i}" data-k="name" value="${esc(s.name)}" maxlength="60" placeholder="Ej: Evaluación + sesión" aria-label="Servicio">
+      <div class="ag-num"><input type="number" min="5" max="600" step="5" data-sv="${i}" data-k="minutes" value="${s.minutes}" aria-label="Duración"><span>min</span></div>
+      <div class="ag-num"><span>$</span><input type="number" min="0" step="0.01" data-sv="${i}" data-k="price" value="${s.price ?? ""}" placeholder="—" aria-label="Precio"></div>
+      <div class="ag-who">${A.staff.length ? A.staff.map((p) => `<label><input type="checkbox" data-svs="${i}" value="${esc(p)}" ${s.staff.includes(p) ? "checked" : ""}> ${esc(p)}</label>`).join("") : `<span class="small muted">Cualquiera</span>`}</div>
+      <input type="checkbox" class="switch" data-sv="${i}" data-k="active" ${s.active ? "checked" : ""} aria-label="Activo">
+      <button type="button" class="icon-btn danger" data-svdel="${i}" aria-label="Quitar servicio">${ICON.trash}</button>
+      <input class="ag-desc" data-sv="${i}" data-k="desc" value="${esc(s.desc || "")}" maxlength="200" placeholder="Qué incluye (opcional, el bot lo usa para explicar)"></div>`;
+    html = `${roNote}
+      <div class="card">${sw("enabled", A.enabled, "El bot agenda citas", "Cuando un cliente pide una cita, le ofrece los horarios libres como botones y la reserva solo. Te llega un aviso con cada cita nueva.")}
+        <hr class="divider">${sw("auto_confirm", A.auto_confirm, "Las citas del bot quedan confirmadas", "Si lo apagas, quedan «Por confirmar» hasta que el cliente confirme con el recordatorio o tú las confirmes.")}</div>
+      <div class="card"><div class="card-h"><h2 class="ag-h2">Servicios</h2><button type="button" class="btn" id="agSvcAdd">${ICON.plus} Agregar servicio</button></div>
+        <div class="ag-svc"><div class="ag-svc-row ag-svc-h"><span>Servicio</span><span>Duración</span><span>Precio</span><span>Quién lo atiende</span><span>Activo</span><span></span></div>
+        ${A.services.length ? A.services.map(svcRow).join("") : `<div class="empty small">Todavía no hay servicios. Agrega el primero.</div>`}</div>
+        <p class="help">El bot solo ofrece los servicios activos. La duración es el tiempo que la cita ocupa en tu agenda.</p></div>
+      <div class="card"><h2 class="ag-h2">Quién atiende</h2><p class="small muted" style="margin:4px 0 10px">Si dos personas atienden a la vez, el bot puede dar dos citas a la misma hora. Si lo dejas vacío, se da una cita a la vez.</p>
+        <div class="tags">${A.staff.map((p, i) => `<span class="tag">${esc(p)}<button type="button" data-stdel="${i}" aria-label="Quitar">×</button></span>`).join("")}<input id="agStaff" placeholder="+ Nombre" maxlength="40"></div>
+        <div class="help">Escribe el nombre y presiona Enter.</div></div>
+      <div class="card"><h2 class="ag-h2">Reglas para agendar</h2><div class="grid2">
+        <div><label class="f">Ofrecer horarios cada</label><select data-p="step" data-num>${[15, 20, 30, 45, 60, 90, 120].map((n) => `<option value="${n}" ${A.step === n ? "selected" : ""}>${n < 60 ? n + " minutos" : n / 60 + " hora" + (n > 60 ? "s" : "")}</option>`).join("")}</select></div>
+        <div><label class="f">Tiempo libre entre citas</label><div class="ag-num"><input type="number" min="0" max="120" step="5" data-p="buffer" data-num value="${A.buffer}"><span>min</span></div></div>
+        <div><label class="f">Anticipación mínima</label><div class="ag-num"><input type="number" min="0" max="72" data-p="min_hours" data-num value="${A.min_hours}"><span>horas</span></div><div class="help">No se agenda con menos tiempo que esto.</div></div>
+        <div><label class="f">Se puede agendar hasta</label><div class="ag-num"><input type="number" min="1" max="180" data-p="max_days" data-num value="${A.max_days}"><span>días adelante</span></div></div>
+      </div><label class="f">Dirección (va en la confirmación y el recordatorio)</label><input data-p="address" value="${esc(A.address)}" maxlength="300" placeholder="Ej: Av. Principal de Las Mercedes, Torre XXX, piso 2"></div>`;
+  } else if (t === "horario") {
+    const offs = A.days_off.filter((x) => x >= d.now.date);
+    html = `${roNote}
+      <div class="card"><h2 class="ag-h2">Días y horas de atención</h2><p class="small muted" style="margin:4px 0 12px">El bot solo ofrece citas en estos horarios.</p>
+        ${AG_WD.map(([k, , l]) => `<div class="ag-day"><label class="toggle-row" style="justify-content:flex-start;gap:10px"><input type="checkbox" data-p="days.${k}.on" ${A.days[k].on ? "checked" : ""}> <span>${l}</span></label>
+          <div class="row" style="gap:6px;flex-wrap:nowrap"><input type="time" data-p="days.${k}.from" value="${A.days[k].from}" ${A.days[k].on ? "" : "disabled"}><span class="muted">a</span><input type="time" data-p="days.${k}.to" value="${A.days[k].to}" ${A.days[k].on ? "" : "disabled"}></div></div>`).join("")}
+        <hr class="divider">
+        <div class="ag-day"><label class="toggle-row" style="justify-content:flex-start;gap:10px"><input type="checkbox" data-p="lunch.on" ${A.lunch.on ? "checked" : ""}> <span>Pausa (almuerzo)</span></label>
+          <div class="row" style="gap:6px;flex-wrap:nowrap"><input type="time" data-p="lunch.from" value="${A.lunch.from}" ${A.lunch.on ? "" : "disabled"}><span class="muted">a</span><input type="time" data-p="lunch.to" value="${A.lunch.to}" ${A.lunch.on ? "" : "disabled"}></div></div>
+        <p class="help">Hora de ${esc(d.tz)}. Se cambia en Asistentes → Fuera de horario.</p></div>
+      <div class="card"><h2 class="ag-h2">Días libres</h2><p class="small muted" style="margin:4px 0 10px">Feriados o vacaciones: ese día el bot no ofrece citas.</p>
+        <div class="row" style="gap:8px"><input type="date" id="agOffD" min="${d.now.date}" style="width:auto"><button type="button" class="btn" id="agOffAdd">Agregar</button></div>
+        <div class="tags" style="margin-top:10px">${offs.length ? offs.map((x) => `<span class="tag">${agDay(x, true)}<button type="button" data-offdel="${x}" aria-label="Quitar">×</button></span>`).join("") : `<span class="small muted">No hay días libres marcados.</span>`}</div></div>`;
+  } else {
+    const sample = { service_name: (A.services[0] || {}).name || "Masaje 45'", start_at: agAdd(d.now.date, 1) + "T10:00" };
+    const fill = (tpl) => esc(String(tpl).split("\n").filter((ln) => !(/\{direccion\}/i.test(ln) && !A.address) && !(/\{quien\}/i.test(ln))).join("\n")
+      .replace(/\{nombre\}/gi, "Ana").replace(/\{servicio\}/gi, sample.service_name).replace(/\{fecha\}/gi, agDay(sample.start_at.slice(0, 10), true).toLowerCase()).replace(/\{hora\}/gi, agT("10:00")).replace(/\{direccion\}/gi, A.address));
+    const vars = `<div class="help">Puedes usar {nombre}, {servicio}, {fecha}, {hora}, {direccion} y {quien}. Si falta un dato, esa línea no se envía.</div>`;
+    html = `${roNote}
+      ${hasF("reminders") ? `<div class="card">${sw("reminder.enabled", A.reminder.enabled, "Recordarle la cita al cliente", "Le llega un mensaje con dos botones: «Confirmo ✅» y «Necesito cambiarla». Si confirma, la cita pasa a Confirmada; si quiere cambiarla, el bot le ofrece otros horarios.")}
+        <div class="grid2" style="margin-top:6px"><div><label class="f">Enviarlo</label><select data-p="reminder.hours_before" data-num>${[2, 3, 6, 12, 24, 48].map((n) => `<option value="${n}" ${A.reminder.hours_before === n ? "selected" : ""}>${n} horas antes${n === 24 ? " (un día antes)" : ""}</option>`).join("")}</select></div></div>
+        <label class="f">Mensaje del recordatorio</label><textarea data-p="reminder.text" maxlength="1000" style="min-height:120px">${esc(A.reminder.text)}</textarea>${vars}
+        <div class="ag-prev"><div class="bo">${fill(A.reminder.text)}</div><div class="qrs"><span>Confirmo ✅</span><span>Necesito cambiarla</span></div></div>
+        <div class="warnbox" style="margin-top:12px"><b>Importante en Instagram:</b> Meta solo deja escribirle a un cliente hasta 24 horas después de su último mensaje. Si la cita es más adelante y no ha vuelto a escribir, el recordatorio no se puede enviar: te avisamos y lo ves en el calendario para que le escribas o llames. En Facebook sí se envía siempre.</div></div>`
+        : lockCard("reminders", "Recordatorios automáticos", "El bot le recuerda la cita al cliente con botones para confirmar o cambiarla. Bajan mucho los clientes que no llegan.")}
+      <div class="card"><h2 class="ag-h2">Mensaje al agendar</h2><p class="small muted" style="margin:4px 0 0">Lo que recibe el cliente apenas queda agendado.</p>
+        <textarea data-p="confirm_text" maxlength="1000" style="min-height:130px;margin-top:10px">${esc(A.confirm_text)}</textarea>${vars}
+        <div class="ag-prev"><div class="bo">${fill(A.confirm_text)}</div></div></div>
+      ${d.unsent.length ? `<div class="card"><h2 class="ag-h2">Recordatorios que no se pudieron enviar</h2>${d.unsent.map((a) => `<div class="ag-it" style="cursor:default"><span><b>${esc(agWho(a))}</b><br><span class="small muted">${esc(a.service_name)} · ${agDay(a.start_at.slice(0, 10))} ${agT(a.start_at.slice(11, 16))}${a.phone ? " · 📞 " + esc(a.phone) : ""}</span></span>${a.account_id ? `<button type="button" class="btn small" data-chat="${esc(a.account_id)}|${esc(a.user_id)}">Abrir chat</button>` : ""}</div>`).join("")}</div>` : ""}`;
+  }
+  box.innerHTML = html;
+  const setP = (path, v) => { const k = path.split("."), last = k.pop(); let o = A; for (const x of k) o = o[x]; o[last] = v; };
+  box.querySelectorAll("[data-p]").forEach((x) => {
+    const upd = () => {
+      setP(x.dataset.p, x.type === "checkbox" ? x.checked : "num" in x.dataset ? Number(x.value) : x.value); ch();
+      if (x.type === "checkbox" && /^(days\.\w+|lunch)\.on$/.test(x.dataset.p)) x.closest(".ag-day").querySelectorAll("input[type=time]").forEach((y) => (y.disabled = !x.checked));
+    };
+    x.oninput = upd; if (x.tagName === "SELECT" || x.type === "checkbox") x.onchange = upd;
+  });
+  box.querySelectorAll("[data-sv]").forEach((x) => {
+    x.oninput = x.onchange = () => { const s = A.services[+x.dataset.sv], k = x.dataset.k; s[k] = x.type === "checkbox" ? x.checked : k === "minutes" ? Number(x.value) : k === "price" ? (x.value === "" ? null : Number(x.value)) : x.value; ch(); };
+  });
+  box.querySelectorAll("[data-svs]").forEach((x) => (x.onchange = () => { const s = A.services[+x.dataset.svs]; s.staff = x.checked ? [...new Set([...s.staff, x.value])] : s.staff.filter((p) => p !== x.value); ch(); }));
+  box.querySelectorAll("[data-svdel]").forEach((x) => (x.onclick = () => { A.services.splice(+x.dataset.svdel, 1); ch(); drawAgSetKeep(t, A); }));
+  if ($("agSvcAdd")) $("agSvcAdd").onclick = () => { A.services.push({ id: "", name: "", minutes: 30, price: null, desc: "", staff: [], active: true }); ch(); drawAgSetKeep(t, A); setTimeout(() => { const ins = box.querySelectorAll('[data-k="name"]'); if (ins.length) ins[ins.length - 1].focus(); }, 0); };
+  if ($("agStaff")) $("agStaff").onkeydown = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); if (!A.staff.includes(e.target.value.trim())) A.staff.push(e.target.value.trim()); ch(); drawAgSetKeep(t, A); setTimeout(() => $("agStaff") && $("agStaff").focus(), 0); } };
+  box.querySelectorAll("[data-stdel]").forEach((x) => (x.onclick = () => { const p = A.staff[+x.dataset.stdel]; A.staff.splice(+x.dataset.stdel, 1); A.services.forEach((s) => (s.staff = s.staff.filter((y) => y !== p))); ch(); drawAgSetKeep(t, A); }));
+  if ($("agOffAdd")) $("agOffAdd").onclick = () => { const v = $("agOffD").value; if (!v) return toast("Elige el día"); if (!A.days_off.includes(v)) A.days_off.push(v); A.days_off.sort(); ch(); drawAgSetKeep(t, A); };
+  box.querySelectorAll("[data-offdel]").forEach((x) => (x.onclick = () => { A.days_off = A.days_off.filter((y) => y !== x.dataset.offdel); ch(); drawAgSetKeep(t, A); }));
+  box.querySelectorAll("[data-chat]").forEach((x) => (x.onclick = () => { const [acc, user] = x.dataset.chat.split("|"); openConversation(acc, user); }));
+  if (ro) box.querySelectorAll("input,select,textarea,button:not([data-chat])").forEach((x) => (x.disabled = true));
+}
+/** Redibuja con lo que se está editando (sin perder cambios) y deja la barra de guardar. */
+function drawAgSetKeep(t, A) {
+  const orig = AG.d.agenda; AG.d.agenda = A; drawAgSet(t); AG.d.agenda = orig;
+  setDirty(true);
 }
 
 /* ================= CLIENTES Y COBROS (cuenta maestra) ================= */
@@ -4199,8 +4583,19 @@ function guideFor(b) {
       { s: st(o.stories?.enabled), t: "Atención de historias", p: "Responde reacciones y agradece menciones.", btn: !o.stories?.enabled ? "Ver" : "", go: "asistentes/historias" },
       { s: st(o.hours?.enabled), t: "Fuera de horario", p: "Avisa tu horario de noche y fines de semana.", btn: !o.hours?.enabled ? "Ver" : "", go: "asistentes/horario" },
       { s: st(o.follow_up?.enabled), t: "Seguimiento", p: "Recupera a quien preguntó y no compró.", btn: !o.follow_up?.enabled ? "Ver" : "", go: "asistentes/seguimiento" },
+      ...(hasF("agenda", b) && !(o.agenda && (o.agenda.enabled || o.agenda.services.length)) ? [{ s: "todo", t: "Agenda de citas", p: "Si vendes servicios (consultas, belleza, clases…), el bot agenda las citas solo y se las recuerda al cliente.", btn: "Ver", go: "agenda/servicios" }] : []),
       ...(b.test_mode ? [{ s: "warn", t: "Modo prueba activo", p: "Solo responde a tu lista de prueba. Apágalo cuando estés lista.", btn: "Revisar", go: "configuracion/general" }] : []),
     ]],
+    ...(hasF("agenda", b) && o.agenda && (o.agenda.enabled || o.agenda.services.length) ? [["Agenda de citas", NI.cal, (() => {
+      const A = o.agenda, svc = A.services.filter((x) => x.active).length, daysOn = Object.values(A.days).filter((x) => x.on).length;
+      return [
+        { s: st(svc > 0, "bad"), t: svc ? `${svc} servicio${svc === 1 ? "" : "s"} para agendar` : "Agregar tus servicios", p: "Nombre, duración y precio. El bot solo ofrece los activos.", btn: svc ? "" : "Agregar", go: "agenda/servicios" },
+        { s: st(daysOn > 0, "bad"), t: daysOn ? "Días y horas de atención listos" : "Marcar tus días de atención", p: "El bot solo ofrece horarios dentro de ellos.", btn: daysOn ? "" : "Configurar", go: "agenda/horario" },
+        { s: st(A.enabled, "warn"), t: A.enabled ? "El bot agenda citas" : "Activar la agenda en el bot", p: "Mientras esté apagada, el bot no ofrece horarios.", btn: A.enabled ? "" : "Activar", go: "agenda/servicios" },
+        { s: st(!!String(A.address || "").trim()), t: "Escribir la dirección", p: "Va en la confirmación y en el recordatorio.", btn: String(A.address || "").trim() ? "" : "Escribir", go: "agenda/servicios" },
+        ...(hasF("reminders", b) ? [{ s: st(A.reminder && A.reminder.enabled), t: "Recordatorios de citas", p: "Un día antes, con botones para confirmar o cambiarla.", btn: A.reminder && A.reminder.enabled ? "" : "Activar", go: "agenda/recordatorios" }] : []),
+      ];
+    })()]] : []),
     ["Mensajes y equipo", ICON.users, [
       { s: st(String(b.ai_fallback || "").trim()), t: "Mensaje si la IA falla", p: "Para que nunca se quede callado.", btn: !String(b.ai_fallback || "").trim() ? "Escribir" : "", go: "configuracion/mensajes" },
       { s: st((o.templates || []).length >= 3), t: "Crear 3 respuestas guardadas", p: "Para responder con un clic en Conversaciones.", btn: (o.templates || []).length < 3 ? "Crear" : "", go: "configuracion/respuestas" },
@@ -4452,6 +4847,8 @@ function drawPlanTable(r) {
       ${grp("bot").map((f) => `<tr><td>${esc(f.label)}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
       <tr class="grp"><td colspan="${P.length + 1}">Ventas y reportes</td></tr>
       ${grp("ventas").map((f) => `<tr><td>${esc(f.label)}${f.k === "advisor" ? `<span class="hint">semáforo, recomendaciones, resumen y preguntas a la IA</span>` : ""}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
+      <tr class="grp"><td colspan="${P.length + 1}">Agenda de citas</td></tr>
+      ${grp("agenda").map((f) => `<tr><td>${esc(f.label)}${f.k === "agenda" ? `<span class="hint">el bot ofrece horarios y reserva solo</span>` : `<span class="hint">un día antes, con botones para confirmar o cambiar</span>`}</td>${cols((i) => chk(f.k, i))}</tr>`).join("")}
       <tr class="grp"><td colspan="${P.length + 1}">Qué puede hacer el cliente (dueño de la tienda)</td></tr>
       ${Object.entries(S.session.perm_labels).map(([k, l]) => `<tr><td>${esc(l)}</td>${cols((i) => { const off = k === "anuncios" && !P[i].inc.ads; return `<input type="checkbox" class="pl-ck" data-perm="${k}" data-i="${i}" ${!off && (P[i].perms || []).includes(k) ? "checked" : ""} ${off ? 'disabled title="El plan no incluye Anuncios"' : ""} aria-label="${esc(P[i].name)} · ${esc(l)}">`; })}</tr>`).join("")}
     </table></div></div>
@@ -4658,6 +5055,9 @@ function renderIntegrations() {
       <div class="integ" id="storeCards"><div class="muted small">Cargando…</div></div>`
     + sec("Pagos", [
       card({ t: "Spidi", bg: "#0e7c86", icon: '<b style="color:#fff">S</b>', soon: 1, pill: ["gray", "Fase 2"], p: "Confirma pagos solos al leer el correo del banco." }),
+    ])
+    + sec("Agenda", [
+      card({ t: "Google Calendar", bg: "#1a73e8", icon: '<b style="color:#fff">31</b>', soon: 1, pill: ["gray", "Pronto"], p: "Las citas que agenda el bot aparecen en tu Google Calendar, y lo que ya tienes ocupado ahí no se ofrece." }),
     ])
     + sec("Exportar", [
       card({ t: "Google Sheets", bg: "#0f9d58", icon: '<b style="color:#fff">▦</b>', soon: 1, pill: ["gray", "Pronto"], p: "Copia contactos, pedidos y ventas confirmadas a una hoja." }),
@@ -4964,6 +5364,11 @@ async function renderAds(force, cached) {
       ${SL.campaigns.map((c) => `<tr><td>${esc(c.name)}</td><td style="text-align:right">${$$(c.spend)}</td><td style="text-align:right">${$$(c.sold)}</td><td style="text-align:right">${nf(c.orders)}</td><td style="text-align:right"><b style="color:${c.roas == null ? "var(--muted)" : c.roas >= R.roas_good ? "var(--ok)" : c.roas < 1 ? "var(--bad)" : "var(--ink)"}">${c.roas != null ? roasF(c.roas) : "—"}</b></td></tr>`).join("")}
       <tr><td class="muted">Sin atribuir <span class="small">(sin anuncio ni chat)</span></td><td style="text-align:right" class="muted">—</td><td style="text-align:right">${$$(SL.no_ad)}</td><td style="text-align:right">${nf(SL.no_ad_n)}</td><td style="text-align:right" class="muted">—</td></tr></tbody></table></div>
       ${SL.cancelled && SL.cancelled.n ? `<p class="small muted" style="margin:10px 0 0">Cancelaciones en el periodo: <b style="color:var(--bad)">${nf(SL.cancelled.n)} · ${$$(SL.cancelled.total)}</b> (ya restadas).</p>` : ""}</div>` : ""}
+    ${r.citas && r.citas.on ? `<div class="card"><div class="card-h"><div><h2>Citas por anuncio</h2><p>Citas que agendaron quienes llegaron de cada anuncio (sin contar las canceladas).</p></div>
+        <div class="row" style="gap:18px"><div><div class="small muted">Citas</div><b style="font-size:22px">${nf(r.citas.n)}</b></div><div><div class="small muted">Costo por cita</div><b style="font-size:22px">${r.citas.cost != null ? $$(r.citas.cost) : "—"}</b></div><div><div class="small muted">No vinieron</div><b style="font-size:22px">${nf(r.citas.no_show)}</b></div></div></div>
+      ${r.citas.ads.length ? `<div class="table-wrap"><table><thead><tr><th>Anuncio</th><th style="text-align:right">Gasto</th><th style="text-align:right">Citas</th><th style="text-align:right">Costo por cita</th></tr></thead><tbody>
+        ${r.citas.ads.map((a) => `<tr><td>${esc(a.name || a.id)}</td><td style="text-align:right">${$$(a.spend || 0)}</td><td style="text-align:right"><b>${nf(a.citas)}</b></td><td style="text-align:right">${a.cost != null ? $$(a.cost) : "—"}</td></tr>`).join("")}</tbody></table></div>`
+        : `<p class="small muted" style="margin:10px 0 0">Todavía no hay citas que vengan de un anuncio en este periodo.</p>`}</div>` : ""}
     <div class="grid2">
       <div class="card"><div class="card-h"><div><h2>Del anuncio a la venta</h2></div></div>
         ${[["Lo vieron", r.funnel.reach], ["Tocaron el anuncio", r.funnel.clicks], ["Escribieron (según Meta)", r.funnel.chats], ["Llegaron al bot", r.funnel.bot_chats], ["Mandaron pago", r.funnel.handoff_pay]].map(([l, v], i, arr) => `<div class="hbar wide"><span class="small">${l}</span><span class="track"><span class="fill" style="display:block;width:${Math.max(2, i ? Math.min(100, Math.sqrt(v / Math.max(1, arr[0][1])) * 100) : 100)}%"></span></span><span class="n">${nf(v)}</span></div>`).join("")}</div>
