@@ -97,6 +97,13 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS store_log (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT NOT NULL, at TEXT NOT NULL, code INTEGER, event TEXT, summary TEXT)`,
   `CREATE INDEX IF NOT EXISTS store_log_store ON store_log (store_id, id DESC)`,
   `CREATE TABLE IF NOT EXISTS trash (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, label TEXT NOT NULL, brand_id TEXT, by_id TEXT, by_name TEXT, at TEXT NOT NULL, parts INTEGER NOT NULL DEFAULT 1)`,
+  `CREATE TABLE IF NOT EXISTS appointments (id INTEGER PRIMARY KEY AUTOINCREMENT, brand_id TEXT NOT NULL, service_id TEXT, service_name TEXT NOT NULL, staff TEXT,
+    start_at TEXT NOT NULL, end_at TEXT NOT NULL, start_utc TEXT NOT NULL, minutes INTEGER NOT NULL DEFAULT 30, price REAL, status TEXT NOT NULL DEFAULT 'pending', source TEXT NOT NULL DEFAULT 'panel',
+    account_id TEXT, user_id TEXT, platform TEXT, customer_name TEXT, username TEXT, phone TEXT, ad_id TEXT, note TEXT, by TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT, reminded_at TEXT, reminder_state TEXT, confirmed_at TEXT)`,
+  `CREATE INDEX IF NOT EXISTS appointments_brand ON appointments (brand_id, start_at)`,
+  `CREATE INDEX IF NOT EXISTS appointments_contact ON appointments (account_id, user_id)`,
+  `CREATE INDEX IF NOT EXISTS appointments_due ON appointments (status, start_utc)`,
   `CREATE TABLE IF NOT EXISTS trash_parts (trash_id INTEGER NOT NULL, seq INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (trash_id, seq))`,
 ];
 
@@ -518,7 +525,7 @@ function parseBrand(b) {
 const DAYS = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
 const REASONS = { pago: "Pago por verificar", reclamo: "Reclamo", persona: "Quiere hablar con una persona", mayor: "Compra al mayor", otro: "Por atender" };
 const PAY_THANKS = "¡Recibimos tu pago! 🤎 Ya estamos preparando tu pedido.";
-const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false, billing: true, ads: true, system: true, sales: true };
+const NOTIFY_EVENTS = { handoff: true, ai_fail: true, mention: false, offensive: false, billing: true, ads: true, system: true, sales: true, agenda: true };
 
 /** Deja las opciones de una tienda completas y válidas (lo que no venga queda con su valor de fábrica). */
 function cleanOpts(o = {}) {
@@ -554,6 +561,7 @@ function cleanOpts(o = {}) {
       .map((t) => ({ id: str(t && t.id, 60) || crypto.randomUUID(), title: str(t && t.title, 80).trim(), text: str(t && t.text, 1000) }))
       .filter((t) => t.title || t.text),
     follow_up: { enabled: bool(fu.enabled), hours: num(fu.hours, 1, 22, 4), text: str(fu.text, 1000), ai: bool(fu.ai) },
+    agenda: cleanAgenda(o.agenda),
     notify: Object.fromEntries(Object.entries(NOTIFY_EVENTS).map(([k, def]) => [k, typeof nt[k] === "boolean" ? nt[k] : def])),
   };
 }
@@ -1209,7 +1217,10 @@ async function handleDM(env, acc, ev, cfg) {
   else if (shared) inText = `[Compartió una publicación${shared.payload && shared.payload.title ? ": " + String(shared.payload.title).slice(0, 200) : ""}] ${text}`.trim();
   else inText = text || "[El cliente envió una foto, audio o archivo]";
   let forced = null;
-  if (payload) {
+  if (payload && /^agc?\|/.test(payload)) {
+    forced = { type: "agenda", payload };
+    inText = `[Tocó el botón «${text || "Agenda"}»]`;
+  } else if (payload) {
     const [kindP, rid, idx] = payload.split(":");
     const r0 = (brand.rules || []).find((r) => r.id === rid);
     if (kindP === "b" && r0 && r0.buttons && r0.buttons[+idx]) {
@@ -1228,7 +1239,7 @@ async function handleDM(env, acc, ev, cfg) {
   const contact = await getContact(env, acc.id, from);
   const prof = await profileOf(env, acc, from, contact);
   const username = prof.username;
-  const who = { name: firstName(prof.name), username, platform: acc.platform };
+  const who = { name: firstName(prof.name), full: prof.name, username, platform: acc.platform };
 
   const useAI = brand.ai_enabled && (await deepseekKey(env, brand, cfg)) && !(await overLimit(env, brand));
   const history = useAI ? await getHistory(env, acc.id, from) : [];
@@ -1263,9 +1274,11 @@ async function handleDM(env, acc, ev, cfg) {
     await resumeContact(env, acc.id, from); paused = false;
   }
 
-  let reply = null, ruleId = null, kind = "none", reason = null, skipped = false, aiFailed = false, markOff = false, richRule = null;
+  let reply = null, ruleId = null, kind = "none", reason = null, skipped = false, aiFailed = false, markOff = false, richRule = null, preSent = false;
   const errors = [];
   const off = offHours(o);
+  const agendaOn = agOn(brand);
+  const adCt = { ad_id: (adRef && adRef.id) || (contact && contact.ad_id) || null };
 
   if (inList(o.ignore_users, from, username)) {
     kind = "ignored";
@@ -1291,12 +1304,20 @@ async function handleDM(env, acc, ev, cfg) {
     if (o.hours.off_message.trim() && Date.now() - last > 12 * 3600 * 1000) { reply = fillVars(o.hours.off_message, who); markOff = true; }
   } else {
     const rule = forced || (payload && !payload.startsWith("q:")) ? null : findRule(brand.rules, text, "dm", null);
-    if (forced && forced.type === "text") {
+    if (forced && forced.type === "agenda") {
+      if (agendaOn) {
+        try { const r = await agendaPayload(env, acc, brand, from, who, adCt, forced.payload); reply = r.text; preSent = true; kind = "agenda"; }
+        catch (e) { errors.push("Agenda: " + errText(e)); }
+      }
+    } else if (forced && forced.type === "text") {
       reply = fillVars(forced.text, who); ruleId = forced.ruleId; kind = "rule";
     } else if (forced && forced.type === "handoff") {
       reason = forced.reason; reply = handoffText(brand, { reason }, off, who); kind = "handoff";
     } else if (rule && rule.dmReply) {
       reply = fillVars(rule.dmReply, who); ruleId = rule.id; kind = "rule"; if (hasRich(rule) && feat(brand, "buttons")) richRule = rule;
+    } else if (agendaOn && !useAI && /\b(cita|citas|agendar|agenda|turno|turnos|reservar|reserva|disponibilidad)\b/.test(normalize(text))) {
+      try { const r = await agendaServices(env, acc, brand, from); reply = r.text; preSent = true; kind = "agenda"; }
+      catch (e) { errors.push("Agenda: " + errText(e)); }
     } else {
       if (useAI) {
         const extra = [];
@@ -1309,6 +1330,7 @@ async function handleDM(env, acc, ev, cfg) {
         if ((o.link_buttons || []).length && feat(brand, "paylink")) extra.push("=== ENLACES CON BOTÓN ===\nEstos enlaces le llegan al cliente como un botón. Envía uno SOLO cuando tus instrucciones lo indiquen o el cliente lo pida o confirme que quiere avanzar (por ejemplo, que ya quiere pagar). Si solo pregunta, responde sin enviarlo. Si un enlace dice cuándo usarlo, síguelo y elige el que corresponda (por ejemplo, según el monto); no envíes varios a la vez si no hace falta. Cuando lo envíes, escribe la dirección completa tal cual, en una línea aparte, sin decir \"botón\":\n" + o.link_buttons.map((x) => `- ${x.title}: ${x.url}${x.when ? `\n  Cuándo usarlo: ${x.when}` : ""}`).join("\n"));
         if (vision && vision.tipo) extra.push(imageGuide(vision));
         if (o.ai_use_name && who.name) extra.push(`=== CLIENTE ===\nSe llama ${who.name}. Puedes usar su nombre al saludar; no lo repitas en cada mensaje.`);
+        if (agendaOn) extra.push(agendaPrompt(brand, await agendaOfContact(env, acc.id, from)));
         if (off) extra.push("=== HORARIO ===\nAhora la tienda está fuera de su horario de atención. Puedes seguir ayudando, pero si pasas a una persona, avisa que se le responde en horario de atención.");
         try {
           const out = await askAI(env, brand, [...history, { role: "user", content: inText }], "dm", acc.platform, extra.join("\n\n") || null, cfg);
@@ -1316,7 +1338,13 @@ async function handleDM(env, acc, ev, cfg) {
             if (out.reason === "otro") out.reason = guessReason(inText);
             reason = out.reason; reply = handoffText(brand, out, off, who); kind = "handoff";
           } else if (out.skip) { kind = "none"; skipped = true; }
-          else if (out.text) { reply = out.text; kind = "ai"; }
+          else if (out.text) {
+            reply = out.text; kind = "ai";
+            if (agendaOn && AG_TAG.test(reply)) {
+              try { const r = await agendaFromAI(env, acc, brand, from, who, adCt, reply); if (r) { reply = r.text; preSent = true; } }
+              catch (e) { errors.push("Agenda: " + errText(e)); reply = reply.replace(new RegExp(AG_TAG.source, "gi"), "").trim() || null; }
+            }
+          }
         } catch (e) { errors.push("IA: " + errText(e)); aiFailed = true; }
       }
       if (!reply && aiFailed) {
@@ -1329,8 +1357,8 @@ async function handleDM(env, acc, ev, cfg) {
     }
   }
 
-  let sent = false;
-  if (reply) {
+  let sent = preSent;
+  if (reply && !preSent) {
     try {
       const lb = !richRule && kind === "ai" && feat(brand, "paylink") ? extractLinkButtons(reply, (brand.opts || {}).link_buttons) : null;
       if (richRule) errors.push(...(await sendRuleDM(env, acc, from, reply, richRule, "regla")));
@@ -1643,7 +1671,7 @@ const PERMS = {
   resumen: "Ver el resumen del bot",
   estadisticas: "Ver estadísticas de Instagram y Facebook",
   prompts: "Editar prompts, base de conocimiento e IA",
-  reglas: "Editar reglas",
+  reglas: "Editar reglas y servicios de la agenda",
   catalogo: "Editar catálogo e historias",
   tienda: "Configurar la tienda (funciones, mensajes, horario, avisos)",
   anuncios: "Ver anuncios y sus recomendaciones",
@@ -2655,6 +2683,118 @@ async function api(req, env, url) {
     const rank = { active: 0, review: 1, issues: 2, paused: 3 };
     return json([...out.values()].sort((a, b) => (rank[a.st] ?? 4) - (rank[b.st] ?? 4)));
   }
+  /* ----- agenda de citas ----- */
+  if (p.startsWith("/api/agenda")) {
+    need(u, "conversaciones");
+    const canSet = can(u, "reglas") || can(u, "tienda");
+    const brandFor = async (id) => {
+      needBrand(u, id);
+      const b = await getBrand(env, id);
+      if (!b) throw httpError(404, "Tienda no encontrada");
+      if (u.role !== "maestro" && !feat(b, "agenda")) throw lockedErr("agenda");
+      return b;
+    };
+    if (p === "/api/agenda" && m === "GET") {
+      const b = await brandFor(url.searchParams.get("brand"));
+      const tz = agTz(b), now = tzParts(tz);
+      const from = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("from") || "") ? url.searchParams.get("from") : addDaysStr(now.date, -7);
+      const to = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("to") || "") ? url.searchParams.get("to") : addDaysStr(now.date, 31);
+      const { results } = await env.DB.prepare("SELECT * FROM appointments WHERE brand_id = ? AND start_at >= ? AND start_at <= ? ORDER BY start_at LIMIT 1500").bind(b.id, from, to + "T23:59").all();
+      const { results: pend } = await env.DB.prepare("SELECT * FROM appointments WHERE brand_id = ? AND status = 'pending' AND start_utc > ? ORDER BY start_utc LIMIT 50").bind(b.id, nowIso()).all();
+      const { results: unsent } = await env.DB.prepare("SELECT * FROM appointments WHERE brand_id = ? AND status IN ('pending', 'confirmed') AND reminder_state IN ('no_window', 'error') AND start_utc > ? ORDER BY start_utc LIMIT 50").bind(b.id, nowIso()).all();
+      const month = now.date.slice(0, 8) + "01";
+      const ms = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS no_show, SUM(CASE WHEN source = 'bot' THEN 1 ELSE 0 END) AS bot FROM appointments WHERE brand_id = ? AND start_at >= ? AND status != 'cancelled'").bind(b.id, month).first();
+      return json({ agenda: b.opts.agenda, tz, now, can_set: canSet, feats: { agenda: feat(b, "agenda"), reminders: feat(b, "reminders") },
+        appts: results.map(apptOut), pending: pend.map(apptOut), unsent: unsent.map(apptOut), month: { n: ms.n || 0, no_show: ms.no_show || 0, bot: ms.bot || 0 } });
+    }
+    if (p === "/api/agenda/slots" && m === "GET") {
+      const b = await brandFor(url.searchParams.get("brand"));
+      const slots = await agendaSlots(env, b, url.searchParams.get("service"), url.searchParams.get("date") || "", { excludeId: url.searchParams.get("exclude"), anyTime: true, staff: url.searchParams.get("staff") || "" });
+      return json({ slots });
+    }
+    if (p === "/api/agenda/contact" && m === "GET") {
+      const acc = await accountFor(env, u, url.searchParams.get("acc"));
+      const { results } = await env.DB.prepare("SELECT * FROM appointments WHERE account_id = ? AND user_id = ? ORDER BY start_at DESC LIMIT 10").bind(String(acc.id), String(url.searchParams.get("user") || "")).all();
+      return json({ appts: results.map(apptOut) });
+    }
+    if (p === "/api/agenda/settings" && m === "PUT") {
+      const x = await body();
+      const b = await brandFor(x.brand);
+      if (!canSet) throw httpError(403, "No tienes permiso para cambiar los servicios ni el horario de la agenda");
+      const agenda = cleanAgenda({ ...b.opts.agenda, ...(x.agenda || {}) });
+      const opts = cleanOpts({ ...b.opts, agenda });
+      await env.DB.prepare("UPDATE brands SET opts = ? WHERE id = ?").bind(JSON.stringify(opts), b.id).run();
+      await audit(env, u, "Cambió la agenda", `${agenda.enabled ? "Activa" : "Apagada"} · ${agenda.services.length} servicios`, b.id);
+      return json({ ok: true, agenda: opts.agenda });
+    }
+    if (p === "/api/agenda/appointments" && m === "POST") {
+      const x = await body();
+      const b = await brandFor(x.brand);
+      let ct = null;
+      if (x.account_id && x.user_id) {
+        const acc = await accountFor(env, u, x.account_id);
+        ct = { acc, c: await getContact(env, acc.id, String(x.user_id)) };
+      }
+      const a = await agendaBook(env, b, {
+        service_id: x.service_id, start: x.start, staff: x.staff, name: x.name || (ct && ct.c && ct.c.name), phone: x.phone, note: x.note, force: x.force === true, panel: true,
+        status: x.status === "confirmed" ? "confirmed" : "pending", source: "panel", by: u.name,
+        account_id: ct && ct.acc.id, user_id: ct && x.user_id, platform: ct && ct.acc.platform, username: ct && ct.c && ct.c.username, ad_id: ct && ct.c && ct.c.ad_id,
+      });
+      await audit(env, u, "Agendó una cita", `${a.service_name} · ${a.start_at.replace("T", " ")}${a.customer_name ? " · " + a.customer_name : ""}`, b.id);
+      let warn = null;
+      if (x.notify && a.account_id) {
+        const acc = await getAccount(env, a.account_id);
+        try { const r = await agendaMessage(env, acc, a, agFill(b.opts.agenda.confirm_text, a, b, { platform: acc.platform })); if (!r.ok) warn = "No se le pudo escribir: Instagram solo deja escribirle hasta 24 horas después de su último mensaje."; }
+        catch (e) { warn = "No se le pudo escribir: " + errText(e); }
+      }
+      return json({ appt: apptOut(a), warn });
+    }
+    mm = p.match(/^\/api\/agenda\/appointments\/(\d+)$/);
+    if (mm) {
+      const a = await env.DB.prepare("SELECT * FROM appointments WHERE id = ?").bind(Number(mm[1])).first();
+      if (!a) return json({ error: "Esa cita ya no existe" }, 404);
+      const b = await brandFor(a.brand_id);
+      const label = `${a.service_name} · ${a.start_at.replace("T", " ")}${a.customer_name ? " · " + a.customer_name : a.username ? " · @" + a.username : ""}`;
+      if (m === "DELETE") {
+        const trash = await toTrash(env, u, "appointment", label, b.id, [["appointments", "id = ?", [a.id]]]);
+        await env.DB.prepare("DELETE FROM appointments WHERE id = ?").bind(a.id).run();
+        await audit(env, u, "Borró una cita", label, b.id);
+        return json({ ok: true, trash });
+      }
+      if (m !== "PUT") return json({ error: "No encontrado" }, 404);
+      const x = await body();
+      let out = a, warn = null;
+      const tell = async (text) => {
+        if (!x.notify || !a.account_id || !a.user_id) return;
+        const acc = await getAccount(env, a.account_id);
+        if (!acc) return;
+        try { const r = await agendaMessage(env, acc, a, text); if (!r.ok) warn = "No se le pudo avisar al cliente: Instagram solo deja escribirle hasta 24 horas después de su último mensaje. Escríbele o llámale."; }
+        catch (e) { warn = "No se le pudo avisar al cliente: " + errText(e); }
+      };
+      if (x.start) {
+        out = await agendaBook(env, b, { service_id: x.service_id || a.service_id, start: x.start, staff: x.staff, force: x.force === true, panel: true, status: x.status }, a);
+        await audit(env, u, "Cambió una cita", `${label} → ${out.start_at.replace("T", " ")}`, b.id);
+        await tell(`Hola 👋 Tu cita de ${out.service_name} ahora es el ${agFmtDay(out.start_at.slice(0, 10))} a las ${agFmtTime(out.start_at.slice(11, 16))} Si no te queda bien, escríbenos por aquí.`);
+      } else {
+        const set = {};
+        if (x.status && AG_STATUS[x.status]) { set.status = x.status; if (x.status === "confirmed") set.confirmed_at = nowIso(); }
+        if (typeof x.name === "string") set.customer_name = x.name.trim().slice(0, 80) || null;
+        if (typeof x.phone === "string") set.phone = x.phone.trim().slice(0, 40) || null;
+        if (typeof x.note === "string") set.note = x.note.trim().slice(0, 500) || null;
+        if (typeof x.staff === "string") set.staff = x.staff.slice(0, 40) || null;
+        const keys = Object.keys(set);
+        if (keys.length) {
+          await env.DB.prepare(`UPDATE appointments SET ${keys.map((k) => k + " = ?").join(", ")}, updated_at = ? WHERE id = ?`).bind(...keys.map((k) => set[k]), nowIso(), a.id).run();
+          out = await env.DB.prepare("SELECT * FROM appointments WHERE id = ?").bind(a.id).first();
+          if (set.status) await audit(env, u, "Cita: " + AG_STATUS[set.status], label, b.id);
+          if (set.status === "cancelled") await tell(`Hola 👋 Tuvimos que cancelar tu cita de ${a.service_name} del ${agFmtDay(a.start_at.slice(0, 10))}. Escríbenos por aquí y te buscamos otro horario.`);
+        }
+      }
+      return json({ appt: apptOut(out), warn });
+    }
+    return json({ error: "No encontrado" }, 404);
+  }
+
   /* ----- tiendas online ----- */
   if (p === "/api/stores" && m === "GET") {
     const brand = url.searchParams.get("brand");
@@ -2836,6 +2976,8 @@ async function api(req, env, url) {
         ignored: brand ? inList(brand.opts.ignore_users, userId, contact.username) : false,
         window_open: !!contact.last_dm_at && Date.now() - Date.parse(contact.last_dm_at) < 24 * 3600 * 1000,
         sales: (await contactSales(env, acc.id, userId)).map(saleOut), pay_thanks: brand ? brand.opts.pay_thanks : "",
+        agenda: !!(brand && brand.opts.agenda.enabled && feat(brand, "agenda")),
+        appts: brand && feat(brand, "agenda") ? (await env.DB.prepare("SELECT * FROM appointments WHERE account_id = ? AND user_id = ? ORDER BY start_at DESC LIMIT 8").bind(String(acc.id), userId).all()).results.map(apptOut) : [],
       });
     }
     if (mm[3] === "/paid" && m === "POST") {
@@ -3117,7 +3259,8 @@ async function api(req, env, url) {
     if (b.moderation !== undefined) { if (!["off", "notify", "hide"].includes(b.moderation)) return json({ error: "Opción no válida" }, 400); set.moderation = b.moderation; }
     if (b.rules !== undefined) { try { set.rules = JSON.stringify(cleanRules(b.rules)); } catch (e) { return json({ error: errText(e) }, 400); } }
     if ((b.opts !== undefined && typeof b.opts === "object") || typeof b.ai_vision === "boolean")
-      set.opts = JSON.stringify(cleanOpts({ ...brand.opts, ...(b.opts && typeof b.opts === "object" ? b.opts : {}), ...(typeof b.ai_vision === "boolean" ? { ai_vision: b.ai_vision } : {}) }));
+      // La agenda se guarda solo desde Agenda (así una pantalla vieja no la pisa)
+      set.opts = JSON.stringify(cleanOpts({ ...brand.opts, ...(b.opts && typeof b.opts === "object" ? b.opts : {}), agenda: brand.opts.agenda, ...(typeof b.ai_vision === "boolean" ? { ai_vision: b.ai_vision } : {}) }));
     if (typeof b.ai_api_key === "string") set.ai_api_key = b.ai_api_key.trim();
     // Solo cuenta lo que de verdad cambia (el panel a veces manda datos que no se tocaron)
     const cur = { ...brand, rules: JSON.stringify(brand.rules), opts: JSON.stringify(brand.opts) };
@@ -3249,25 +3392,25 @@ async function stats(env, url, u) {
 
   const [byKind, daily, newContacts, topRules, pending, perBrand, mod] = await env.DB.batch([
     q(`SELECT channel, kind, (error IS NOT NULL AND COALESCE(level, '') <> 'warn') AS err, COUNT(*) AS n FROM logs WHERE at >= ?${bf} GROUP BY channel, kind, err`, ...bind(since)),
-    q(`SELECT substr(datetime(at, ?), 1, 10) AS d, channel, COUNT(*) AS n FROM logs WHERE at >= ?${bf} AND kind NOT IN ('human', 'panel', 'followup') GROUP BY d, channel`, ...bind(tzMod, since)),
+    q(`SELECT substr(datetime(at, ?), 1, 10) AS d, channel, COUNT(*) AS n FROM logs WHERE at >= ?${bf} AND kind NOT IN ('human', 'panel', 'followup', 'reminder') GROUP BY d, channel`, ...bind(tzMod, since)),
     q(`SELECT COUNT(*) AS n FROM contacts WHERE first_at >= ?${bf}`, ...bind(since)),
     q(`SELECT brand_id, rule_id, COUNT(*) AS n FROM logs WHERE kind = 'rule' AND at >= ?${bf} GROUP BY brand_id, rule_id ORDER BY n DESC LIMIT 6`, ...bind(since)),
     q(`SELECT brand_id, account_id, platform, user_id, username, name, last_message, last_channel, last_at, pause_reason FROM contacts WHERE paused = 1${bf} ORDER BY last_at DESC LIMIT 30`, ...bind()),
     q(`SELECT brand_id, channel, COUNT(*) AS n,
-         SUM(CASE WHEN (error IS NULL OR level = 'warn') AND kind IN ('rule','ai','default','handoff','fallback','mention','reaction','offhours') AND (reply IS NOT NULL OR public_reply IS NOT NULL) THEN 1 ELSE 0 END) AS replied,
+         SUM(CASE WHEN (error IS NULL OR level = 'warn') AND kind IN ('rule','ai','default','handoff','fallback','mention','reaction','offhours','agenda') AND (reply IS NOT NULL OR public_reply IS NOT NULL) THEN 1 ELSE 0 END) AS replied,
          SUM(CASE WHEN error IS NOT NULL AND COALESCE(level, '') <> 'warn' THEN 1 ELSE 0 END) AS errors
-       FROM logs WHERE at >= ?${bf} AND kind NOT IN ('human', 'panel', 'followup') GROUP BY brand_id, channel`, ...bind(since)),
+       FROM logs WHERE at >= ?${bf} AND kind NOT IN ('human', 'panel', 'followup', 'reminder') GROUP BY brand_id, channel`, ...bind(since)),
     q(`SELECT COUNT(*) AS n FROM logs WHERE moderation IS NOT NULL AND at >= ?${bf}`, ...bind(since)),
   ]);
 
   const totals = { dm: 0, comment: 0, replied: 0, errors: 0, offensive: mod.results[0] ? mod.results[0].n : 0,
-    kinds: { rule: 0, ai: 0, default: 0, handoff: 0, fallback: 0, none: 0, paused: 0, hidden: 0, test: 0, mention: 0, reaction: 0, offhours: 0, ignored: 0, human: 0, panel: 0, followup: 0 } };
+    kinds: { rule: 0, ai: 0, default: 0, handoff: 0, fallback: 0, none: 0, paused: 0, hidden: 0, test: 0, mention: 0, reaction: 0, offhours: 0, ignored: 0, human: 0, panel: 0, followup: 0, agenda: 0, reminder: 0 } };
   for (const r of byKind.results) {
-    if (["human", "panel", "followup"].includes(r.kind)) { totals.kinds[r.kind] += r.n; continue; } // no son mensajes recibidos
+    if (["human", "panel", "followup", "reminder"].includes(r.kind)) { totals.kinds[r.kind] += r.n; continue; } // no son mensajes recibidos
     totals[r.channel] = (totals[r.channel] || 0) + r.n;
     if (r.err) { totals.errors += r.n; continue; }
     totals.kinds[r.kind] = (totals.kinds[r.kind] || 0) + r.n;
-    if (["rule", "ai", "default", "handoff", "fallback"].includes(r.kind)) totals.replied += r.n;
+    if (["rule", "ai", "default", "handoff", "fallback", "agenda"].includes(r.kind)) totals.replied += r.n;
   }
 
   const series = [];
@@ -3606,6 +3749,393 @@ async function runFollowUps(env) {
   }
 }
 
+/* ================= agenda de citas ================= */
+
+const AG_CONFIRM = "¡Listo, {nombre}! ✅ Tu cita quedó agendada:\n📌 {servicio}\n📅 {fecha}\n🕒 {hora}\n📍 {direccion}\nSi necesitas cambiarla, escríbenos por aquí.";
+const AG_REMIND = "Hola, {nombre} 👋 Te recordamos tu cita:\n📌 {servicio}\n📅 {fecha}\n🕒 {hora}\n📍 {direccion}\n¿Nos confirmas que vienes?";
+const AG_STATUS = { pending: "Por confirmar", confirmed: "Confirmada", done: "Atendida", no_show: "No vino", cancelled: "Cancelada" };
+const AG_WEEK = { dom: "domingo", lun: "lunes", mar: "martes", mie: "miércoles", jue: "jueves", vie: "viernes", sab: "sábado" };
+const AG_MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+/** Deja la configuración de la agenda completa y válida. */
+function cleanAgenda(a) {
+  a = a && typeof a === "object" ? a : {};
+  const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  const num = (v, min, max, def) => { const n = parseInt(v, 10); return isNaN(n) ? def : Math.max(min, Math.min(max, n)); };
+  const time = (v, def) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : def);
+  const fresh = !a.days;
+  const days = {};
+  for (const d of DAYS) {
+    const x = (a.days || {})[d] || {};
+    const defOn = fresh ? !["dom"].includes(d) : false;
+    const from = time(x.from, "09:00"), to = time(x.to, d === "sab" ? "13:00" : "18:00");
+    days[d] = { on: fresh ? defOn : x.on === true, from, to: to > from ? to : from === "23:30" ? "23:59" : fromMin(Math.min(1439, toMin(from) + 60)) };
+  }
+  const staff = [...new Set((Array.isArray(a.staff) ? a.staff : []).map((x) => str(x, 40).trim()).filter(Boolean))].slice(0, 20);
+  const services = (Array.isArray(a.services) ? a.services : []).slice(0, 40).map((s) => ({
+    id: (str(s && s.id, 24).replace(/[^\w-]/g, "") || "s" + randomToken(4)),
+    name: str(s && s.name, 60).trim(),
+    minutes: num(s && s.minutes, 5, 600, 30),
+    price: s && s.price !== "" && s.price !== null && s.price !== undefined && !isNaN(Number(s.price)) ? Math.max(0, Math.round(Number(s.price) * 100) / 100) : null,
+    desc: str(s && s.desc, 200).trim(),
+    staff: (Array.isArray(s && s.staff) ? s.staff : []).map(String).filter((x) => staff.includes(x)),
+    active: !s || s.active !== false,
+  })).filter((s) => s.name);
+  const seen = new Set();
+  for (const s of services) { while (seen.has(s.id)) s.id = "s" + randomToken(4); seen.add(s.id); }
+  const l = a.lunch || {}, r = a.reminder || {};
+  return {
+    enabled: a.enabled === true,
+    services, staff, days,
+    lunch: { on: l.on === true, from: time(l.from, "12:00"), to: time(l.to, "13:00") },
+    buffer: num(a.buffer, 0, 120, 10),
+    step: [10, 15, 20, 30, 45, 60, 90, 120].includes(Number(a.step)) ? Number(a.step) : 30,
+    max_days: num(a.max_days, 1, 180, 30),
+    min_hours: num(a.min_hours, 0, 72, 2),
+    address: str(a.address, 300).trim(),
+    days_off: [...new Set((Array.isArray(a.days_off) ? a.days_off : []).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x)))].sort().slice(-200),
+    auto_confirm: a.auto_confirm === true,
+    ask_phone: a.ask_phone === true,
+    confirm_text: str(a.confirm_text, 1000).trim() || AG_CONFIRM,
+    reminder: { enabled: r.enabled !== false, hours_before: num(r.hours_before, 1, 72, 24), text: str(r.text, 1000).trim() || AG_REMIND },
+  };
+}
+
+const toMin = (t) => Number(String(t).slice(0, 2)) * 60 + Number(String(t).slice(3, 5));
+const fromMin = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const addDaysStr = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * DAY).toISOString().slice(0, 10);
+const dowOf = (d) => DAYS[new Date(d + "T12:00:00Z").getUTCDay()];
+/** Fecha y hora de una zona horaria. */
+function tzParts(tz, at = new Date()) {
+  let p;
+  try { p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at).map((x) => [x.type, x.value])); }
+  catch { return tzParts("America/Caracas", at); }
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour === "24" ? "00" : p.hour}:${p.minute}` };
+}
+/** «2026-11-04T10:00» en la hora de la tienda → instante UTC (ISO). */
+function localToUtc(local, tz) {
+  const guess = Date.parse(local + ":00Z");
+  const offAt = (t) => { const p = tzParts(tz, new Date(t)); return Date.parse(`${p.date}T${p.time}:00Z`) - t; };
+  let t = guess - offAt(guess);
+  const o2 = offAt(t);
+  if (guess - o2 !== t) t = guess - o2;
+  return new Date(t).toISOString();
+}
+const agFmtDay = (d) => { const dt = new Date(d + "T12:00:00Z"); return `${AG_WEEK[dowOf(d)]} ${dt.getUTCDate()} de ${AG_MONTHS[dt.getUTCMonth()]}`; };
+const agShortDay = (d) => { const dt = new Date(d + "T12:00:00Z"); return `${AG_WEEK[dowOf(d)].slice(0, 3)} ${dt.getUTCDate()} ${AG_MONTHS[dt.getUTCMonth()].slice(0, 3)}`; };
+const agFmtTime = (t) => { const m = toMin(t), h = Math.floor(m / 60) % 12 || 12; return `${h}:${String(m % 60).padStart(2, "0")} ${m < 720 ? "a. m." : "p. m."}`; };
+const agTz = (brand) => brand.opts.hours.tz || "America/Caracas";
+const agOn = (brand) => !!(brand && brand.opts.agenda.enabled && feat(brand, "agenda") && brand.opts.agenda.services.some((s) => s.active));
+
+/** Rellena una plantilla de la agenda. Si un dato no existe, se quita la línea donde iba. */
+function agFill(tpl, a, brand, who = {}) {
+  const vars = { servicio: a.service_name, fecha: agFmtDay(a.start_at.slice(0, 10)), hora: agFmtTime(a.start_at.slice(11, 16)), direccion: brand.opts.agenda.address, quien: a.staff && a.staff !== "_" ? a.staff : "" };
+  const lines = String(tpl).split("\n").filter((ln) => !Object.entries(vars).some(([k, v]) => !v && new RegExp("\\{" + k + "\\}", "i").test(ln)));
+  let t = lines.join("\n");
+  for (const [k, v] of Object.entries(vars)) t = t.replace(new RegExp("\\{" + k + "\\}", "gi"), v || "");
+  return fillVars(t, { name: who.name || firstName(a.customer_name), username: who.username, platform: who.platform });
+}
+
+/** Horarios libres de un servicio en un día: [{ time, staff }]. */
+async function agendaSlots(env, brand, svcId, date, { excludeId = 0, anyTime = false, staff = "" } = {}) {
+  const ag = brand.opts.agenda, tz = agTz(brand);
+  const svc = ag.services.find((s) => s.id === svcId);
+  if (!svc || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  const now = tzParts(tz);
+  if (date < now.date) return [];
+  if (!anyTime && date > addDaysStr(now.date, ag.max_days)) return [];
+  if (ag.days_off.includes(date)) return [];
+  const d = ag.days[dowOf(date)];
+  if (!d || !d.on) return [];
+  const earliest = anyTime ? now : tzParts(tz, new Date(Date.now() + ag.min_hours * 3600e3));
+  const named = svc.staff.length ? svc.staff : ag.staff;
+  const lanes = staff && named.includes(staff) ? [staff] : named.length ? named : ["_"];
+  const { results } = await env.DB.prepare("SELECT id, staff, start_at, end_at FROM appointments WHERE brand_id = ? AND substr(start_at, 1, 10) = ? AND status != 'cancelled' AND id != ?")
+    .bind(brand.id, date, Number(excludeId) || 0).all();
+  const busy = results.map((r) => ({ s: toMin(r.start_at.slice(11, 16)), e: toMin(r.end_at.slice(11, 16)) || 1440, staff: r.staff || "" }));
+  const out = [];
+  const from = toMin(d.from), to = toMin(d.to), lf = toMin(ag.lunch.from), lt = toMin(ag.lunch.to);
+  for (let m = from; m + svc.minutes <= to; m += ag.step) {
+    const s = m, e = m + svc.minutes;
+    if (ag.lunch.on && lt > lf && s < lt && e > lf) continue;
+    if (`${date}T${fromMin(s)}` < `${earliest.date}T${earliest.time}`) continue;
+    const clash = busy.filter((b) => b.s < e + ag.buffer && b.e + ag.buffer > s);
+    const taken = new Set(clash.filter((b) => lanes.includes(b.staff)).map((b) => b.staff));
+    const loose = clash.filter((b) => !lanes.includes(b.staff)).length; // citas sin persona asignada ocupan un lugar
+    const free = lanes.filter((x) => !taken.has(x));
+    if (free.length - loose > 0) out.push({ time: fromMin(s), staff: free[0] === "_" ? "" : free[0] });
+  }
+  return out;
+}
+/** El primer día (desde «date») que tiene horarios libres. */
+async function agendaNextDay(env, brand, svcId, date, excludeId, tries = 21) {
+  const today = tzParts(agTz(brand)).date;
+  let d = date && date >= today ? date : today;
+  for (let i = 0; i < tries; i++, d = addDaysStr(d, 1)) {
+    if (d > addDaysStr(today, brand.opts.agenda.max_days)) break;
+    const slots = await agendaSlots(env, brand, svcId, d, { excludeId });
+    if (slots.length) return { date: d, slots };
+  }
+  return null;
+}
+
+/** Agenda (o mueve, con «move») una cita después de comprobar que el horario sigue libre. */
+async function agendaBook(env, brand, x, move = null) {
+  const ag = brand.opts.agenda;
+  const svc = ag.services.find((s) => s.id === x.service_id) || (move && { id: move.service_id, name: move.service_name, minutes: move.minutes, price: move.price, staff: [] });
+  if (!svc) throw httpError(400, "Elige un servicio");
+  const start = String(x.start || "");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(start)) throw httpError(400, "Elige el día y la hora");
+  const date = start.slice(0, 10), time = start.slice(11, 16);
+  let staff = typeof x.staff === "string" ? x.staff.slice(0, 40) : "";
+  if (!x.force) {
+    const slots = await agendaSlots(env, brand, svc.id, date, { excludeId: move ? move.id : 0, anyTime: !!x.panel, staff });
+    const pick = slots.find((s) => s.time === time);
+    if (!pick) throw httpError(409, "Ese horario ya no está libre");
+    if (!staff) staff = pick.staff;
+  }
+  const endMin = toMin(time) + svc.minutes;
+  const end = endMin >= 1440 ? `${date}T23:59` : `${date}T${fromMin(endMin)}`;
+  const tz = agTz(brand), now = nowIso();
+  if (move) {
+    // Si la nueva hora ya está dentro del aviso, no se le manda otro recordatorio (acaba de recibir la confirmación)
+    const utc = localToUtc(start, tz), late = Date.parse(utc) - ag.reminder.hours_before * 3600e3 <= Date.now();
+    await env.DB.prepare("UPDATE appointments SET start_at = ?, end_at = ?, start_utc = ?, staff = ?, status = ?, reminded_at = ?, reminder_state = ?, updated_at = ? WHERE id = ?")
+      .bind(start, end, utc, staff || null, x.status || move.status, late ? now : null, late ? "skip" : null, now, move.id).run();
+    return env.DB.prepare("SELECT * FROM appointments WHERE id = ?").bind(move.id).first();
+  }
+  const r = await env.DB.prepare(`INSERT INTO appointments (brand_id, service_id, service_name, staff, start_at, end_at, start_utc, minutes, price, status, source, account_id, user_id, platform,
+      customer_name, username, phone, ad_id, note, by, created_at, updated_at, confirmed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(brand.id, svc.id, svc.name, staff || null, start, end, localToUtc(start, tz), svc.minutes, svc.price, x.status || "pending", x.source || "panel",
+      x.account_id ? String(x.account_id) : null, x.user_id ? String(x.user_id) : null, x.platform || null,
+      String(x.name || "").trim().slice(0, 80) || null, x.username || null, String(x.phone || "").trim().slice(0, 40) || null, x.ad_id || null,
+      String(x.note || "").trim().slice(0, 500) || null, x.by || null, now, now, x.status === "confirmed" ? now : null).run();
+  return env.DB.prepare("SELECT * FROM appointments WHERE id = ?").bind(r.meta.last_row_id).first();
+}
+
+/** Próximas citas de un cliente (sin canceladas ni pasadas). */
+async function agendaOfContact(env, accId, userId) {
+  const { results } = await env.DB.prepare("SELECT * FROM appointments WHERE account_id = ? AND user_id = ? AND status IN ('pending', 'confirmed') AND start_utc > ? ORDER BY start_utc LIMIT 5")
+    .bind(String(accId), String(userId), nowIso()).all();
+  return results;
+}
+
+/** Lo que la IA sabe de la agenda en cada conversación. */
+function agendaPrompt(brand, upcoming) {
+  const ag = brand.opts.agenda, tz = agTz(brand), now = tzParts(tz);
+  const svcs = ag.services.filter((s) => s.active).map((s) => `- ${s.id}: ${s.name} · ${s.minutes} min${s.price !== null ? ` · ${s.price}` : ""}${s.staff.length ? ` · con ${s.staff.join(", ")}` : ""}${s.desc ? ` · ${s.desc}` : ""}`).join("\n");
+  const hours = DAYS.filter((d) => ag.days[d].on).map((d) => `${d} ${ag.days[d].from}–${ag.days[d].to}`).join(", ") || "sin días configurados";
+  const offs = ag.days_off.filter((d) => d >= now.date).slice(0, 8);
+  return `=== AGENDA DE CITAS ===
+Hoy es ${agFmtDay(now.date)} (${now.date}), son las ${now.time}.
+Servicios que se pueden agendar (id: nombre · duración · precio):
+${svcs}
+Atención: ${hours}${ag.lunch.on ? `; pausa de ${ag.lunch.from} a ${ag.lunch.to}` : ""}.${offs.length ? ` Días libres: ${offs.join(", ")}.` : ""} Se agenda hasta ${ag.max_days} días adelante.${ag.address ? `\nDirección: ${ag.address}` : ""}
+Citas próximas de este cliente: ${upcoming.length ? upcoming.map((a) => `${a.service_name} el ${agFmtDay(a.start_at.slice(0, 10))} a las ${agFmtTime(a.start_at.slice(11, 16))} (${AG_STATUS[a.status].toLowerCase()})`).join("; ") : "ninguna"}.
+CÓMO AGENDAR (el sistema hace la reserva; tú solo escribes la etiqueta):
+- Si el cliente quiere una cita, averigua el servicio. Si no dice el día, usa el más próximo.
+- Para mostrarle los horarios libres escribe al final de tu mensaje [HORARIOS:id|AAAA-MM-DD]. El sistema le envía las horas como botones. NUNCA inventes horas ni digas que hay cupo sin esa etiqueta.
+- Si el cliente ya dijo un día y una hora concretos, escribe [AGENDAR:id|AAAA-MM-DDTHH:MM]. El sistema revisa que esté libre y le manda la confirmación: no le confirmes tú la cita.
+- Si quiere cambiar su cita, escribe [CAMBIAR_CITA:AAAA-MM-DD] con el día que prefiere. Si quiere cancelarla, escribe [CANCELAR_CITA].
+- Una sola etiqueta por mensaje. Acompáñala de una frase corta y amable.`;
+}
+
+/** Envía un texto con respuestas rápidas y lo guarda en la conversación. */
+async function sendQuick(env, acc, to, text, items, source) {
+  const quick = items.slice(0, 13).map((x) => ({ content_type: "text", title: String(x.title).slice(0, 20), payload: String(x.payload).slice(0, 1000) }));
+  const body = truncateBytes(text, 1000);
+  const r = await PLATFORM[acc.platform].sendRaw(env, acc, { id: to }, quick.length ? { text: body, quick_replies: quick } : { text: body });
+  await saveMessage(env, acc.id, to, "assistant", quick.length ? `${body}\n[Botones: ${quick.map((q) => q.title).join(" · ")}]` : body, { source, mid: r && r.message_id });
+  await setContact(env, acc.id, to, { last_bot_at: nowIso() });
+  return body;
+}
+
+/** Ofrece los horarios libres de un día como botones (si ese día no hay, el siguiente que tenga). */
+async function agendaOffer(env, acc, brand, to, svcId, date, reId, lead) {
+  const svc = brand.opts.agenda.services.find((s) => s.id === svcId && s.active);
+  if (!svc) return agendaServices(env, acc, brand, to, lead);
+  const found = await agendaNextDay(env, brand, svcId, date, reId);
+  if (!found) {
+    const t = (lead ? lead + "\n\n" : "") + `Por ahora no me quedan horarios libres para ${svc.name} 😔 Ya le avisé al equipo para que te escriba.`;
+    await sendQuick(env, acc, to, t, [], "agenda");
+    return { text: t, none: true };
+  }
+  const re = reId ? `|re${reId}` : "";
+  const slots = found.slots.slice(0, 11);
+  const moved = date && found.date !== date ? ` (el ${agFmtDay(date)} ya no hay)` : "";
+  const t = (lead ? lead + "\n\n" : "") + `Horarios libres para ${svc.name} el ${agFmtDay(found.date)}${moved}. Toca el que prefieras 👇`;
+  const items = slots.map((s) => ({ title: agFmtTime(s.time), payload: `ag|t|${svc.id}|${found.date}T${s.time}${re}` }));
+  items.push({ title: "Otro día ›", payload: `ag|n|${svc.id}|${found.date}${re}` });
+  return { text: await sendQuick(env, acc, to, t, items, "agenda") };
+}
+/** Próximos días con cupo, como botones. */
+async function agendaDays(env, acc, brand, to, svcId, after, reId) {
+  const svc = brand.opts.agenda.services.find((s) => s.id === svcId);
+  if (!svc) return agendaServices(env, acc, brand, to);
+  const days = [];
+  let d = addDaysStr(after || tzParts(agTz(brand)).date, 1);
+  for (let i = 0; i < 30 && days.length < 8; i++) {
+    const f = await agendaNextDay(env, brand, svcId, d, reId, 1);
+    if (f) days.push(f.date);
+    d = addDaysStr(d, 1);
+  }
+  if (!days.length) return agendaOffer(env, acc, brand, to, svcId, after, reId);
+  const re = reId ? `|re${reId}` : "";
+  const t = `¿Qué día te queda mejor para ${svc.name}?`;
+  return { text: await sendQuick(env, acc, to, t, days.map((x) => ({ title: agShortDay(x), payload: `ag|d|${svcId}|${x}${re}` })), "agenda") };
+}
+/** Lista de servicios como botones (cuando no hay IA o el cliente aún no eligió). */
+async function agendaServices(env, acc, brand, to, lead) {
+  const svcs = brand.opts.agenda.services.filter((s) => s.active).slice(0, 13);
+  const t = (lead ? lead + "\n\n" : "") + "¿Para qué servicio quieres tu cita? 👇";
+  return { text: await sendQuick(env, acc, to, t, svcs.map((s) => ({ title: s.name, payload: `ag|s|${s.id}` })), "agenda") };
+}
+
+/** Cita confirmada o movida: mensaje al cliente y aviso al negocio. */
+async function agendaBooked(env, acc, brand, to, who, a, moved) {
+  const t = agFill(brand.opts.agenda.confirm_text, a, brand, who);
+  const text = await sendQuick(env, acc, to, moved ? t.replace(/quedó agendada/i, "quedó cambiada") : t, [], "agenda");
+  const whoTxt = whoLabel(acc.platform, who.username);
+  await notifyAll(env, { title: `${brand.name} · ${moved ? "Cita cambiada" : "Nueva cita"}`, body: `${whoTxt}: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` },
+    { brandId: brand.id, event: "agenda" });
+  return text;
+}
+
+/** Botones que tocó el cliente: ag|s|svc · ag|d|svc|fecha · ag|n|svc|fecha · ag|t|svc|fechaThora · agc|id|ok|ch (+ |reID para mover una cita). */
+async function agendaPayload(env, acc, brand, to, who, contact, payload) {
+  const parts = payload.split("|");
+  const reP = parts.find((x) => /^re\d+$/.test(x));
+  const own = async (id) => {
+    const a = id ? await env.DB.prepare("SELECT * FROM appointments WHERE id = ? AND brand_id = ? AND account_id = ? AND user_id = ?").bind(Number(id), brand.id, String(acc.id), String(to)).first() : null;
+    return a && ["pending", "confirmed"].includes(a.status) ? a : null;
+  };
+  if (parts[0] === "agc") {
+    const a = await own(parts[1]);
+    if (!a) return { text: await sendQuick(env, acc, to, "Esa cita ya no está activa. Si quieres agendar otra, dime para qué servicio 🙂", [], "agenda") };
+    if (parts[2] === "ok") {
+      await env.DB.prepare("UPDATE appointments SET status = 'confirmed', confirmed_at = ?, updated_at = ? WHERE id = ?").bind(nowIso(), nowIso(), a.id).run();
+      return { text: await sendQuick(env, acc, to, `¡Gracias por confirmar! Te esperamos el ${agFmtDay(a.start_at.slice(0, 10))} a las ${agFmtTime(a.start_at.slice(11, 16))} 🙌`, [], "agenda") };
+    }
+    if (parts[2] === "x") {
+      await env.DB.prepare("UPDATE appointments SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(nowIso(), a.id).run();
+      await notifyAll(env, { title: `${brand.name} · Cita cancelada`, body: `${whoLabel(acc.platform, who.username)} canceló: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` }, { brandId: brand.id, event: "agenda" });
+      return { text: await sendQuick(env, acc, to, "Listo, cancelamos tu cita. Cuando quieras agendar otra, escríbenos 🙂", [], "agenda") };
+    }
+    await notifyAll(env, { title: `${brand.name} · Quiere cambiar su cita`, body: `${whoLabel(acc.platform, who.username)}: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` }, { brandId: brand.id, event: "agenda" });
+    return agendaOffer(env, acc, brand, to, a.service_id, a.start_at.slice(0, 10), a.id, "Claro, busquemos otro horario.");
+  }
+  const [, op, svcId, when] = parts;
+  const reId = reP ? Number(reP.slice(2)) : 0;
+  if (op === "s") return agendaOffer(env, acc, brand, to, svcId, null, 0);
+  if (op === "d") return agendaOffer(env, acc, brand, to, svcId, when, reId);
+  if (op === "n") return agendaDays(env, acc, brand, to, svcId, when, reId);
+  if (op === "t") {
+    const move = reId ? await own(reId) : null;
+    if (reId && !move) return { text: await sendQuick(env, acc, to, "Esa cita ya no está activa. Si quieres agendar otra, dime para qué servicio 🙂", [], "agenda") };
+    try {
+      const a = await agendaBook(env, brand, {
+        service_id: svcId, start: when, source: "bot", account_id: acc.id, user_id: to, platform: acc.platform, name: who.full || who.name, username: who.username,
+        ad_id: contact && contact.ad_id, status: brand.opts.agenda.auto_confirm || move ? "confirmed" : "pending",
+      }, move);
+      return { text: await agendaBooked(env, acc, brand, to, who, a, !!move), booked: a };
+    } catch (e) {
+      if (e.status !== 409) throw e;
+      return agendaOffer(env, acc, brand, to, svcId, String(when).slice(0, 10), reId, "Uy, ese horario se acaba de ocupar 😅");
+    }
+  }
+  return agendaServices(env, acc, brand, to);
+}
+
+const AG_TAG = /\[(HORARIOS|AGENDAR|CAMBIAR_CITA|CANCELAR_CITA)(?:\s*:\s*([^\]]*))?\]/i;
+/** La IA escribió una etiqueta de agenda: el sistema la ejecuta y le envía al cliente lo que corresponde. */
+async function agendaFromAI(env, acc, brand, to, who, contact, aiText) {
+  const m = aiText.match(AG_TAG);
+  if (!m) return null;
+  const lead = aiText.replace(new RegExp(AG_TAG.source, "gi"), "").replace(/\n{3,}/g, "\n\n").trim();
+  const tag = m[1].toUpperCase(), args = String(m[2] || "").split("|").map((x) => x.trim());
+  const ag = brand.opts.agenda, today = tzParts(agTz(brand)).date;
+  const svcOf = (x) => ag.services.find((s) => s.active && (s.id === x || normalize(s.name) === normalize(x)));
+  const dateOf = (x) => (/^\d{4}-\d{2}-\d{2}/.test(x || "") ? x.slice(0, 10) : today);
+  if (tag === "HORARIOS") {
+    const svc = svcOf(args[0]);
+    return svc ? agendaOffer(env, acc, brand, to, svc.id, dateOf(args[1]), 0, lead) : agendaServices(env, acc, brand, to, lead);
+  }
+  if (tag === "AGENDAR") {
+    const svc = svcOf(args[0]);
+    if (!svc) return agendaServices(env, acc, brand, to, lead);
+    const when = String(args[1] || "").replace(" ", "T").slice(0, 16);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return agendaOffer(env, acc, brand, to, svc.id, dateOf(args[1]), 0, lead);
+    return agendaPayload(env, acc, brand, to, who, contact, `ag|t|${svc.id}|${when}`);
+  }
+  const up = await agendaOfContact(env, acc.id, to);
+  if (!up.length) {
+    const t = (lead ? lead + "\n\n" : "") + "No encontré una cita próxima a tu nombre. ¿Quieres agendar una?";
+    return { text: await sendQuick(env, acc, to, t, ag.services.filter((s) => s.active).slice(0, 12).map((s) => ({ title: s.name, payload: `ag|s|${s.id}` })), "agenda") };
+  }
+  const a = up[0];
+  if (tag === "CAMBIAR_CITA") {
+    await notifyAll(env, { title: `${brand.name} · Quiere cambiar su cita`, body: `${whoLabel(acc.platform, who.username)}: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` }, { brandId: brand.id, event: "agenda" });
+    return agendaOffer(env, acc, brand, to, a.service_id, args[0] ? dateOf(args[0]) : a.start_at.slice(0, 10), a.id, lead || "Claro, busquemos otro horario.");
+  }
+  // CANCELAR_CITA
+  await env.DB.prepare("UPDATE appointments SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(nowIso(), a.id).run();
+  await notifyAll(env, { title: `${brand.name} · Cita cancelada`, body: `${whoLabel(acc.platform, who.username)} canceló: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` }, { brandId: brand.id, event: "agenda" });
+  const t = (lead ? lead + "\n\n" : "") + `Listo, cancelamos tu cita de ${a.service_name} del ${agFmtDay(a.start_at.slice(0, 10))}. Cuando quieras agendar otra, escríbenos 🙂`;
+  return { text: await sendQuick(env, acc, to, t, [], "agenda") };
+}
+
+/** Escribe al cliente fuera del chat (recordatorio o cambio desde el panel). Instagram solo deja escribir hasta 24 h después de su último mensaje. */
+async function agendaMessage(env, acc, a, text, quick) {
+  const c = await getContact(env, acc.id, a.user_id);
+  const inWindow = !!(c && c.last_dm_at && Date.now() - Date.parse(c.last_dm_at) < 23.5 * 3600e3);
+  const message = quick && quick.length ? { text: truncateBytes(text, 1000), quick_replies: quick.map((x) => ({ content_type: "text", title: x.title, payload: x.payload })) } : { text: truncateBytes(text, 1000) };
+  let r;
+  if (inWindow) r = await PLATFORM[acc.platform].sendRaw(env, acc, { id: a.user_id }, message);
+  else if (acc.platform === "facebook") r = await fb(env, acc.token, "/me/messages", { recipient: { id: a.user_id }, messaging_type: "MESSAGE_TAG", tag: "CONFIRMED_EVENT_UPDATE", message });
+  else return { ok: false, why: "no_window" };
+  await saveMessage(env, acc.id, a.user_id, "assistant", quick && quick.length ? `${text}\n[Botones: ${quick.map((q) => q.title).join(" · ")}]` : text, { source: "agenda", mid: r && r.message_id });
+  return { ok: true };
+}
+
+/** Recordatorios: cada hora, a las citas que entran en la ventana de aviso. */
+async function runReminders(env) {
+  const now = Date.now();
+  const { results } = await env.DB.prepare("SELECT * FROM appointments WHERE status IN ('pending', 'confirmed') AND reminded_at IS NULL AND start_utc > ? AND start_utc <= ? ORDER BY start_utc LIMIT 200")
+    .bind(new Date(now).toISOString(), new Date(now + 73 * 3600e3).toISOString()).all();
+  const brands = {};
+  for (const a of results) {
+    try {
+      const brand = brands[a.brand_id] !== undefined ? brands[a.brand_id] : (brands[a.brand_id] = await getBrand(env, a.brand_id));
+      if (!brand || !brand.active) continue;
+      const ag = brand.opts.agenda;
+      if (!ag.enabled || !ag.reminder.enabled || !feat(brand, "reminders")) continue;
+      const due = Date.parse(a.start_utc) - ag.reminder.hours_before * 3600e3;
+      if (now < due) continue;
+      const mark = (state) => env.DB.prepare("UPDATE appointments SET reminded_at = ?, reminder_state = ? WHERE id = ?").bind(nowIso(), state, a.id).run();
+      // Se agendó cuando ya tocaba avisar: acaba de recibir la confirmación
+      if (Date.parse(a.created_at) > due) { await mark("skip"); continue; }
+      if (!a.account_id || !a.user_id) { await mark("no_chat"); continue; }
+      const acc = await getAccount(env, a.account_id);
+      if (!acc) { await mark("no_chat"); continue; }
+      const c = await getContact(env, acc.id, a.user_id);
+      const who = { name: firstName((c && c.name) || a.customer_name), username: a.username || (c && c.username), platform: acc.platform };
+      const text = agFill(ag.reminder.text, a, brand, who);
+      let res;
+      try { res = await agendaMessage(env, acc, a, text, [{ title: "Confirmo ✅", payload: `agc|${a.id}|ok` }, { title: "Necesito cambiarla", payload: `agc|${a.id}|ch` }]); }
+      catch (e) { res = { ok: false, why: "error", err: errText(e) }; }
+      await mark(res.ok ? "sent" : res.why);
+      if (!res.ok) {
+        const whoTxt = whoLabel(acc.platform, who.username, a.customer_name || "Un cliente");
+        const why = res.why === "no_window" ? "Instagram solo deja escribirle hasta 24 horas después de su último mensaje" : res.err || "Meta no lo aceptó";
+        await notifyAll(env, { title: `${brand.name} · Recordatorio sin enviar`, body: `${whoTxt} · ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}. ${why}. Escríbele o llámale${a.phone ? " (" + a.phone + ")" : ""}.`, url: "/#agenda", tag: `ag:${a.id}` },
+          { brandId: brand.id, event: "agenda" });
+      } else await addLog(env, acc, { channel: "dm", fromId: a.user_id, username: who.username, text: null, reply: text, kind: "reminder" });
+    } catch (e) { console.log("Recordatorio", errText(e)); }
+  }
+}
+
+const apptOut = (a) => ({ ...a, status_label: AG_STATUS[a.status] || a.status });
+
 /* ================= tareas programadas (cada hora) ================= */
 
 async function dailyTasks(env) {
@@ -3644,6 +4174,7 @@ async function cron(env) {
   try { await purgeTrash(env); } catch (e) { console.log("Papelera", errText(e)); }
   try { await autoResumeAll(env); } catch (e) { console.log("Reanudar", errText(e)); }
   try { await runFollowUps(env); } catch (e) { console.log("Seguimientos", errText(e)); }
+  try { await runReminders(env); } catch (e) { console.log("Recordatorios", errText(e)); }
   // Lo diario, una vez al día a partir de las 9:00 a. m. de Caracas
   const today = localDate();
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'daily_done'").first();
@@ -4065,9 +4596,18 @@ async function adsReport(env, brand, from, to, force, pf, pt) {
   for (const [id, x] of Object.entries(salesBy)) if (!known.has(id)) { const c = (camps["Anuncios sin gasto en el periodo"] ||= { name: "Anuncios sin gasto en el periodo", spend: 0, sold: 0, orders: 0 }); c.sold += x.total; c.orders += x.n; }
   const campaigns = Object.values(camps).filter((c) => c.spend > 0 || c.sold > 0).map((c) => ({ ...c, spend: Math.round(c.spend * 100) / 100, sold: Math.round(c.sold * 100) / 100, roas: c.spend > 0 ? Math.round((c.sold / c.spend) * 100) / 100 : null })).sort((a, b) => b.sold - a.sold || b.spend - a.spend);
   const cancelled = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM sales WHERE brand_id = ? AND status = 'cancelled' AND at >= ? AND at <= ?").bind(brand.id, sFrom, sTo).first();
+  // Citas que trajo cada anuncio (agendadas en el periodo)
+  const { results: cRows } = await env.DB.prepare("SELECT ad_id, COUNT(*) AS n, SUM(CASE WHEN status IN ('done', 'confirmed') THEN 1 ELSE 0 END) AS ok, SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS ns FROM appointments WHERE brand_id = ? AND ad_id IS NOT NULL AND status != 'cancelled' AND created_at >= ? AND created_at <= ? GROUP BY ad_id")
+    .bind(brand.id, sFrom, sTo).all().catch(() => ({ results: [] }));
+  const citasBy = Object.fromEntries(cRows.map((x) => [x.ad_id, x]));
+  for (const a of ads) { const c = citasBy[a.id]; a.citas = c ? c.n : 0; a.cpa_cita = c && c.n && a.m.spend > 0 ? Math.round((a.m.spend / c.n) * 100) / 100 : null; }
+  const citasN = cRows.reduce((t, x) => t + x.n, 0);
+  const citas = { on: agOn(brand) || citasN > 0, n: citasN, ok: cRows.reduce((t, x) => t + (x.ok || 0), 0), no_show: cRows.reduce((t, x) => t + (x.ns || 0), 0),
+    cost: citasN && tot.spend > 0 ? Math.round((tot.spend / citasN) * 100) / 100 : null,
+    ads: ads.filter((a) => a.citas).map((a) => ({ id: a.id, name: a.name, spend: a.m.spend, citas: a.citas, cost: a.cpa_cita })).sort((x, y) => y.citas - x.citas).slice(0, 15) };
   const soldPrev = Object.values(prevSalesBy).reduce((t, x) => t + x.total, 0), ordersPrev = Object.values(prevSalesBy).reduce((t, x) => t + x.n, 0);
   const pSpend = d.prev ? d.prev.spend : null;
-  return { from, to, prev: d.prev, prev_from: d.prev_from, prev_to: d.prev_to, totals: tot, pro, rules, ads,
+  return { from, to, prev: d.prev, prev_from: d.prev_from, prev_to: d.prev_to, totals: tot, pro, rules, ads, citas,
     sales: { has: hasSales, sources: stList.map((x) => ({ name: x.name, kind: x.kind })), chat: !!(chatSales && chatSales.n), sold: Math.round(soldAds * 100) / 100, orders: ordersAds,
       no_ad: Math.round((noAd.total || 0) * 100) / 100, no_ad_n: noAd.n || 0, roas: tot.spend > 0 && hasSales ? Math.round((soldAds / tot.spend) * 100) / 100 : null,
       margin, profit: margin != null && hasSales ? Math.round((soldAds * margin / 100 - tot.spend) * 100) / 100 : null,
@@ -4117,7 +4657,7 @@ Anuncios:\n${lines}` },
 
 /* ================= papelera: lo borrado se guarda 5 días y se puede restaurar ================= */
 const TRASH_DAYS = 5;
-const TRASH_KINDS = { user: "Usuario", brand: "Tienda", lead: "Solicitud de la página de venta", sale: "Pago marcado", payment: "Pago registrado", account: "Cuenta conectada", store: "Tienda online conectada" };
+const TRASH_KINDS = { user: "Usuario", brand: "Tienda", lead: "Solicitud de la página de venta", sale: "Pago marcado", payment: "Pago registrado", account: "Cuenta conectada", store: "Tienda online conectada", appointment: "Cita" };
 /** Guarda una copia de las filas antes de borrarlas. specs: [[tabla, where, binds]]; after: SQL para dejar todo como estaba al restaurar. */
 async function toTrash(env, u, kind, label, brandId, specs, after = []) {
   const tables = {};
@@ -4328,12 +4868,13 @@ const FEATURES = [
   ["paylink", "Botón de pago con tus links", "ventas"], ["store", "Conexión con tienda online (Shopify, Woo, otra)", "ventas"],
   ["pdf", "Reportes en PDF e imagen", "ventas"], ["ads", "Anuncios (gasto y resultados)", "ventas"],
   ["advisor", "Asesor de anuncios PRO", "ventas"], ["support", "Soporte prioritario", "ventas"],
+  ["agenda", "Agenda de citas", "agenda"], ["reminders", "Recordatorios automáticos de citas", "agenda"],
 ];
 const FEAT_KEYS = FEATURES.map((f) => f[0]);
 const incOf = (keys) => Object.fromEntries(FEAT_KEYS.map((k) => [k, keys.includes(k)]));
 const DEFAULT_PLANS = [
   { name: "Emprende", ai: "text", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo"], price: 25, replies: 1500, users: 2, brands: 1, desc: "Para empezar a vender por Instagram", popular: false, inc: incOf(["paylink", "ads"]) },
-  { name: "Crece", ai: "vision", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar"], price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads"]) },
+  { name: "Crece", ai: "vision", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar"], price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads", "agenda", "reminders"]) },
   { name: "Pro", ai: "pro", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar", "prompts", "tienda"], price: 99, replies: 15000, users: 10, brands: 3, desc: "Para marcas que invierten en anuncios", popular: false, inc: incOf(FEAT_KEYS) },
 ];
 /** La lista de la página de venta sale de lo marcado en cada plan. */
@@ -4350,7 +4891,8 @@ function planLines(plans, i) {
 function cleanPlan(p, i) {
   const d = DEFAULT_PLANS[i] || DEFAULT_PLANS[DEFAULT_PLANS.length - 1];
   const int = (v, def) => { const n = parseInt(v, 10); return isNaN(n) ? def : Math.max(0, n); };
-  const inc = p.inc && typeof p.inc === "object" ? Object.fromEntries(FEAT_KEYS.map((k) => [k, p.inc[k] === true])) : { ...d.inc };
+  // Funciones nuevas que un plan guardado todavía no tiene: quedan como en el plan de fábrica
+  const inc = p.inc && typeof p.inc === "object" ? Object.fromEntries(FEAT_KEYS.map((k) => [k, p.inc[k] === undefined ? !!d.inc[k] : p.inc[k] === true])) : { ...d.inc };
   // La IA del plan: solo texto, texto e imágenes, o pro (con fotos)
   const ai = AI_LEVELS[p.ai] ? p.ai : inc.pro_model ? "pro" : inc.vision ? "vision" : (d.ai || "text");
   inc.vision = ai !== "text"; inc.pro_model = ai === "pro";
