@@ -604,6 +604,33 @@ a.btn.primary{color:#fff}
 .ficha .tag{display:inline-flex;align-items:center;gap:4px;background:#ede9fe;color:#5b21b6;border-radius:99px;padding:2px 4px 2px 10px;font-size:12px;font-weight:600}
 .ficha .tag button{border:0;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .ficha .tags input{width:110px;padding:3px 8px;font-size:12.5px;border-radius:99px}
+/* embudo de clientes */
+.crm-kpis{margin:6px 0 12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.crm-kpis .v small{font-size:12px;color:var(--ok);font-weight:700;margin-left:4px}
+.crm-flt{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.crm-chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer}.crm-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.crm-board{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
+.crm-col{background:#eceef4;border-radius:12px;padding:8px;min-height:420px;transition:background .15s}.crm-col.over{background:#dfe1f0;outline:2px dashed #b9bbd8}
+.crm-ch{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;padding:2px 4px 6px}.crm-ch em{font-style:normal;background:#fff;border-radius:99px;padding:1px 8px;font-size:11.5px;color:var(--ink2)}
+.crm-d{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px;flex:none}
+.crm-cs{font-size:11.5px;color:var(--muted);margin:-2px 4px 8px}
+.crm-c{background:#fff;border-radius:10px;padding:9px 10px;margin-bottom:7px;font-size:12px;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid #e9eaf0;cursor:pointer}
+.crm-c:hover{border-color:#c7c8e6}.crm-c.drag{opacity:.5}.crm-c.warn{border-color:#fcd34d}.crm-c.lost{opacity:.8}
+.crm-c b{font-size:13px;display:block}.crm-c .m{color:var(--muted);margin-top:2px;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.crm-c .t{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.crm-c .t .pill{font-size:10.5px;padding:1px 7px}
+.crm-c .f{display:flex;justify-content:space-between;margin-top:7px;color:var(--muted);font-size:11px;align-items:center}
+.crm-c .who{width:19px;height:19px;border-radius:50%;background:#c7c8e6;color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:10px}
+.crm-empty{color:var(--muted);font-size:12px;text-align:center;padding:16px 0}
+.crm-lost{margin-top:14px}.crm-lr{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 24px}.crm-lr div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.crm-mtabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}.crm-mtabs button{white-space:nowrap;border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:700}.crm-mtabs .on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.crm-steps{display:flex;gap:4px;margin:4px 0 8px}.crm-steps span{flex:1;height:7px;border-radius:99px;background:#e5e7eb}.crm-steps .on{background:var(--accent)}.crm-steps .lost{background:#fecaca}
+#crmDlg .kv2{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:14px}#crmDlg .kv2 span{color:var(--muted)}
+.crm-tl{border-left:2px solid var(--line);margin-left:6px;padding-left:14px}.crm-tl div{position:relative;padding:0 0 12px;font-size:13.5px}.crm-tl div::before{content:"";position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.crm-tl div.lost::before{background:var(--bad)}.crm-tl small{display:block;color:var(--muted);font-size:12px}
+.crm-srow{display:grid;grid-template-columns:14px 220px 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f1f5}
+@media (max-width:760px){.crm-srow{grid-template-columns:14px 1fr}.crm-srow span{grid-column:2}}
+.fx-rate{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--accent-soft);border-radius:12px;padding:14px 16px;margin-bottom:6px}
+.fx-big{font-size:26px;font-weight:900;color:var(--accent)}.fx-big span{font-size:14px;color:var(--muted);font-weight:600}
+.fx-off{opacity:.5;pointer-events:none}.fx-ex{background:#f7f7f9;border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13.5px}.fx-ex b{color:var(--accent)}
 /* agenda */
 .ag-kpis{margin:6px 0 14px}
 .ag-bar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -1338,7 +1365,7 @@ $("setupForm").addEventListener("submit", (e) => {
 $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
 
 /* ================= navegación ================= */
-const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", agenda: "Agenda", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
+const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", embudo: "Clientes", agenda: "Agenda", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
   clientes: "Clientes y cobros", plan: "Plan y uso", planes: "Planes", papelera: "Papelera", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
 // rutas viejas → nuevas (enlaces guardados y notificaciones)
 const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", redes: "asistentes", "redes/catalogo": "catalogo", "redes/historias": "catalogo/historias",
@@ -1346,7 +1373,7 @@ const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", rede
 const ASSIST_PERM = ["prompts", "reglas", "tienda", "catalogo"];
 const anyCan = (list) => list.some((p) => can(p));
 const VIEW_OK = {
-  inicio: () => true, conversaciones: () => can("conversaciones"), agenda: () => can("conversaciones") && S.brands.length > 0, asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
+  inicio: () => true, conversaciones: () => can("conversaciones"), agenda: () => can("conversaciones") && S.brands.length > 0, embudo: () => can("conversaciones") && S.brands.length > 0, asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
   metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
   equipo: () => isMaestro() || can("equipo"), planes: () => isMaestro(), papelera: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
 };
@@ -1395,6 +1422,7 @@ const NI = {
   dm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
   comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   story: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="4 2.5"/><path d="M10 9l5 3-5 3z"/></svg>',
+  funnel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 17h2"/></svg>',
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>',
@@ -1415,6 +1443,7 @@ function renderNav() {
   const flag = '<span class="dot" title="Hay algo por revisar"></span>';
   $("side").innerHTML =
     group("Principal", item("inicio", NI.home, "Inicio") + item("conversaciones", ICON.chat, "Conversaciones", pending ? `<span class="cnt">${pending > 99 ? "99+" : pending}</span>` : "")
+      + item("embudo", NI.funnel, "Clientes")
       + item("agenda", NI.cal, "Agenda", (() => { const b = curBrand(); const n = b && AG.d && AG.brand === b.id ? AG.d.pending.length : 0; return n ? `<span class="cnt" style="background:#f59e0b">${n}</span>` : ""; })())
       + item("asistentes", NI.bot, "Asistentes") + item("catalogo", NI.bag, "Catálogo"))
     + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()))
@@ -1492,7 +1521,7 @@ function render() {
   $("main").innerHTML = "";
   const r = rest || [];
   ({
-    inicio: () => renderHome(), conversaciones: () => renderInbox(), agenda: () => renderAgenda(r[0]), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
+    inicio: () => renderHome(), conversaciones: () => renderInbox(), embudo: () => renderCrm(r[0]), agenda: () => renderAgenda(r[0]), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
     metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
     equipo: () => (isMaestro() ? renderUsers() : renderMyTeam()), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), papelera: () => renderTrash(), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
@@ -1631,7 +1660,7 @@ const swHtml = (id, on, disabled) => `<input type="checkbox" role="switch" class
 const feature = (id, on, title, desc, inner, disabled) => `<div class="box feature ${on ? "on" : ""}" data-feature="${id}"><div class="box-h"><div><strong>${title}</strong><p>${desc}</p></div>${swHtml(id, on, disabled)}</div><div class="feature-b">${inner}</div></div>`;
 
 // Antes era una ventana; ahora cada parte vive en su página (Configuración o el asistente que la usa)
-const CFG_ROUTE = { general: "configuracion/general", ia: "configuracion/ia", mensajes: "configuracion/mensajes", avisos: "configuracion/avisos", funciones: "asistentes" };
+const CFG_ROUTE = { precios: "configuracion/precios", general: "configuracion/general", ia: "configuracion/ia", mensajes: "configuracion/mensajes", avisos: "configuracion/avisos", funciones: "asistentes" };
 function openConfigure(id, startTab) { if (id && id !== S.selBrand) { S.selBrand = id; try { localStorage.setItem("ar_store", id); } catch {} } go(CFG_ROUTE[startTab] || "configuracion"); }
 
 /* ---------- planes: qué incluye la tienda ---------- */
@@ -1762,12 +1791,25 @@ function renderStoreCfg(sections) {
       <div id="tplList">${o.templates.map(tplRow).join("")}</div>
       ${canT ? `<button class="btn small" type="button" id="tplAdd" style="margin-top:10px">${ICON.plus} Agregar plantilla</button>` : ""}
       <p class="help">En todos los mensajes puedes usar <span class="chip">{nombre}</span> (primer nombre del cliente) y <span class="chip">{usuario}</span> (su @). Si no hay nombre, la frase queda bien sin él.</p>`,
+    precios: `
+      <h2 style="font-size:16px;margin:0 0 4px">Precios en bolívares</h2>
+      <p class="muted small" style="margin:0 0 10px">Tus precios van en dólares. El sistema calcula el monto en bolívares con la tasa oficial del día: la IA no hace la cuenta.</p>
+      <div class="fx-rate" id="fxRate"><span class="muted small">Buscando la tasa…</span></div>
+      <div class="box"><div class="box-h"><div><strong>Dar precios en bolívares</strong><p>Cuando el cliente pregunta en bolívares o va a pagar por Pago Móvil o transferencia.</p></div>${swHtml("fxOn", o.fx.enabled, !canT)}</div></div>
+      <div class="box ${o.fx.enabled ? "" : "fx-off"}" id="fxMore"><div class="box-h"><div><strong>Mostrar también la conversión junto al dólar</strong> <span class="pill gray">Opcional</span><p>Cada vez que el bot dé un precio, va en las dos monedas: «$25 (Bs 22.239,50)».</p></div>${swHtml("fxAlways", o.fx.always, !canT)}</div>
+        <div class="grid2" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+          <div><label class="f" for="fxCur" style="margin-top:0">Moneda de la tasa</label><select id="fxCur" ${roT}><option value="usd" ${o.fx.currency === "usd" ? "selected" : ""}>Dólar (USD)</option><option value="eur" ${o.fx.currency === "eur" ? "selected" : ""}>Euro (EUR)</option></select></div>
+          <div><label class="f" for="fxMk" style="margin-top:0">Ajuste sobre la tasa (%)</label><input id="fxMk" type="number" step="0.5" min="-50" max="200" value="${o.fx.markup}" ${roT}></div>
+          <div><label class="f" for="fxRound" style="margin-top:0">Redondeo</label><select id="fxRound" ${roT}>${[["none", "Sin redondeo"], ["1", "A la unidad"], ["10", "A la decena"], ["100", "A la centena"]].map(([v, l]) => `<option value="${v}" ${o.fx.round === v ? "selected" : ""}>${l}</option>`).join("")}</select></div></div>
+        <div class="box-h" style="margin-top:12px"><div><strong>Decir la fecha de la tasa</strong><p>Agrega «Tasa BCV del XX/XX/XXXX» al dar el monto en bolívares.</p></div>${swHtml("fxDate", o.fx.show_date, !canT)}</div>
+        <div class="fx-ex" id="fxEx"></div></div>
+      <p class="help">Los fines de semana y feriados se usa la última tasa (la del viernes). Si pasan más de 4 días sin cambiar, el bot no da montos en bolívares (dice que lo confirma) y te avisa.</p>`,
     avisos: `
       <p class="muted small" style="margin:6px 0 0">Qué avisos manda esta tienda a los teléfonos. Cada persona elige además los suyos en Configuración → Notificaciones.</p>
       ${Object.entries(NOTIFY_LABELS).map(([k, [l, h]]) => `<div class="box"><div class="box-h"><div><strong>${l}</strong>${h ? `<p>${h}</p>` : ""}</div>${swHtml("n_" + k, o.notify[k], !canT)}</div></div>`).join("")}`,
   };
 
-  const TITLES = { general: "General", ia: "IA y conocimiento", mensajes: "Mensajes", respuestas: "Respuestas guardadas", avisos: "Avisos", stories: "", hours: "", human: "", follow: "", links: "" };
+  const TITLES = { precios: "", general: "General", ia: "IA y conocimiento", mensajes: "Mensajes", respuestas: "Respuestas guardadas", avisos: "Avisos", stories: "", hours: "", human: "", follow: "", links: "" };
   const PLAN_LOCK = { links: ["paylink", "Botón de pago", "Manda tus links de pago como botón y sabe quién ya pagó."], follow: ["follow", "Seguimiento a quien no compró", "El bot le vuelve a escribir a quien preguntó y no compró."] };
   const paneOf = (k) => { const L = PLAN_LOCK[k]; if (!L) return panes[k]; if (!hasF(L[0])) return lockCard(L[0], L[1], L[2]) + `<div class="hidden">${panes[k]}</div>`; return lockNote(L[0], L[1]) + panes[k]; };
   dlg.innerHTML = sections.map((k) => `<div class="card">${TITLES[k] ? `<h2 style="font-size:16px;margin:0 0 4px">${TITLES[k]}</h2>` : ""}${paneOf(k)}</div>`).join("")
@@ -1824,6 +1866,27 @@ function renderStoreCfg(sections) {
   val("fIgnore", (v) => (o.ignore_users = v));
   dlg.querySelectorAll("[data-reason]").forEach((x) => (x.oninput = () => { o.handoff_reasons[x.dataset.reason] = x.value; mark(); }));
   Object.keys(NOTIFY_LABELS).forEach((k) => chk("n_" + k, (v) => (o.notify[k] = v)));
+  // precios en bolívares
+  if ($("fxRate")) {
+    let rate = null;
+    const fmtB = (n, dec) => { const [i, f] = Math.abs(n).toFixed(dec).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (f ? "," + f : ""); };
+    const bs = (usd) => { if (!rate) return "—"; const r = (o.fx.currency === "eur" && rate.eur) || rate.usd; let v = usd * r * (1 + (Number(o.fx.markup) || 0) / 100); v = o.fx.round === "none" ? Math.round(v * 100) / 100 : Math.round(v / +o.fx.round) * +o.fx.round; return "Bs " + fmtB(v, o.fx.round === "none" ? 2 : 0); };
+    const ex = () => { const sym = o.fx.currency === "eur" ? "€" : "$"; $("fxEx").innerHTML = `Así se ve: <b>Gorro de satén: ${o.fx.always ? `${sym}25 (${bs(25)})` : `${sym}25</b> · si lo piden en bolívares: <b>${bs(25)}`}</b>${o.fx.show_date && rate ? `<br><span class="muted">Tasa BCV del ${esc(rate.fecha)}.</span>` : ""}`; };
+    const drawRate = () => {
+      if (!rate) { $("fxRate").innerHTML = `<span class="small" style="color:var(--bad)">No se pudo leer la tasa todavía.</span>`; return; }
+      const cur = o.fx.currency === "eur" && rate.eur ? ["eur", "1 EUR"] : ["usd", "1 USD"];
+      $("fxRate").innerHTML = `<div><div class="small muted" style="font-weight:700">Tasa oficial</div><div class="fx-big">Bs ${fmtB(rate[cur[0]], 2)} <span>por ${cur[1]}</span></div>
+        <div class="small muted">BCV · del ${esc(rate.fecha)}${rate.age_days ? ` (hace ${rate.age_days} día${rate.age_days === 1 ? "" : "s"})` : " (hoy)"}${rate.error ? " · último intento falló" : ""}</div></div>
+        <span class="pill ${rate.stale ? "bad" : "ok"}">${rate.stale ? "⚠️ Sin actualizar" : "✓ Al día"}</span>`;
+      ex();
+    };
+    api("/api/fx").then((r) => { rate = r.rate; if ($("fxRate")) drawRate(); }).catch(() => { if ($("fxRate")) drawRate(); });
+    chk("fxOn", (v) => { o.fx.enabled = v; $("fxMore").classList.toggle("fx-off", !v); });
+    chk("fxAlways", (v) => { o.fx.always = v; ex(); }); chk("fxDate", (v) => { o.fx.show_date = v; ex(); });
+    on("fxCur", "onchange", (t) => { o.fx.currency = t.value; drawRate(); }); on("fxRound", "onchange", (t) => { o.fx.round = t.value; ex(); });
+    val("fxMk", (v) => { o.fx.markup = Number(v) || 0; ex(); });
+    ex();
+  }
   // plantillas
   const bindTpl = () => {
     dlg.querySelectorAll(".tpl-row").forEach((row) => {
@@ -2841,7 +2904,8 @@ function drawFicha(d, meta) {
       <span>Último mensaje</span><b>${esc(agoText(c.last_at))}</b>
       <span>Tienda</span><b>${esc(c.brand || "—")}</b>
       <span>Atiende</span><b>${esc(teamName(c.assigned_to) || "Nadie")}</b>
-      <span>Estado</span><b>${c.closed_at ? "Finalizada" : c.paused ? "Espera a una persona" : "Abierta · bot activo"}</b></div></div>
+      <span>Estado</span><b>${c.closed_at ? "Finalizada" : c.paused ? "Espera a una persona" : "Abierta · bot activo"}</b>
+      ${d.stages && d.stage ? `<span>Etapa</span><b><a href="#embudo" style="color:${STG_COLOR[d.stage] || "inherit"}">${esc((d.stages.find((x) => x.k === d.stage) || {}).label || d.stage)}</a>${c.intent && INTENT[c.intent] ? ` · ${INTENT[c.intent][0]}` : ""}</b>` : ""}</div></div>
     <div class="sec"><h4>Ventas</h4>${(d.sales || []).length ? (d.sales || []).map((x) => `<div class="ord"><span><b>${money(x.amount)}</b> · ${esc(new Date(x.at).toLocaleDateString("es-VE", { day: "numeric", month: "short" }))}${x.order_id ? " · #" + esc(x.order_id) : ""}${x.method ? `<small class="muted" style="display:block">${esc(methodName(x.method))}${x.note ? " · " + esc(x.note) : ""}</small>` : ""}</span>
         <span class="row" style="gap:4px;flex-wrap:nowrap">${x.status === "cancelled" ? `<span class="pill bad">Cancelada</span>` : x.source === "store" ? `<span class="pill ok" title="Confirmada por la tienda">✅ ${esc(x.store || "Tienda")}</span>` : `<span class="pill ok" title="Marcada en el chat por ${esc(x.by || "")}">✔️ Tú</span>`}${x.source === "chat" ? `<button class="icon-btn" data-sdel="${x.id}" title="Quitar" aria-label="Quitar">${ICON.x}</button>` : ""}</span></div>`).join("")
         + `<div class="small muted" style="margin-top:6px">Total pagado: <b style="color:var(--ink)">${money((d.sales || []).filter((x) => x.status === "paid").reduce((a, x) => a + x.amount, 0))}</b></div>`
@@ -4113,7 +4177,7 @@ function renderMetrics(tab) {
 }
 function renderStoreConfigPage(tab) {
   const tabs = [["general", "General", () => can("tienda")], ["ia", "IA y conocimiento", () => can("prompts") || can("tienda")], ["mensajes", "Mensajes", () => can("tienda")],
-    ["respuestas", "Respuestas guardadas", () => can("tienda")], ["avisos", "Avisos", () => can("tienda")], ["sistema", "Sistema", () => isMaestro()]];
+    ["respuestas", "Respuestas guardadas", () => can("tienda")], ["precios", "Precios y pagos", () => can("tienda")], ["avisos", "Avisos", () => can("tienda")], ["sistema", "Sistema", () => isMaestro()]];
   const t = firstOk(tabs, tab), b = curBrand();
   shell({ title: t === "sistema" ? "Configuración del sistema" : `Configuración${b ? " de " + esc(b.name) : ""}`,
     sub: t === "sistema" ? "Lo que conecta todo con Meta y con la IA. Solo la ve la cuenta maestra." : "Lo que comparten todos los asistentes de esta tienda.", base: "configuracion", tabs, active: t });
@@ -4141,8 +4205,193 @@ function renderHelp() {
     ["¿Puedo ver cuántas citas trae cada anuncio?", "Sí. Si el cliente llegó desde un anuncio, la cita queda marcada «anuncio» y en Anuncios ves las citas de cada uno y cuánto te costó cada cita."],
     ["¿Se conecta con Google Calendar?", "Pronto. Lo verás en Integraciones."],
   ];
+  const crm = [
+    ["¿Qué es «Clientes»?", "Un tablero con la etapa de cada persona: Nuevo, Interesado, Link enviado, Pago por confirmar, Cliente y Perdido (si agendas citas: Horarios enviados, Cita agendada y Asistió). Ves dónde se te quedan los clientes y qué anuncio trae gente que sí compra."],
+    ["¿Quién mueve a las personas?", "El bot, solo. Lo seguro (el link de pago, el comprobante, el pago confirmado, la cita) lo marca el sistema. Si alguien está interesado y qué tan probable es que compre (🔥 alta, media o baja) lo deduce la IA en la misma respuesta, sin gasto extra."],
+    ["¿Puedo moverlas yo?", "Sí: arrástralas a otra columna, o toca la tarjeta → «Mover a…». Si mueves a alguien a mano, la IA ya no lo cambia. El pago confirmado o la cita sí lo siguen moviendo."],
+    ["¿Cuándo alguien pasa a «Perdido»?", "Si no responde en 3 días (lo cambias en Clientes → Etapas). La IA lee el chat y anota el motivo: precio, envío, no había lo que buscaba… Si vuelve a escribir, regresa a «Interesado»."],
+    ["¿Es exacto?", "Las etapas de pago y de cita sí, porque salen de hechos. La intención es una estimación de la IA: acierta casi siempre, pero no siempre."],
+  ];
+  const fx = [
+    ["¿Cómo da el bot precios en bolívares?", "En Configuración → Precios y pagos enciende «Dar precios en bolívares». Tus precios siguen en dólares; cuando el cliente los pide en bolívares o va a pagar por Pago Móvil, el sistema calcula el monto exacto con la tasa oficial del día. La IA no hace la cuenta."],
+    ["¿Puede mostrar siempre las dos monedas?", "Sí, con el interruptor opcional «Mostrar también la conversión junto al dólar»: cada precio sale así, «$25 (Bs 22.239,50)»."],
+    ["¿Y los fines de semana?", "Se usa la última tasa (la del viernes, que es la misma del lunes). Si pasan más de 4 días sin cambiar, el bot no da montos en bolívares (dice que lo confirma) y te avisa."],
+    ["¿Puedo cobrar un poco por encima de la tasa?", "Sí: en «Ajuste sobre la tasa» pon el porcentaje. También puedes redondear a la unidad o a la decena."],
+  ];
   const block = (title, list) => `<div class="card"><h2 style="font-size:17px;margin:0 0 4px">${title}</h2>${list.map(([q, a]) => `<details style="border-bottom:1px solid var(--line);padding:14px 0"><summary style="font-weight:700;cursor:pointer">${q}</summary><p class="muted" style="margin:8px 0 0">${a}</p></details>`).join("")}</div>`;
-  $("tabBody").innerHTML = block("General", faq) + block("Agenda de citas", agenda);
+  $("tabBody").innerHTML = block("General", faq) + block("Clientes (embudo)", crm) + block("Precios en bolívares", fx) + block("Agenda de citas", agenda);
+}
+
+/* ================= CLIENTES (embudo) ================= */
+const CRM = { f: { days: 30, pf: "", ad: "", mine: false, q: "" }, d: null, brand: null, mob: "interesado" };
+const STG_COLOR = { nuevo: "#9ca3af", interesado: "#60a5fa", oferta: "#818cf8", compromiso: "#f59e0b", cliente: "#16a34a", perdido: "#ef4444" };
+const STG_ORDER = ["nuevo", "interesado", "oferta", "compromiso", "cliente", "perdido"];
+const INTENT = { alta: ["🔥 Alta", "bad"], media: ["Media", "warn"], baja: ["Baja", "gray"] };
+const crmName = (c) => c.name || (c.username ? (c.platform === "instagram" ? "@" + c.username : c.username) : "Cliente");
+const crmLabel = (k) => ((CRM.d && CRM.d.stages.find((s) => s.k === k)) || { label: k }).label;
+const daysAgo = (iso) => { if (!iso) return ""; const m = (Date.now() - Date.parse(iso)) / 60e3; return m < 60 ? `${Math.max(1, Math.round(m))} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} día${Math.round(m / 1440) === 1 ? "" : "s"}`; };
+
+async function renderCrm(tab) {
+  const t = ["lista", "etapas"].includes(tab) ? tab : "embudo";
+  const b = curBrand(), ok = b && hasF("crm", b);
+  shell({ title: "Clientes", sub: "En qué etapa está cada persona. El bot las mueve solo; tú puedes arrastrarlas.", base: "embudo",
+    tabs: ok ? [["embudo", "Embudo"], ["lista", "Lista"], ["etapas", "Etapas"]] : [], active: t,
+    head: ok && t !== "etapas" ? `<div class="row" style="gap:8px"><div class="search" style="min-width:200px">${ICON.search}<input id="crmQ" type="search" placeholder="Buscar persona…" value="${esc(CRM.f.q)}"></div>
+      <select id="crmDays" style="width:auto">${[[7, "Últimos 7 días"], [30, "Últimos 30 días"], [90, "Últimos 90 días"], [365, "Último año"]].map(([v, l]) => `<option value="${v}" ${CRM.f.days === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : "" });
+  const box = $("tabBody");
+  if (!b) { box.innerHTML = `<div class="card empty">Primero crea una tienda.</div>`; return; }
+  if (!ok) { box.innerHTML = lockCard("crm", "Embudo de clientes", "Ve en qué etapa está cada persona (nuevo, interesado, link enviado, pagó o se perdió) y por qué se pierden. El bot las mueve solo."); return; }
+  if (t === "etapas") return drawCrmStages(b);
+  box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  const qs = new URLSearchParams({ brand: b.id, days: CRM.f.days, ...(CRM.f.pf ? { platform: CRM.f.pf } : {}), ...(CRM.f.ad ? { ad: CRM.f.ad } : {}), ...(CRM.f.mine ? { mine: "1" } : {}) });
+  let d; try { d = await api(`/api/crm?${qs}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (!$("tabBody") || curBrand() !== b) return;
+  CRM.d = d; CRM.brand = b.id;
+  $("crmDays").onchange = (e) => { CRM.f.days = +e.target.value; renderCrm(t); };
+  $("crmQ").oninput = (e) => { CRM.f.q = e.target.value; t === "lista" ? drawCrmList() : drawCrmBoard(); };
+  t === "lista" ? drawCrmList() : drawCrmBoard();
+}
+const crmCards = () => { const q = normalize(CRM.f.q || ""); return CRM.d.cards.filter((c) => !q || normalize([c.name, c.username, c.last_message, c.ad_title].join(" ")).includes(q)); };
+function crmTop() {
+  const d = CRM.d, k = d.kpis, pct = (n) => (k.fresh ? `<small>${Math.round((n / k.fresh) * 100)} %</small>` : "");
+  const chip = (key, label, on) => `<button type="button" class="crm-chip ${on ? "on" : ""}" data-fk="${key}">${label}</button>`;
+  return `<div class="kpis crm-kpis">
+      <div class="kpi"><div class="l">Personas nuevas</div><div class="v">${nf(k.fresh)}</div></div>
+      <div class="kpi"><div class="l">Llegaron a ${esc(crmLabel("oferta").toLowerCase())}</div><div class="v">${nf(k.offer)} ${pct(k.offer)}</div></div>
+      <div class="kpi"><div class="l">${d.mode === "citas" ? "Asistieron" : "Compraron"}</div><div class="v">${nf(k.bought)} ${pct(k.bought)}</div></div>
+      <div class="kpi"><div class="l">Se quedan en</div><div class="v" style="font-size:17px;color:#b45309">${k.stuck ? `${esc(crmLabel(k.stuck.k))} (${nf(k.stuck.n)})` : "—"}</div></div>
+      <div class="kpi"><div class="l">Tiempo hasta ${d.mode === "citas" ? "asistir" : "comprar"}</div><div class="v">${k.days_to_buy == null ? "—" : k.days_to_buy < 1 ? "< 1 día" : String(k.days_to_buy).replace(".", ",") + " días"}</div></div></div>
+    <div class="crm-flt">${chip("all", "Todos", !CRM.f.pf && !CRM.f.ad && !CRM.f.mine)}${chip("instagram", "Instagram", CRM.f.pf === "instagram")}${chip("facebook", "Facebook", CRM.f.pf === "facebook")}${chip("any", "Vienen de anuncio", CRM.f.ad === "any")}${chip("mine", "Asignados a mí", CRM.f.mine)}
+      ${d.ads.length ? `<select id="crmAd" style="width:auto;max-width:260px"><option value="">Anuncio: todos</option>${d.ads.map((a) => `<option value="${esc(a.id)}" ${CRM.f.ad === a.id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>` : ""}</div>`;
+}
+function bindCrmTop(redraw) {
+  const box = $("tabBody");
+  box.querySelectorAll("[data-fk]").forEach((x) => (x.onclick = () => {
+    const k = x.dataset.fk;
+    if (k === "all") CRM.f = { ...CRM.f, pf: "", ad: "", mine: false };
+    else if (k === "instagram" || k === "facebook") CRM.f.pf = CRM.f.pf === k ? "" : k;
+    else if (k === "any") CRM.f.ad = CRM.f.ad === "any" ? "" : "any";
+    else if (k === "mine") CRM.f.mine = !CRM.f.mine;
+    renderCrm(redraw);
+  }));
+  if ($("crmAd")) $("crmAd").onchange = (e) => { CRM.f.ad = e.target.value; renderCrm(redraw); };
+}
+function crmCard(c) {
+  const team = CRM.d.team || {}, who = c.assigned_to ? team[c.assigned_to] || "?" : "";
+  const sub = c.stage === "perdido" && c.lost_note ? c.lost_note
+    : ["oferta", "compromiso", "cliente"].includes(c.stage) && c.pay_amount ? `${c.stage === "cliente" ? "Pagó" : c.stage === "compromiso" ? "Por confirmar" : "Link"} · ${money(c.pay_amount)}`
+    : c.last_message ? `«${String(c.last_message).replace(/^\[[^\]]*\]\s*/, "").slice(0, 70) || "(foto o archivo)"}»` : "";
+  const lost = c.stage === "perdido" && c.lost_reason ? (CRM.d.lost.find((x) => x.k === c.lost_reason) || {}).label : "";
+  return `<div class="crm-c ${c.stage === "compromiso" ? "warn" : ""} ${c.stage === "perdido" ? "lost" : ""}" draggable="true" data-c="${esc(c.account_id)}|${esc(c.user_id)}">
+    <b class="ell">${esc(crmName(c))}</b>${sub ? `<div class="m">${esc(sub)}</div>` : ""}
+    <div class="t"><span class="pill ${c.platform === "instagram" ? "ig" : "fb"}">${c.platform === "instagram" ? "IG" : "FB"}</span>${c.ad_id ? `<span class="pill rule ell" style="max-width:150px">Anuncio${c.ad_title ? " · " + esc(c.ad_title) : ""}</span>` : ""}
+      ${c.intent && INTENT[c.intent] && !["cliente", "perdido"].includes(c.stage) ? `<span class="pill ${INTENT[c.intent][1]}">${INTENT[c.intent][0]}</span>` : ""}${lost ? `<span class="pill bad">${esc(lost)}</span>` : ""}
+      ${(c.tags || []).slice(0, 1).map((x) => `<span class="pill ai">${esc(x)}</span>`).join("")}</div>
+    <div class="f"><span>${c.stage_at ? daysAgo(c.stage_at) + " en esta etapa" : daysAgo(c.last_at)}</span>${who ? `<span class="who" title="Atiende: ${esc(who)}">${esc((who[0] || "?").toUpperCase())}</span>` : ""}</div></div>`;
+}
+function drawCrmBoard() {
+  const d = CRM.d, box = $("tabBody"), cards = crmCards(), mobile = innerWidth < 760;
+  const col = (s) => {
+    const list = cards.filter((c) => c.stage === s.k), shown = list.slice(0, 60);
+    return `<div class="crm-col" data-stage="${s.k}"><div class="crm-ch"><span><i class="crm-d" style="background:${STG_COLOR[s.k]}"></i>${esc(s.label)}</span><em>${nf(list.length)}</em></div><div class="crm-cs">${esc(s.desc)}</div>
+      ${shown.map(crmCard).join("")}${list.length > shown.length ? `<a class="small" href="#embudo/lista" style="display:block;text-align:center;padding:6px">y ${nf(list.length - shown.length)} más · ver lista</a>` : ""}
+      ${!list.length ? `<div class="crm-empty">Nadie aquí</div>` : ""}</div>`;
+  };
+  box.innerHTML = crmTop() + (mobile
+    ? `<div class="crm-mtabs">${d.stages.map((s) => `<button type="button" data-ms="${s.k}" class="${CRM.mob === s.k ? "on" : ""}">${esc(s.label)} ${nf(cards.filter((c) => c.stage === s.k).length)}</button>`).join("")}</div>
+       <div class="crm-mlist">${cards.filter((c) => c.stage === CRM.mob).slice(0, 100).map(crmCard).join("") || `<div class="crm-empty">Nadie aquí</div>`}</div>`
+    : `<div class="crm-board">${d.stages.map(col).join("")}</div>`)
+    + (d.lost.length ? `<div class="card crm-lost"><h2 style="font-size:16px;margin:0 0 6px">Por qué se pierden</h2><div class="crm-lr">${d.lost.map((x) => `<div><span>${esc(x.label)}</span><b>${nf(x.n)}</b></div>`).join("")}</div>
+       <p class="help" style="margin:8px 0 0">Lo detecta la IA leyendo el chat cuando alguien deja de responder ${d.lost_days} día${d.lost_days === 1 ? "" : "s"}.</p></div>` : "");
+  bindCrmTop("embudo");
+  box.querySelectorAll("[data-ms]").forEach((x) => (x.onclick = () => { CRM.mob = x.dataset.ms; drawCrmBoard(); }));
+  const find = (key) => { const [a, u] = key.split("|"); return d.cards.find((c) => c.account_id === a && c.user_id === u); };
+  box.querySelectorAll(".crm-c").forEach((el) => {
+    el.onclick = () => { const c = find(el.dataset.c); if (c) crmDetail(c); };
+    el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", el.dataset.c); el.classList.add("drag"); };
+    el.ondragend = () => el.classList.remove("drag");
+  });
+  box.querySelectorAll(".crm-col").forEach((col) => {
+    col.ondragover = (e) => { e.preventDefault(); col.classList.add("over"); };
+    col.ondragleave = () => col.classList.remove("over");
+    col.ondrop = (e) => { e.preventDefault(); col.classList.remove("over"); const c = find(e.dataTransfer.getData("text/plain")); if (c && c.stage !== col.dataset.stage) crmMove(c, col.dataset.stage); };
+  });
+}
+async function crmMove(c, stage) {
+  const prev = c.stage; c.stage = stage; c.stage_at = new Date().toISOString(); c.stage_manual = 1;
+  if ($("tabBody")) (parseRoute(S.route)[1][0] === "lista" ? drawCrmList : drawCrmBoard)();
+  try { await api("/api/crm/stage", { method: "PATCH", body: { account_id: c.account_id, user_id: c.user_id, stage } }); toast(`Movido a «${crmLabel(stage)}»`); }
+  catch (e) { c.stage = prev; toast(e.message, 6000); if ($("tabBody")) drawCrmBoard(); }
+}
+function drawCrmList() {
+  const d = CRM.d, box = $("tabBody"), team = d.team || {}, cards = crmCards();
+  box.innerHTML = crmTop() + `<div class="card"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Etapa</th><th>Intención</th><th>Anuncio</th><th>Último mensaje</th><th>En la etapa</th><th>Atiende</th></tr></thead><tbody>
+    ${cards.slice(0, 500).map((c) => `<tr data-c="${esc(c.account_id)}|${esc(c.user_id)}" style="cursor:pointer"><td><b>${esc(crmName(c))}</b><div class="small muted">${c.platform === "instagram" ? "Instagram" : "Facebook"}</div></td>
+      <td><select data-mv style="width:auto;padding:4px 8px">${d.stages.map((s) => `<option value="${s.k}" ${c.stage === s.k ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></td>
+      <td>${c.intent && INTENT[c.intent] ? `<span class="pill ${INTENT[c.intent][1]}">${INTENT[c.intent][0]}</span>` : "—"}</td><td class="small">${esc(c.ad_title || (c.ad_id ? "Anuncio " + c.ad_id : "—"))}</td>
+      <td class="small ell" style="max-width:260px">${esc(String(c.last_message || "").slice(0, 80))}</td><td class="small">${daysAgo(c.stage_at || c.last_at)}</td><td class="small">${esc(c.assigned_to ? team[c.assigned_to] || "" : "—")}</td></tr>`).join("")}
+    </tbody></table></div>${cards.length > 500 ? `<p class="help">Se muestran 500 de ${nf(cards.length)}. Usa los filtros para acotar.</p>` : ""}${!cards.length ? `<div class="empty">No hay personas en este periodo.</div>` : ""}</div>`;
+  bindCrmTop("lista");
+  const find = (key) => { const [a, u] = key.split("|"); return d.cards.find((c) => c.account_id === a && c.user_id === u); };
+  box.querySelectorAll("tr[data-c]").forEach((tr) => {
+    tr.onclick = (e) => { if (e.target.closest("select")) return; const c = find(tr.dataset.c); if (c) crmDetail(c); };
+    tr.querySelector("[data-mv]").onchange = (e) => { const c = find(tr.dataset.c); if (c) crmMove(c, e.target.value); };
+  });
+}
+async function crmDetail(c) {
+  let dlg = $("crmDlg"); if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "crmDlg"; document.body.appendChild(dlg); }
+  const d = CRM.d, rank = { nuevo: 0, interesado: 1, oferta: 2, compromiso: 3, cliente: 4 }, r = rank[c.stage] ?? -1;
+  dlg.innerHTML = `<div class="modal-h"><div style="display:flex;gap:12px;align-items:center"><span class="avatar ${c.platform === "instagram" ? "" : "fb"}">${esc((crmName(c).replace("@", "")[0] || "?").toUpperCase())}</span>
+      <div><h2>${esc(crmName(c))}</h2><p>${c.username && c.name ? esc(c.platform === "instagram" ? "@" + c.username : c.username) + " · " : ""}${c.platform === "instagram" ? "Instagram" : "Facebook"}</p></div></div><button type="button" class="icon-btn" id="cdX" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b">
+      <div class="crm-steps">${[0, 1, 2, 3, 4].map((i) => `<span class="${c.stage === "perdido" ? "lost" : i <= r ? "on" : ""}"></span>`).join("")}</div>
+      <div class="small muted">Etapa: <b style="color:${STG_COLOR[c.stage]}">${esc(crmLabel(c.stage))}</b>${c.stage_at ? " · desde hace " + daysAgo(c.stage_at) : ""}${c.stage_manual ? " · movido a mano" : ""}${c.guessed ? " · calculada (cliente de antes)" : ""}</div>
+      <div class="row" style="gap:8px;margin-top:12px"><button type="button" class="btn primary" id="cdChat">Abrir chat</button>
+        <select id="cdMv" style="width:auto"><option value="">Mover a…</option>${d.stages.filter((s) => s.k !== c.stage).map((s) => `<option value="${s.k}">${esc(s.label)}</option>`).join("")}</select></div>
+      <div class="kv2 crm-kv" style="margin-top:14px">
+        ${c.intent && INTENT[c.intent] ? `<span>Intención</span><b>${INTENT[c.intent][0]}</b>` : ""}
+        ${c.ad_id ? `<span>Llegó por</span><b>${esc(c.ad_title || "Anuncio " + c.ad_id)}</b>` : ""}
+        ${c.pay_amount ? `<span>Monto</span><b>${money(c.pay_amount)}</b>` : ""}
+        ${c.stage === "perdido" && c.lost_reason ? `<span>Se perdió por</span><b>${esc((d.lost.find((x) => x.k === c.lost_reason) || {}).label || c.lost_reason)}${c.lost_note ? " · " + esc(c.lost_note) : ""}</b>` : ""}
+        <span>Primer mensaje</span><b>${c.first_at ? esc(new Date(c.first_at).toLocaleDateString("es-VE", { day: "numeric", month: "short" })) : "—"}</b></div>
+      <h3 style="font-size:14px;margin:18px 0 8px">Su recorrido</h3><div class="crm-tl" id="cdTl"><div class="muted small">Cargando…</div></div>
+    </div>`;
+  dlg.showModal();
+  $("cdX").onclick = () => dlg.close();
+  $("cdChat").onclick = () => { dlg.close(); openConversation(c.account_id, c.user_id); };
+  $("cdMv").onchange = (e) => { if (e.target.value) { dlg.close(); crmMove(c, e.target.value); } };
+  try {
+    const j = await api(`/api/crm/journey?acc=${encodeURIComponent(c.account_id)}&user=${encodeURIComponent(c.user_id)}`);
+    const by = { ia: "la IA", auto: "automático", manual: "a mano", bot: "el bot" };
+    $("cdTl").innerHTML = j.log.length ? j.log.map((x) => `<div class="${x.stage === "perdido" ? "lost" : ""}"><b>${esc(crmLabel(x.stage))}</b> · ${esc(x.why || "")}<small>${esc(fmt(x.at))} · ${by[x.by] || esc(x.by || "")}</small></div>`).join("")
+      : `<div class="muted small">Todavía no hay movimientos guardados${c.guessed ? ": este cliente es de antes del embudo" : ""}.</div>`;
+  } catch (e) { $("cdTl").innerHTML = `<div class="small" style="color:var(--bad)">${esc(e.message)}</div>`; }
+}
+function drawCrmStages(b) {
+  const box = $("tabBody"), C = JSON.parse(JSON.stringify((b.opts && b.opts.crm) || { mode: "auto", lost_days: 3, labels: {} })), ro = !can("tienda");
+  const BASE = { ventas: ["Nuevo", "Interesado", "Link enviado", "Pago por confirmar", "Cliente", "Perdido"], citas: ["Nuevo", "Interesado", "Horarios enviados", "Cita agendada", "Asistió", "Perdido"] };
+  const HOW = ["Primer mensaje del cliente.", "La IA ve que pregunta precio, tallas, colores, disponibilidad o cómo comprar.", "El bot le envió el botón de pago (o los horarios, si agendas citas).",
+    "Mandó comprobante o dijo que pagó (o agendó su cita).", "Se confirmó el pago: lo marcaste tú o llegó de tu tienda online (o asistió a la cita).", "No respondió en los días que elijas. La IA anota el motivo."];
+  const mode = () => (C.mode === "auto" ? (agOnB(b) ? "citas" : "ventas") : C.mode);
+  const draw = () => {
+    box.innerHTML = `${ro ? `<div class="info small">Solo quien configura la tienda puede cambiar las etapas.</div>` : ""}
+      <div class="card"><h2 style="font-size:16px;margin:0">Tipo de negocio</h2><p class="small muted" style="margin:4px 0 10px">Cambia los nombres de las etapas del medio.</p>
+        <select id="csMode" style="width:auto">${[["auto", "Automático (según si usas la Agenda)"], ["ventas", "Vendo productos"], ["citas", "Vendo servicios con cita"]].map(([v, l]) => `<option value="${v}" ${C.mode === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="card"><h2 style="font-size:16px;margin:0">Etapas</h2><p class="small muted" style="margin:4px 0 8px">Puedes renombrarlas. Vacío = el nombre de fábrica.</p>
+        ${STG_ORDER.map((k, i) => `<div class="crm-srow"><i class="crm-d" style="background:${STG_COLOR[k]}"></i><input data-lb="${k}" maxlength="30" value="${esc(C.labels[k] || "")}" placeholder="${esc(BASE[mode()][i])}"><span class="small muted">${HOW[i]}</span></div>`).join("")}
+        <div class="row" style="margin-top:14px;gap:8px"><span>Pasa a «Perdido» si no responde en</span><input id="csDays" type="number" min="1" max="30" value="${C.lost_days}" style="width:80px"><span>días</span></div>
+        <p class="help">Las etapas solo avanzan solas. Si alguien en «Perdido» vuelve a escribir, regresa a «Interesado». Si mueves a alguien a mano, la IA ya no lo cambia (el pago confirmado o la cita sí lo siguen moviendo).</p></div>`;
+    $("csMode").onchange = (e) => { C.mode = e.target.value; ch(); draw(); };
+    box.querySelectorAll("[data-lb]").forEach((x) => (x.oninput = () => { C.labels[x.dataset.lb] = x.value; ch(); }));
+    $("csDays").oninput = (e) => { C.lost_days = parseInt(e.target.value, 10) || 3; ch(); };
+    if (ro) box.querySelectorAll("input,select").forEach((x) => (x.disabled = true));
+  };
+  const save = async () => {
+    try { await api(`/api/brands/${b.id}`, { method: "PUT", body: { opts: { crm: C } } }); await loadData(); setDirty(false); toast("Guardado ✓"); renderCrm("etapas"); }
+    catch (e) { toast(e.message, 6000); }
+  };
+  const ch = () => setDirty(true, save, () => drawCrmStages(curBrand()));
+  draw();
 }
 
 /* ================= AGENDA DE CITAS ================= */
@@ -4574,6 +4823,7 @@ function guideFor(b) {
     ["Datos de la tienda", NI.bag, [
       { s: kb ? (xxx ? "bad" : "ok") : "bad", t: !kb ? "Escribir qué vendes (base de conocimiento)" : xxx ? `Completar ${xxx === 1 ? "el dato" : xxx + " datos"} marcado${xxx === 1 ? "" : "s"} con XXX` : "Base de conocimiento lista", p: !kb ? "Precios, envíos, pagos, cambios. El bot no inventa lo que no esté aquí." : xxx ? "Mientras tanto, el bot pasa esas preguntas a una persona." : "", btn: can("prompts") && (!kb || xxx) ? (kb ? "Completar" : "Escribir") : "", go: "configuracion/ia" },
       { s: st(String(b.ai_prompt_general || "").trim()), t: "Definir el tono de la marca", p: "Cómo habla el bot: tuteo, emojis, pasos para vender.", btn: can("prompts") && !String(b.ai_prompt_general || "").trim() ? "Usar plantilla" : "", go: "configuracion/ia" },
+      { s: st(o.fx && o.fx.enabled), t: "Precios en bolívares", p: "El bot calcula el monto en bolívares con la tasa oficial del día.", btn: can("tienda") && !(o.fx && o.fx.enabled) ? "Ver" : "", go: "configuracion/precios" },
       { s: st(o.ai_use_name), t: "Saludar al cliente por su nombre", p: "Se siente más cercano.", btn: can("tienda") && !o.ai_use_name ? "Activar" : "", go: "configuracion/ia" },
     ]],
     ["Asistentes", NI.bot, [
