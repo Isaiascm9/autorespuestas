@@ -104,6 +104,9 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS appointments_brand ON appointments (brand_id, start_at)`,
   `CREATE INDEX IF NOT EXISTS appointments_contact ON appointments (account_id, user_id)`,
   `CREATE INDEX IF NOT EXISTS appointments_due ON appointments (status, start_utc)`,
+  `CREATE TABLE IF NOT EXISTS stage_log (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, user_id TEXT NOT NULL, brand_id TEXT, stage TEXT NOT NULL, why TEXT, by TEXT, at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS stage_log_contact ON stage_log (account_id, user_id, id)`,
+  `CREATE INDEX IF NOT EXISTS stage_log_brand ON stage_log (brand_id, at)`,
   `CREATE TABLE IF NOT EXISTS trash_parts (trash_id INTEGER NOT NULL, seq INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (trash_id, seq))`,
 ];
 
@@ -126,6 +129,7 @@ const COLUMNS = {
     last_dm_at: "TEXT", last_bot_at: "TEXT", followup_at: "TEXT", off_hours_at: "TEXT",
     closed_at: "TEXT", assigned_to: "TEXT", ad_id: "TEXT", ad_title: "TEXT", unread: "INTEGER NOT NULL DEFAULT 0", tags: "TEXT NOT NULL DEFAULT '[]'", notes: "TEXT NOT NULL DEFAULT '[]'",
     ref: "TEXT", pay_state: "TEXT", pay_amount: "REAL", pay_at: "TEXT",
+    stage: "TEXT", stage_at: "TEXT", stage_manual: "INTEGER NOT NULL DEFAULT 0", intent: "TEXT", lost_reason: "TEXT", lost_note: "TEXT",
   },
   messages: { source: "TEXT", mid: "TEXT", user_name: "TEXT" },
   push_subs: { user_id: "TEXT" },
@@ -469,19 +473,25 @@ async function deepseekChat(env, apiKey, model, messages, maxTokens, jsonMode, b
 async function askAI(env, brand, convo, mode, platform, extra, cfg, budgetMs) {
   const apiKey = await deepseekKey(env, brand, cfg);
   if (!apiKey) throw new Error("Falta la clave de DeepSeek: pégala en Configuración");
-  let t = await deepseekChat(env, apiKey, aiModelOf(brand), [{ role: "system", content: buildSystem(brand, mode, platform, extra) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs, brand.id);
+  // Precios en bolívares y clasificación del embudo (va en la misma llamada, sin costo extra)
+  const fx = brand.opts.fx.enabled ? await fxRate(env).catch(() => null) : null;
+  const crmOn = mode === "dm" && feat(brand, "crm");
+  const more = [extra, brand.opts.fx.enabled ? fxPrompt(brand, fx) : null, crmOn ? CRM_PROMPT : null].filter(Boolean).join("\n\n") || null;
+  let t = await deepseekChat(env, apiKey, aiModelOf(brand), [{ role: "system", content: buildSystem(brand, mode, platform, more) }, ...convo], mode === "comment" ? 800 : 1500, false, budgetMs, brand.id);
+  const crm = crmOn ? crmParse(t) : null;
+  t = fxRender(brand, fx, t.replace(new RegExp(CRM_TAG.source, "gi"), "").trim());
   const hm = t.match(/\[HUMANO(?:\s*[:|\-]\s*([^\]]*))?\]/i);
   if (hm) {
     // La IA puede escribir el mensaje para el cliente después de [HUMANO:motivo]
     const raw = normalize(hm[1] || "");
     const reason = Object.keys(REASONS).find((k) => raw.startsWith(k)) || "otro";
     const msg = t.replace(/\[HUMANO[^\]]*\]/gi, "").replace(/\*\*(.+?)\*\*/g, "$1").trim();
-    return { handoff: true, reason, handoffText: msg ? truncateBytes(msg, 1000) : null };
+    return { handoff: true, reason, handoffText: msg ? truncateBytes(msg, 1000) : null, crm };
   }
-  if (/\[NADA\]/i.test(t)) return { skip: true };
+  if (/\[NADA\]/i.test(t)) return { skip: true, crm };
   t = t.replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "").trim();
   if (!t) throw new Error("La IA no devolvió texto");
-  return { text: truncateBytes(t, 1000) };
+  return { text: truncateBytes(t, 1000), crm };
 }
 
 /** ¿El comentario es ofensivo? Las quejas de clientes no cuentan. */
@@ -562,6 +572,8 @@ function cleanOpts(o = {}) {
       .filter((t) => t.title || t.text),
     follow_up: { enabled: bool(fu.enabled), hours: num(fu.hours, 1, 22, 4), text: str(fu.text, 1000), ai: bool(fu.ai) },
     agenda: cleanAgenda(o.agenda),
+    fx: cleanFx(o.fx),
+    crm: cleanCrm(o.crm),
     notify: Object.fromEntries(Object.entries(NOTIFY_EVENTS).map(([k, def]) => [k, typeof nt[k] === "boolean" ? nt[k] : def])),
   };
 }
@@ -692,7 +704,7 @@ async function autoResumeAll(env) {
   if (stmts.length) await env.DB.batch(stmts);
 }
 
-const COUNTED = new Set(["rule", "ai", "default", "handoff", "fallback", "mention", "reaction", "offhours", "followup"]);
+const COUNTED = new Set(["rule", "ai", "default", "handoff", "fallback", "mention", "reaction", "offhours", "followup", "agenda"]);
 async function addLog(env, acc, l) {
   if (acc.brand_id && COUNTED.has(l.kind) && (l.reply || l.publicReply)) await trackUsage(env, acc.brand_id, { replies: 1 }).catch(() => {});
   await env.DB.prepare(
@@ -839,7 +851,7 @@ async function refreshPayState(env, accId, userId) {
   const last = await env.DB.prepare("SELECT at FROM sales WHERE account_id = ? AND user_id = ? AND status = 'paid' ORDER BY at DESC LIMIT 1").bind(String(accId), String(userId)).first();
   const c = await getContact(env, accId, userId);
   if (!c) return;
-  if (last) await setContact(env, accId, userId, { pay_state: "paid", pay_at: last.at });
+  if (last) { await setContact(env, accId, userId, { pay_state: "paid", pay_at: last.at }); await setStage(env, accId, userId, "cliente", "Pago confirmado", "bot"); }
   else if (c.pay_state === "paid") await setContact(env, accId, userId, { pay_state: null, pay_at: null });
 }
 
@@ -1042,6 +1054,7 @@ async function sendWithLinkButtons(env, acc, to, original, lb, source, brand) {
   const cur = await getContact(env, acc.id, to);
   const amt = lb.buttons.map((b) => amountFrom(b.title) ?? amountFrom(b.when)).find((v) => v != null) ?? amountFrom(lb.text);
   if (!cur || cur.pay_state !== "paid" || !cur.pay_at || Date.now() - Date.parse(cur.pay_at) > 864e5) await setContact(env, acc.id, to, { pay_state: "link", pay_amount: amt, pay_at: nowIso() });
+  await setStage(env, acc.id, to, "oferta", `El bot le envió el link de pago${lb && lb.buttons && lb.buttons[0] ? " (" + lb.buttons[0].title + ")" : ""}`, "bot");
   const tpl = (t) => ({ attachment: { type: "template", payload: { template_type: "button", text: t, buttons: btns } } });
   let r;
   try {
@@ -1256,13 +1269,17 @@ async function handleDM(env, acc, ev, cfg) {
   }
   await saveMessage(env, acc.id, from, "user", inText, { source: "cliente" });
   await upsertContact(env, { acc, userId: from, username, name: prof.name, text: inText, channel: "dm", nameChecked: prof.checked });
+  if (!contact) await setStage(env, acc.id, from, "nuevo", "Escribió por primera vez", "bot");
+  else if (contact.stage === "perdido") await setStage(env, acc.id, from, "interesado", "Volvió a escribir", "bot");
   // Pago probable: tenía un link de pago y manda foto o dice que pagó
   if (contact && contact.pay_state === "link" && (atts.some((a) => a.type === "image") || PAY_WORDS.test(text))) {
     await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso() });
+    await setStage(env, acc.id, from, "compromiso", atts.some((a) => a.type === "image") ? "Mandó una foto después del link de pago" : "Dice que pagó", "bot");
   }
   // Comprobante leído en la foto: queda «Probable» (con el monto) hasta que alguien lo confirme
   if (vision && vision.tipo === "comprobante" && !(contact && contact.pay_state === "paid")) {
     await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso(), ...(vision.monto ? { pay_amount: vision.monto } : {}) });
+    await setStage(env, acc.id, from, "compromiso", `Mandó un comprobante${vision.monto ? " de " + vision.monto : ""}`, "bot");
   }
   const ref = ev.referral || msg.referral;
   const adRef = ref && ref.ad_id ? { id: String(ref.ad_id), title: String((ref.ads_context_data && ref.ads_context_data.ad_title) || ref.ad_title || "").slice(0, 200) } : null;
@@ -1334,6 +1351,7 @@ async function handleDM(env, acc, ev, cfg) {
         if (off) extra.push("=== HORARIO ===\nAhora la tienda está fuera de su horario de atención. Puedes seguir ayudando, pero si pasas a una persona, avisa que se le responde en horario de atención.");
         try {
           const out = await askAI(env, brand, [...history, { role: "user", content: inText }], "dm", acc.platform, extra.join("\n\n") || null, cfg);
+          if (out.crm) await crmApply(env, acc, from, out.crm, contact && contact.tags);
           if (out.handoff) {
             if (out.reason === "otro") out.reason = guessReason(inText);
             reason = out.reason; reply = handoffText(brand, out, off, who); kind = "handoff";
@@ -1372,7 +1390,7 @@ async function handleDM(env, acc, ev, cfg) {
   if (kind === "handoff" && sent) await pauseContact(env, acc.id, from, reason);
   if (kind === "handoff" && reason === "pago") {
     const c2 = await getContact(env, acc.id, from);
-    if (c2 && c2.pay_state !== "paid") await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso() });
+    if (c2 && c2.pay_state !== "paid") { await setContact(env, acc.id, from, { pay_state: "probable", pay_at: nowIso() }); await setStage(env, acc.id, from, "compromiso", "Pasó a una persona para verificar un pago", "bot"); }
   }
 
   const whoTxt = whoLabel(acc.platform, username);
@@ -2683,6 +2701,71 @@ async function api(req, env, url) {
     const rank = { active: 0, review: 1, issues: 2, paused: 3 };
     return json([...out.values()].sort((a, b) => (rank[a.st] ?? 4) - (rank[b.st] ?? 4)));
   }
+  /* ----- tasa de cambio ----- */
+  if (p === "/api/fx" && m === "GET") {
+    const r = await fxRate(env, url.searchParams.get("refresh") === "1" && u.role === "maestro");
+    return json({ rate: r, stale_days: FX_STALE_DAYS });
+  }
+
+  /* ----- embudo de clientes ----- */
+  if (p.startsWith("/api/crm")) {
+    need(u, "conversaciones");
+    if (p === "/api/crm" && m === "GET") {
+      const bid = url.searchParams.get("brand");
+      needBrand(u, bid);
+      const b = await getBrand(env, bid);
+      if (!b) return json({ error: "Tienda no encontrada" }, 404);
+      if (u.role !== "maestro" && !feat(b, "crm")) throw lockedErr("crm");
+      const days = Math.max(1, Math.min(365, parseInt(url.searchParams.get("days"), 10) || 30));
+      const since = new Date(Date.now() - days * DAY).toISOString();
+      let sql = `SELECT account_id, user_id, platform, username, name, last_message, last_at, first_at, last_dm_at, ad_id, ad_title, assigned_to, pay_state, pay_amount,
+        stage, stage_at, stage_manual, intent, lost_reason, lost_note, tags, messages, paused FROM contacts WHERE brand_id = ? AND last_dm_at IS NOT NULL AND last_at >= ?`;
+      const binds = [b.id, since];
+      const pf = url.searchParams.get("platform"), ad = url.searchParams.get("ad");
+      if (["instagram", "facebook"].includes(pf)) { sql += " AND platform = ?"; binds.push(pf); }
+      if (ad === "any") sql += " AND ad_id IS NOT NULL"; else if (ad) { sql += " AND ad_id = ?"; binds.push(ad); }
+      if (url.searchParams.get("mine") === "1") { sql += " AND assigned_to = ?"; binds.push(u.id); }
+      const { results } = await env.DB.prepare(sql + " ORDER BY last_at DESC LIMIT 1500").bind(...binds).all();
+      const lostDays = b.opts.crm.lost_days;
+      const cards = results.map((c) => ({ ...c, stage: stageGuess(c, lostDays), guessed: !c.stage, tags: parseJson(c.tags, []) }));
+      // Números del periodo: de la gente nueva, cuántos llegaron a cada etapa
+      const { results: log } = await env.DB.prepare("SELECT account_id, user_id, stage, at FROM stage_log WHERE brand_id = ? AND at >= ?").bind(b.id, since).all();
+      const reached = {}, paidAt = {};
+      for (const x of log) { const k = x.account_id + "|" + x.user_id; reached[k] = Math.max(reached[k] ?? -1, STAGE_RANK[x.stage] ?? -1); if (x.stage === "cliente" && !paidAt[k]) paidAt[k] = x.at; }
+      const fresh = cards.filter((c) => c.first_at && c.first_at >= since);
+      const top = (c) => Math.max(reached[c.account_id + "|" + c.user_id] ?? -1, STAGE_RANK[c.stage] ?? -1);
+      const offer = fresh.filter((c) => top(c) >= 2).length, bought = fresh.filter((c) => top(c) >= 4).length;
+      const waits = fresh.map((c) => paidAt[c.account_id + "|" + c.user_id] && (Date.parse(paidAt[c.account_id + "|" + c.user_id]) - Date.parse(c.first_at)) / DAY).filter((x) => x > 0);
+      const open = ["nuevo", "interesado", "oferta", "compromiso"].map((k) => [k, cards.filter((c) => c.stage === k).length]).sort((x, y) => y[1] - x[1])[0];
+      const lost = {};
+      for (const c of cards) if (c.stage === "perdido") lost[c.lost_reason || "sin_dato"] = (lost[c.lost_reason || "sin_dato"] || 0) + 1;
+      const ads = {};
+      for (const c of results) if (c.ad_id) ads[c.ad_id] = c.ad_title || ads[c.ad_id] || "Anuncio " + c.ad_id;
+      const team = Object.fromEntries((await env.DB.prepare("SELECT id, name FROM users").all()).results.map((x) => [x.id, x.name]));
+      team.maestro = (await getConfig(env)).maestroName || "Maestro";
+      return json({ stages: stageInfo(b), mode: crmMode(b), lost_days: lostDays, cards, team, ads: Object.entries(ads).map(([id, name]) => ({ id, name })),
+        lost: Object.entries(lost).map(([k, n]) => ({ k, label: LOST_REASONS[k] || "Sin dato", n })).sort((x, y) => y.n - x.n),
+        kpis: { fresh: fresh.length, offer, bought, stuck: open && open[1] ? { k: open[0], n: open[1] } : null, days_to_buy: waits.length ? Math.round((waits.reduce((a, x) => a + x, 0) / waits.length) * 10) / 10 : null } });
+    }
+    if (p === "/api/crm/stage" && m === "PATCH") {
+      const x = await body();
+      if (!STAGES.includes(x.stage)) return json({ error: "Etapa no válida" }, 400);
+      const acc = await accountFor(env, u, x.account_id);
+      const ok = await setStage(env, acc.id, String(x.user_id), x.stage, `Movido a mano por ${u.name}`, "manual");
+      if (ok) await audit(env, u, "Movió a un cliente de etapa", `${x.user_id} → ${x.stage}`, acc.brand_id);
+      return json({ ok: true });
+    }
+    if (p === "/api/crm/journey" && m === "GET") {
+      const acc = await accountFor(env, u, url.searchParams.get("acc"));
+      const uid = String(url.searchParams.get("user") || "");
+      const c = await getContact(env, acc.id, uid);
+      if (!c) return json({ error: "Este cliente no existe" }, 404);
+      const { results } = await env.DB.prepare("SELECT stage, why, by, at FROM stage_log WHERE account_id = ? AND user_id = ? ORDER BY id DESC LIMIT 40").bind(String(acc.id), uid).all();
+      return json({ log: results.reverse(), first_at: c.first_at, ad_title: c.ad_title });
+    }
+    return json({ error: "No encontrado" }, 404);
+  }
+
   /* ----- agenda de citas ----- */
   if (p.startsWith("/api/agenda")) {
     need(u, "conversaciones");
@@ -2741,6 +2824,7 @@ async function api(req, env, url) {
         account_id: ct && ct.acc.id, user_id: ct && x.user_id, platform: ct && ct.acc.platform, username: ct && ct.c && ct.c.username, ad_id: ct && ct.c && ct.c.ad_id,
       });
       await audit(env, u, "Agendó una cita", `${a.service_name} · ${a.start_at.replace("T", " ")}${a.customer_name ? " · " + a.customer_name : ""}`, b.id);
+      if (a.account_id && a.user_id) await setStage(env, a.account_id, a.user_id, "compromiso", `Le agendaron ${a.service_name} desde el panel (${u.name})`, "bot");
       let warn = null;
       if (x.notify && a.account_id) {
         const acc = await getAccount(env, a.account_id);
@@ -2787,6 +2871,8 @@ async function api(req, env, url) {
           await env.DB.prepare(`UPDATE appointments SET ${keys.map((k) => k + " = ?").join(", ")}, updated_at = ? WHERE id = ?`).bind(...keys.map((k) => set[k]), nowIso(), a.id).run();
           out = await env.DB.prepare("SELECT * FROM appointments WHERE id = ?").bind(a.id).first();
           if (set.status) await audit(env, u, "Cita: " + AG_STATUS[set.status], label, b.id);
+          if (a.account_id && a.user_id && set.status === "done") await setStage(env, a.account_id, a.user_id, "cliente", `Asistió a su cita de ${a.service_name}`, "bot");
+          if (a.account_id && a.user_id && set.status === "cancelled") await setStage(env, a.account_id, a.user_id, "interesado", "Se canceló su cita", "bot", { allowBack: true });
           if (set.status === "cancelled") await tell(`Hola 👋 Tuvimos que cancelar tu cita de ${a.service_name} del ${agFmtDay(a.start_at.slice(0, 10))}. Escríbenos por aquí y te buscamos otro horario.`);
         }
       }
@@ -2977,6 +3063,7 @@ async function api(req, env, url) {
         window_open: !!contact.last_dm_at && Date.now() - Date.parse(contact.last_dm_at) < 24 * 3600 * 1000,
         sales: (await contactSales(env, acc.id, userId)).map(saleOut), pay_thanks: brand ? brand.opts.pay_thanks : "",
         agenda: !!(brand && brand.opts.agenda.enabled && feat(brand, "agenda")),
+        stages: brand ? stageInfo(brand) : null, stage: stageGuess(contact, brand ? brand.opts.crm.lost_days : 3),
         appts: brand && feat(brand, "agenda") ? (await env.DB.prepare("SELECT * FROM appointments WHERE account_id = ? AND user_id = ? ORDER BY start_at DESC LIMIT 8").bind(String(acc.id), userId).all()).results.map(apptOut) : [],
       });
     }
@@ -3966,7 +4053,9 @@ async function agendaOffer(env, acc, brand, to, svcId, date, reId, lead) {
   const t = (lead ? lead + "\n\n" : "") + `Horarios libres para ${svc.name} el ${agFmtDay(found.date)}${moved}. Toca el que prefieras 👇`;
   const items = slots.map((s) => ({ title: agFmtTime(s.time), payload: `ag|t|${svc.id}|${found.date}T${s.time}${re}` }));
   items.push({ title: "Otro día ›", payload: `ag|n|${svc.id}|${found.date}${re}` });
-  return { text: await sendQuick(env, acc, to, t, items, "agenda") };
+  const sent = await sendQuick(env, acc, to, t, items, "agenda");
+  if (!reId) await setStage(env, acc.id, to, "oferta", `Le enviamos horarios de ${svc.name}`, "bot");
+  return { text: sent };
 }
 /** Próximos días con cupo, como botones. */
 async function agendaDays(env, acc, brand, to, svcId, after, reId) {
@@ -3995,6 +4084,7 @@ async function agendaServices(env, acc, brand, to, lead) {
 async function agendaBooked(env, acc, brand, to, who, a, moved) {
   const t = agFill(brand.opts.agenda.confirm_text, a, brand, who);
   const text = await sendQuick(env, acc, to, moved ? t.replace(/quedó agendada/i, "quedó cambiada") : t, [], "agenda");
+  await setStage(env, acc.id, to, "compromiso", `Agendó ${a.service_name} para el ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, "bot");
   const whoTxt = whoLabel(acc.platform, who.username);
   await notifyAll(env, { title: `${brand.name} · ${moved ? "Cita cambiada" : "Nueva cita"}`, body: `${whoTxt}: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` },
     { brandId: brand.id, event: "agenda" });
@@ -4018,6 +4108,7 @@ async function agendaPayload(env, acc, brand, to, who, contact, payload) {
     }
     if (parts[2] === "x") {
       await env.DB.prepare("UPDATE appointments SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(nowIso(), a.id).run();
+      await setStage(env, acc.id, to, "interesado", "Canceló su cita", "bot", { allowBack: true });
       await notifyAll(env, { title: `${brand.name} · Cita cancelada`, body: `${whoLabel(acc.platform, who.username)} canceló: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` }, { brandId: brand.id, event: "agenda" });
       return { text: await sendQuick(env, acc, to, "Listo, cancelamos tu cita. Cuando quieras agendar otra, escríbenos 🙂", [], "agenda") };
     }
@@ -4079,6 +4170,7 @@ async function agendaFromAI(env, acc, brand, to, who, contact, aiText) {
   }
   // CANCELAR_CITA
   await env.DB.prepare("UPDATE appointments SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(nowIso(), a.id).run();
+  await setStage(env, acc.id, to, "interesado", "Canceló su cita", "bot", { allowBack: true });
   await notifyAll(env, { title: `${brand.name} · Cita cancelada`, body: `${whoLabel(acc.platform, who.username)} canceló: ${a.service_name}, ${agShortDay(a.start_at.slice(0, 10))} ${agFmtTime(a.start_at.slice(11, 16))}`, url: "/#agenda", tag: `ag:${a.id}` }, { brandId: brand.id, event: "agenda" });
   const t = (lead ? lead + "\n\n" : "") + `Listo, cancelamos tu cita de ${a.service_name} del ${agFmtDay(a.start_at.slice(0, 10))}. Cuando quieras agendar otra, escríbenos 🙂`;
   return { text: await sendQuick(env, acc, to, t, [], "agenda") };
@@ -4136,6 +4228,207 @@ async function runReminders(env) {
 
 const apptOut = (a) => ({ ...a, status_label: AG_STATUS[a.status] || a.status });
 
+/* ================= precios en bolívares (tasa oficial) ================= */
+
+const FX_URL = "https://www.micarritove.site/tasa.json";
+const FX_STALE_DAYS = 4; // fines de semana y feriados se usa la última (la del viernes)
+function cleanFx(f) {
+  f = f && typeof f === "object" ? f : {};
+  const mk = Math.round(Math.max(-50, Math.min(200, Number(f.markup) || 0)) * 10) / 10;
+  return { enabled: f.enabled === true, always: f.always === true, currency: f.currency === "eur" ? "eur" : "usd", markup: mk,
+    round: ["none", "1", "10", "100"].includes(String(f.round)) ? String(f.round) : "none", show_date: f.show_date === true };
+}
+let FX_MEM = null, FX_AT = 0;
+/** La tasa del día (se consulta como mucho cada 30 min; si la página falla, queda la última guardada). */
+async function fxRate(env, force) {
+  if (!force && FX_MEM && Date.now() - FX_AT < 5 * 60e3) return FX_MEM;
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'fx_rate'").first();
+  let cur = parseJson(row && row.value, null);
+  if (force || !cur || !cur.checked_at || Date.now() - Date.parse(cur.checked_at) > 30 * 60e3) {
+    try {
+      const r = await fetch(env.FX_URL || FX_URL, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(6000) });
+      if (!r.ok) throw new Error(`La página de la tasa respondió ${r.status}`);
+      const d = await r.json();
+      const n = (v) => parseFloat(String(v ?? "").replace(",", "."));
+      const usd = n(d.usd ?? d.tasa), eur = n(d.eur);
+      if (!(usd > 0)) throw new Error("La página de la tasa no trae el dólar");
+      const m = String(d.fecha || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      const date = m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : String(d.iso || "").slice(0, 10) || localDate();
+      cur = { usd, eur: eur > 0 ? eur : null, date, fecha: m ? `${m[1].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[3]}` : date, checked_at: nowIso(), error: null };
+    } catch (e) { cur = cur ? { ...cur, checked_at: nowIso(), error: errText(e) } : null; }
+    if (cur) await setSetting(env, "fx_rate", JSON.stringify(cur));
+  }
+  if (cur) {
+    cur.age_days = Math.max(0, Math.round((Date.parse(localDate() + "T12:00:00Z") - Date.parse(cur.date + "T12:00:00Z")) / DAY));
+    cur.stale = cur.age_days > FX_STALE_DAYS;
+  }
+  FX_MEM = cur; FX_AT = Date.now();
+  return cur;
+}
+const fmtVe = (n, dec) => { const [i, d] = Math.abs(n).toFixed(dec).split("."); return (n < 0 ? "-" : "") + i.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (d ? "," + d : ""); };
+const numOf = (s) => {
+  let x = String(s).replace(/[^\d.,]/g, "");
+  if (/,\d{1,2}$/.test(x)) x = x.replace(/\./g, "").replace(",", ".");
+  else x = x.replace(/,/g, "");
+  return parseFloat(x);
+};
+const fxSym = (brand) => (brand.opts.fx.currency === "eur" ? "€" : "$");
+function fxBs(brand, rate, amount) {
+  const f = brand.opts.fx, r = (f.currency === "eur" && rate.eur) || rate.usd;
+  let v = amount * r * (1 + f.markup / 100);
+  if (f.round === "none") v = Math.round(v * 100) / 100; else { const s = Number(f.round); v = Math.round(v / s) * s; }
+  return "Bs " + fmtVe(v, f.round === "none" ? 2 : 0);
+}
+/** Cambia las marcas {usd:25} y {bs:25} que escribe la IA por los montos exactos. */
+function fxRender(brand, rate, text) {
+  if (!/\{\s*(usd|bs)\s*:/i.test(text)) return text;
+  const f = brand.opts.fx, ok = f.enabled && rate && !rate.stale, sym = fxSym(brand);
+  let used = false;
+  let t = text.replace(/\{\s*(usd|bs)\s*:\s*([^}]{1,20})\}/gi, (all, k, v) => {
+    const n = numOf(v);
+    if (!(n >= 0)) return v;
+    const usd = sym + fmtVe(n, n % 1 ? 2 : 0);
+    if (k.toLowerCase() === "usd") { if (f.always && ok) { used = true; return `${usd} (${fxBs(brand, rate, n)})`; } return usd; }
+    if (!f.enabled) return usd;
+    if (!ok) return `${usd} (el monto en bolívares te lo confirmo en un momento)`;
+    used = true; return fxBs(brand, rate, n);
+  });
+  if (used && f.show_date) t += `\nTasa BCV del ${rate.fecha}.`;
+  return t;
+}
+function fxPrompt(brand, rate) {
+  const f = brand.opts.fx, ok = rate && !rate.stale, sym = fxSym(brand);
+  return `=== PRECIOS (formato obligatorio) ===
+Escribe SIEMPRE cada precio o total en ${f.currency === "eur" ? "euros" : "dólares"} con esta marca: {usd:25} (25 = el monto, sin el símbolo). El sistema la convierte en «${sym}25»${f.always && ok ? " y le agrega el monto en bolívares" : ""}. Si son varios productos, suma tú y usa la marca con el total.
+${ok ? `Si el cliente pide el monto en bolívares o va a pagar en bolívares (Pago Móvil, transferencia), escribe {bs:25}: el sistema pone el monto exacto con la tasa oficial del día. NUNCA calcules tú montos en bolívares ni digas el valor de la tasa.`
+    : "Hoy NO tienes la tasa del día: si piden el monto en bolívares, di que en un momento se lo confirmas. No calcules montos en bolívares."}`;
+}
+
+
+/** Cada hora: renueva la tasa y avisa (una vez al día) si lleva más de 4 días sin cambiar. */
+async function fxCheck(env) {
+  const r = await fxRate(env);
+  if (!r || !r.stale) return;
+  const day = localDate(), row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'fx_stale_day'").first();
+  if (row && row.value === day) return;
+  await setSetting(env, "fx_stale_day", day);
+  const data = { title: "La tasa no se actualiza", body: `Lleva ${r.age_days} días sin cambiar (última: ${r.fecha}). El bot no está dando montos en bolívares hasta que se actualice.`, url: "/#configuracion/precios", tag: "fx" };
+  await notifyAll(env, data, { maestroOnly: true });
+  const { results } = await env.DB.prepare("SELECT * FROM brands WHERE active = 1").all();
+  for (const raw of results) { const b = parseBrand(raw); if (b.opts.fx.enabled) await notifyAll(env, { ...data, title: `${b.name} · ${data.title}` }, { brandId: b.id, event: "system" }); }
+}
+
+/* ================= embudo de clientes (CRM) ================= */
+
+const STAGES = ["nuevo", "interesado", "oferta", "compromiso", "cliente", "perdido"];
+const STAGE_RANK = { nuevo: 0, interesado: 1, oferta: 2, compromiso: 3, cliente: 4, perdido: -1 };
+const STAGE_BASE = {
+  ventas: { nuevo: ["Nuevo", "Escribió por primera vez"], interesado: ["Interesado", "Preguntó precio o detalles"], oferta: ["Link enviado", "Le llegó el botón de pago"],
+    compromiso: ["Pago por confirmar", "Mandó comprobante"], cliente: ["Cliente", "Pagó"], perdido: ["Perdido", "Dejó de responder"] },
+  citas: { nuevo: ["Nuevo", "Escribió por primera vez"], interesado: ["Interesado", "Preguntó por un servicio"], oferta: ["Horarios enviados", "Le llegaron los horarios"],
+    compromiso: ["Cita agendada", "Tiene cita por delante"], cliente: ["Asistió", "Fue a su cita"], perdido: ["Perdido", "Dejó de responder"] },
+};
+const LOST_REASONS = { precio: "Precio", envio: "Costo del envío", disponibilidad: "No había lo que buscaba", confianza: "Desconfianza", lo_pensara: "Lo va a pensar", sin_respuesta: "Sin respuesta", otro: "Otro" };
+function cleanCrm(c) {
+  c = c && typeof c === "object" ? c : {};
+  const lb = c.labels && typeof c.labels === "object" ? c.labels : {};
+  return { mode: ["ventas", "citas"].includes(c.mode) ? c.mode : "auto", lost_days: Math.max(1, Math.min(30, parseInt(c.lost_days, 10) || 3)),
+    labels: Object.fromEntries(STAGES.map((k) => [k, typeof lb[k] === "string" ? lb[k].trim().slice(0, 30) : ""]).filter((x) => x[1])) };
+}
+const crmMode = (brand) => (brand.opts.crm.mode !== "auto" ? brand.opts.crm.mode : agOn(brand) ? "citas" : "ventas");
+const stageInfo = (brand) => { const base = STAGE_BASE[crmMode(brand)]; return STAGES.map((k) => ({ k, label: brand.opts.crm.labels[k] || base[k][0], desc: base[k][1] })); };
+/** Etapa de un contacto viejo que todavía no tiene (según lo que ya se sabe de él). */
+function stageGuess(c, lostDays = 3) {
+  if (c.stage) return c.stage;
+  if (c.pay_state === "paid") return "cliente";
+  if (c.pay_state === "probable") return "compromiso";
+  if (c.last_dm_at && Date.now() - Date.parse(c.last_dm_at) > lostDays * DAY) return "perdido";
+  if (c.pay_state === "link") return "oferta";
+  return (c.messages || 0) > 1 ? "interesado" : "nuevo";
+}
+/** Mueve a un cliente de etapa. Solo avanza (salvo que vuelva de «Perdido»); si lo moviste a mano, la IA no lo cambia. by: bot | ia | auto | manual */
+async function setStage(env, accId, userId, stage, why, by = "bot", opts = {}) {
+  try {
+    if (!STAGE_RANK.hasOwnProperty(stage)) return false;
+    const c = opts.contact || (await getContact(env, accId, userId));
+    if (!c) return false;
+    const cur = c.stage || stageGuess(c);
+    if (c.stage && cur === stage) return false;
+    if (by !== "manual") {
+      if (c.stage_manual && (by === "ia" || by === "auto")) return false;
+      if (stage === "perdido" && ["cliente", "compromiso"].includes(cur)) return false;
+      if (cur !== "perdido" && stage !== "perdido" && STAGE_RANK[stage] < STAGE_RANK[cur] && !opts.allowBack) return false;
+    }
+    const at = nowIso();
+    await setContact(env, accId, userId, { stage, stage_at: at, stage_manual: by === "manual" ? 1 : by === "bot" ? 0 : c.stage_manual || 0, ...(opts.fields || {}) });
+    await env.DB.prepare("INSERT INTO stage_log (account_id, user_id, brand_id, stage, why, by, at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(String(accId), String(userId), c.brand_id || null, stage, String(why || "").slice(0, 200), by, at).run();
+    return true;
+  } catch (e) { console.log("Etapa", errText(e)); return false; }
+}
+/** La IA deja una nota oculta al final: [ETAPA:interesado|INTENCION:alta|POR:preguntó cómo pagar|TIPO:mayorista] */
+const CRM_TAG = /\[ETAPA\s*:([^\]]*)\]/i;
+function crmParse(text) {
+  const m = String(text || "").match(CRM_TAG);
+  if (!m) return null;
+  const out = {};
+  for (const part of m[1].split("|")) {
+    const [k, ...v] = part.split(":"); const val = normalize(v.length ? v.join(":") : k).trim();
+    const key = v.length ? normalize(k).trim() : "etapa";
+    if (key === "etapa") out.stage = ["interesado", "curioso"].includes(val) ? val : null;
+    else if (key === "intencion") out.intent = ["alta", "media", "baja"].includes(val) ? val : null;
+    else if (key === "por") out.why = v.join(":").trim().slice(0, 80);
+    else if (key === "tipo") out.type = ["mayorista", "reclamo"].includes(val) ? val : null;
+  }
+  return out;
+}
+const CRM_PROMPT = `=== CLASIFICACIÓN (oculta, el cliente no la ve) ===
+Al final de CADA respuesta agrega una línea así: [ETAPA:interesado|INTENCION:alta|POR:preguntó cómo pagar]
+- ETAPA: interesado (pregunta precio, tallas, colores, disponibilidad, envíos, horarios o cómo comprar) o curioso (saludo o pregunta general).
+- INTENCION: alta (quiere comprar o agendar ya), media (compara o duda), baja (solo mira).
+- POR: el motivo en máximo 6 palabras.
+- Si es compra al mayor o un reclamo, agrega |TIPO:mayorista o |TIPO:reclamo.`;
+/** Guarda lo que la IA dedujo de la conversación. */
+async function crmApply(env, acc, userId, info, contactTags) {
+  if (!info) return;
+  if (info.intent) await setContact(env, acc.id, userId, { intent: info.intent });
+  if (info.stage === "interesado") await setStage(env, acc.id, userId, "interesado", `La IA lo marcó: ${info.why || "preguntó por un producto"}`, "ia");
+  if (info.type) {
+    const lbl = info.type === "mayorista" ? "Mayorista" : "Reclamo", tags = parseJson(contactTags, []);
+    if (!tags.includes(lbl)) await setContact(env, acc.id, userId, { tags: JSON.stringify([...tags, lbl].slice(0, 20)) });
+  }
+}
+/** Cada hora: quien dejó de responder pasa a «Perdido» y la IA anota por qué. */
+async function runLost(env) {
+  const cfg = await getConfig(env);
+  const { results: brands } = await env.DB.prepare("SELECT * FROM brands WHERE active = 1").all();
+  for (const row of brands) {
+    const brand = parseBrand(row);
+    if (!feat(brand, "crm")) continue;
+    const days = brand.opts.crm.lost_days, now = Date.now();
+    const { results } = await env.DB.prepare(`SELECT * FROM contacts WHERE brand_id = ? AND paused = 0 AND last_dm_at IS NOT NULL AND last_dm_at < ? AND last_dm_at > ?
+        AND (stage IS NULL OR stage IN ('nuevo', 'interesado', 'oferta')) AND COALESCE(pay_state, '') NOT IN ('paid', 'probable') ORDER BY last_dm_at DESC LIMIT 15`)
+      .bind(brand.id, new Date(now - days * DAY).toISOString(), new Date(now - 30 * DAY).toISOString()).all();
+    const key = results.length && brand.ai_enabled ? await deepseekKey(env, brand, cfg) : null;
+    for (const c of results) {
+      let reason = "sin_respuesta", note = "";
+      if (key && (c.messages || 0) > 1) {
+        try {
+          const { results: ms } = await env.DB.prepare("SELECT role, content FROM messages WHERE account_id = ? AND user_id = ? ORDER BY id DESC LIMIT 12").bind(c.account_id, c.user_id).all();
+          const chat = ms.reverse().map((m) => `${m.role === "user" ? "Cliente" : "Tienda"}: ${String(m.content).slice(0, 300)}`).join("\n");
+          const out = await deepseekChat(env, key, "deepseek-flash", [
+            { role: "system", content: `Lees un chat de una tienda donde el cliente dejó de responder y no compró. Responde solo JSON: {"motivo": "${Object.keys(LOST_REASONS).join("|")}", "detalle": "máximo 8 palabras"}` },
+            { role: "user", content: chat.slice(-4000) }], 80, true, 15000, brand.id);
+          const d = parseJson(out, {});
+          if (LOST_REASONS[d.motivo]) reason = d.motivo;
+          note = String(d.detalle || "").slice(0, 80);
+        } catch (e) { console.log("Motivo perdido", errText(e)); }
+      }
+      await setStage(env, c.account_id, c.user_id, "perdido", `No respondió en ${days} día${days === 1 ? "" : "s"}${note ? ": " + note : ""}`, "auto", { contact: c, fields: { lost_reason: reason, lost_note: note || null } });
+    }
+  }
+}
+
 /* ================= tareas programadas (cada hora) ================= */
 
 async function dailyTasks(env) {
@@ -4175,6 +4468,8 @@ async function cron(env) {
   try { await autoResumeAll(env); } catch (e) { console.log("Reanudar", errText(e)); }
   try { await runFollowUps(env); } catch (e) { console.log("Seguimientos", errText(e)); }
   try { await runReminders(env); } catch (e) { console.log("Recordatorios", errText(e)); }
+  try { await runLost(env); } catch (e) { console.log("Embudo", errText(e)); }
+  try { await fxCheck(env); } catch (e) { console.log("Tasa", errText(e)); }
   // Lo diario, una vez al día a partir de las 9:00 a. m. de Caracas
   const today = localDate();
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'daily_done'").first();
@@ -4868,13 +5163,14 @@ const FEATURES = [
   ["paylink", "Botón de pago con tus links", "ventas"], ["store", "Conexión con tienda online (Shopify, Woo, otra)", "ventas"],
   ["pdf", "Reportes en PDF e imagen", "ventas"], ["ads", "Anuncios (gasto y resultados)", "ventas"],
   ["advisor", "Asesor de anuncios PRO", "ventas"], ["support", "Soporte prioritario", "ventas"],
+  ["crm", "Embudo de clientes (CRM)", "ventas"],
   ["agenda", "Agenda de citas", "agenda"], ["reminders", "Recordatorios automáticos de citas", "agenda"],
 ];
 const FEAT_KEYS = FEATURES.map((f) => f[0]);
 const incOf = (keys) => Object.fromEntries(FEAT_KEYS.map((k) => [k, keys.includes(k)]));
 const DEFAULT_PLANS = [
   { name: "Emprende", ai: "text", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo"], price: 25, replies: 1500, users: 2, brands: 1, desc: "Para empezar a vender por Instagram", popular: false, inc: incOf(["paylink", "ads"]) },
-  { name: "Crece", ai: "vision", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar"], price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads", "agenda", "reminders"]) },
+  { name: "Crece", ai: "vision", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar"], price: 49, replies: 5000, users: 5, brands: 1, desc: "Para tiendas con movimiento diario", popular: true, inc: incOf(["buttons", "follow", "vision", "paylink", "pdf", "ads", "crm", "agenda", "reminders"]) },
   { name: "Pro", ai: "pro", perms: ["conversaciones", "responder", "pausar", "actividad", "resumen", "estadisticas", "anuncios", "equipo", "reglas", "catalogo", "exportar", "prompts", "tienda"], price: 99, replies: 15000, users: 10, brands: 3, desc: "Para marcas que invierten en anuncios", popular: false, inc: incOf(FEAT_KEYS) },
 ];
 /** La lista de la página de venta sale de lo marcado en cada plan. */
