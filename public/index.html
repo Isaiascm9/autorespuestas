@@ -757,6 +757,16 @@ a.btn.primary{color:#fff}
 .pick-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
 .pick{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:10px;padding:6px;cursor:pointer;position:relative}
 .pick input{position:absolute;top:10px;left:10px}.pick .im{height:90px;border-radius:6px;background:#eef0f3 center/cover no-repeat}
+button.pick{background:#fff;font:inherit;text-align:left;color:inherit}.pick.open{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}.pick.has{border-color:var(--accent)}
+.pick .im{position:relative;display:block}.pk-car{position:absolute;right:6px;top:4px;color:#fff;font-style:normal;text-shadow:0 1px 3px rgba(0,0,0,.6);font-size:15px}
+.pk-n{position:absolute;left:6px;top:6px;background:var(--accent);color:#fff;font-style:normal;font-weight:800;font-size:11px;border-radius:99px;min-width:20px;height:20px;display:grid;place-items:center;padding:0 5px}
+.pk-box{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fafafd}
+.pk-kids{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
+.pk-k{height:110px;border-radius:10px;border:3px solid transparent;background:#eef0f3 center/cover no-repeat;position:relative;cursor:pointer;padding:0}
+.pk-k i{position:absolute;left:5px;top:5px;background:#fff;color:var(--accent);font-style:normal;font-weight:900;font-size:11px;border-radius:6px;width:20px;height:20px;display:grid;place-items:center}
+.pk-k em{position:absolute;left:5px;bottom:5px;background:rgba(0,0,0,.6);color:#fff;font-style:normal;font-size:10px;border-radius:4px;padding:0 4px}
+.pk-k.on{border-color:var(--accent)}.pk-k.on::after{content:"✓";position:absolute;right:5px;top:5px;background:var(--accent);color:#fff;border-radius:50%;width:20px;height:20px;display:grid;place-items:center;font-size:12px}
+.car-c .im{position:relative}.car-src{position:absolute;right:5px;bottom:5px;background:rgba(255,255,255,.92);color:var(--accent);font-size:10px;font-weight:700;border-radius:5px;padding:1px 5px}
 .pick:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .two2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}@media (max-width:560px){.two2{grid-template-columns:1fr}}
 
@@ -2374,8 +2384,8 @@ function drawRich(box, r, b, changed) {
         <div class="vars">${r.quick.map((q, i) => `<span class="var-btn qchip">${esc(q)} <button type="button" data-qdel="${i}" aria-label="Quitar">×</button></span>`).join("")}<input data-qadd maxlength="20" placeholder="+ Opción y Enter" style="width:150px;padding:4px 10px;border-radius:99px;font-size:13px"></div>
         ${r.quick.length && (r.buttons.length || r.carousel.length) ? `<input data-qt value="${esc(r.quickText)}" placeholder="Texto antes de las opciones (ej: ¿Qué color te gusta? 👇)" style="margin-top:8px">` : ""}
         <div class="rich-h">Carrusel de productos <span class="muted small">· hasta 10 tarjetas con foto (solo DM)</span></div>
-        <div class="car-ed">${r.carousel.map((c, i) => `<div class="car-c"><div class="im" style="${c.image ? `background-image:url('${esc(c.image)}')` : ""}">${c.image ? "" : "Sin foto"}</div>
-          <div class="bd"><input data-ca="${i}" data-k="title" maxlength="80" value="${esc(c.title)}" placeholder="Nombre"><input data-ca="${i}" data-k="subtitle" maxlength="80" value="${esc(c.subtitle)}" placeholder="Precio o detalle"><input data-ca="${i}" data-k="button" maxlength="20" value="${esc(c.button)}" style="color:#0095f6;font-weight:600"><input data-ca="${i}" data-k="image" value="${esc(c.mediaId ? "" : c.image)}" placeholder="${c.mediaId ? "Foto del catálogo ✓" : "Enlace de la foto (https://)"}">
+        <div class="car-ed">${r.carousel.map((c, i) => `<div class="car-c"><div class="im" style="${c.image ? `background-image:url('${esc(c.image)}')` : ""}">${c.image ? (c.child ? `<span class="car-src">Foto ${c.child} del carrusel</span>` : "") : "Sin foto"}</div>
+          <div class="bd"><input data-ca="${i}" data-k="title" maxlength="80" value="${esc(c.title)}" placeholder="Nombre"><input data-ca="${i}" data-k="subtitle" maxlength="80" value="${esc(c.subtitle)}" placeholder="Precio o detalle"><input data-ca="${i}" data-k="button" maxlength="20" value="${esc(c.button)}" style="color:#0095f6;font-weight:600"><input data-ca="${i}" data-k="image" value="${esc(c.mediaId ? "" : c.image)}" placeholder="${c.mediaId ? (c.child ? `Foto ${c.child} del carrusel ✓` : "Foto del catálogo ✓") : "Enlace de la foto o de la publicación"}" title="Pega el enlace de una foto (https://) o de una publicación de Instagram, por ejemplo instagram.com/p/XXX/?img_index=4">
           <button type="button" class="btn small danger" data-cadel="${i}">Quitar</button></div></div>`).join("")}
           ${r.carousel.length < 10 ? `<div class="car-add"><button type="button" class="btn small" data-cacat>${ICON.plus} Del catálogo</button><button type="button" class="btn small" data-canew>${ICON.plus} Tarjeta manual</button></div>` : ""}</div>
         ${r.carousel.length ? `<label class="f">Al tocar el botón de una tarjeta, el bot…</label><select data-caact style="max-width:420px"><option value="ai" ${r.carouselAction === "ai" ? "selected" : ""}>Sigue la conversación con ese producto ya elegido (IA)</option><option value="handoff" ${r.carouselAction === "handoff" ? "selected" : ""}>Pasa a una persona y te avisa</option></select>` : ""}` : `<p class="help">En comentarios Meta deja enviar un solo mensaje privado: va el texto con sus botones. El carrusel y las opciones funcionan en las reglas de DM.</p>`}
@@ -2390,11 +2400,24 @@ function drawRich(box, r, b, changed) {
     q("[data-qadd]").forEach((x) => (x.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); const v = x.value.trim(); if (v && r.quick.length < 13) { r.quick.push(v.slice(0, 20)); box.dataset.open = "1"; changed(); draw(); box.querySelector("[data-qadd]").focus(); } } }));
     q("[data-qdel]").forEach((x) => (x.onclick = () => { r.quick.splice(+x.dataset.qdel, 1); box.dataset.open = "1"; changed(); draw(); }));
     q("[data-qt]").forEach((x) => (x.oninput = () => { r.quickText = x.value; ch(); }));
-    q("[data-ca]").forEach((x) => (x.oninput = () => { const c = r.carousel[x.dataset.ca]; if (x.dataset.k === "image") { c.image = x.value.trim(); c.mediaId = ""; } else c[x.dataset.k] = x.value; ch(); }));
+    q("[data-ca]").forEach((x) => (x.oninput = () => { const c = r.carousel[x.dataset.ca]; if (x.dataset.k === "image") { c.image = /instagram\.com\//i.test(x.value) ? "" : x.value.trim(); c.mediaId = ""; c.childId = ""; c.child = 0; } else c[x.dataset.k] = x.value; ch(); }));
     q("[data-cadel]").forEach((x) => (x.onclick = () => { r.carousel.splice(+x.dataset.cadel, 1); box.dataset.open = "1"; changed(); draw(); }));
     q("[data-canew]").forEach((x) => (x.onclick = () => { r.carousel.push({ mediaId: "", title: "", subtitle: "", image: "", button: "LO QUIERO", url: "" }); box.dataset.open = "1"; changed(); draw(); }));
     q("[data-caact]").forEach((x) => (x.onchange = () => { r.carouselAction = x.value; changed(); }));
-    q("[data-cacat]").forEach((x) => (x.onclick = () => pickFromCatalog(b, (items) => { for (const m of items) if (r.carousel.length < 10) r.carousel.push(m); box.dataset.open = "1"; changed(); draw(); })));
+    q("[data-cacat]").forEach((x) => (x.onclick = () => pickFromCatalog(b, (items) => { for (const m of items) if (r.carousel.length < 10) r.carousel.push(m); box.dataset.open = "1"; changed(); draw(); }, 10 - r.carousel.length)));
+    // Pegar el enlace de una publicación de Instagram (con ?img_index=N) en el campo de la foto
+    q('[data-ca][data-k="image"]').forEach((x) => (x.onchange = async () => {
+      const c = r.carousel[x.dataset.ca], v = x.value.trim();
+      if (!/instagram\.com\/(?:[\w.]+\/)?(?:p|reel|tv)\//i.test(v)) return;
+      x.disabled = true; x.value = "Buscando la foto en Instagram…";
+      try {
+        const d = await api(`/api/brands/${b.id}/igpost?url=${encodeURIComponent(v)}`);
+        Object.assign(c, { mediaId: d.mediaId, childId: d.childId || "", child: d.child || 0, image: d.thumb || "" });
+        if (!c.url) c.url = d.permalink || "";
+        toast(d.child ? `Listo: foto ${d.child} de esa publicación` : "Listo: foto de esa publicación");
+      } catch (e) { c.image = ""; toast(e.message, 6000); }
+      box.dataset.open = "1"; changed(); draw();
+    }));
   };
   draw();
 }
@@ -2406,21 +2429,62 @@ function richPreview(r, dmOk) {
   if (dmOk && r.quick.length) { if (r.buttons.length || r.carousel.length) h += `<div class="pm-out">${esc(r.quickText || "Elige una opción 👇")}</div>`; h += `<div class="pm-qr">${r.quick.map((q) => `<span>${esc(q)}</span>`).join("")}</div>`; }
   return h;
 }
-async function pickFromCatalog(b, onPick) {
-  const dlg = $("tplDlg");
-  dlg.innerHTML = `<div class="modal-h"><div><h2>Elegir del catálogo</h2><p>Las publicaciones de ${esc(b.name)}. El nombre sale del producto que ligaste en Catálogo.</p></div><button class="icon-btn" id="pcX" aria-label="Cerrar">${ICON.x}</button></div><div class="modal-b" id="pcB"><div class="empty">Cargando…</div></div>
-    <div class="modal-f"><span class="small muted" id="pcN">0 elegidas</span><div class="row"><button class="btn" id="pcC">Cancelar</button><button class="btn primary" id="pcOk">Agregar</button></div></div>`;
+/** Elegir del catálogo: publicaciones sueltas o fotos sueltas de un carrusel (una tarjeta por foto). */
+async function pickFromCatalog(b, onPick, room = 10) {
+  const dlg = $("tplDlg"), aiOk = hasF("vision", b);
+  dlg.className = "wide";
+  dlg.innerHTML = `<div class="modal-h"><div><h2>Elegir del catálogo</h2><p>Toca una publicación. Si es un carrusel, eliges qué fotos van como tarjetas.</p></div><button class="icon-btn" id="pcX" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="modal-b" id="pcB"><div class="empty">Cargando publicaciones…</div></div>
+    <div class="modal-f"><label class="toggle-row small" style="font-weight:500;gap:8px;justify-content:flex-start" title="${aiOk ? "" : "Tu plan no incluye leer fotos"}"><input type="checkbox" id="pcAi" ${aiOk ? "checked" : "disabled"}> ✨ Rellenar nombre y precio con IA</label>
+      <div class="row"><span class="small muted" id="pcN">0 elegidas</span><button class="btn" id="pcC">Cancelar</button><button class="btn primary" id="pcOk" disabled>Agregar</button></div></div>`;
   dlg.showModal();
-  $("pcX").onclick = $("pcC").onclick = () => dlg.close();
+  const close = () => { dlg.close(); dlg.className = "wide"; };
+  $("pcX").onclick = $("pcC").onclick = close;
   const { list, error } = await getMedia(b.id);
   const items = (list || []).filter((m) => m.thumb);
-  $("pcB").innerHTML = (error ? `<div class="alert">${esc(error)}</div>` : "") + (items.length ? `<div class="pick-g">${items.map((m, i) => `<label class="pick"><input type="checkbox" data-i="${i}"><span class="im" style="background-image:url('${esc(m.thumb)}')"></span><span class="small ell">${esc((m.product || m.caption || "Sin nombre").split("\n")[0])}</span></label>`).join("")}</div>` : `<div class="empty">No hay publicaciones con foto.</div>`);
-  const sel = () => [...$("pcB").querySelectorAll("input:checked")].map((x) => items[x.dataset.i]);
-  $("pcB").onchange = () => ($("pcN").textContent = `${sel().length} elegida${sel().length === 1 ? "" : "s"}`);
-  $("pcOk").onclick = () => {
-    onPick(sel().map((m) => { const line = (m.product || m.caption || "").split("\n")[0].trim(); const price = (line.match(/(?:\$|Bs\.?|USD)\s?\d[\d.,]*/i) || [""])[0];
-      return { mediaId: m.id, image: m.thumb, title: line.replace(price, "").replace(/[—–-]\s*$/, "").trim().slice(0, 80) || "Producto", subtitle: price, button: "LO QUIERO", url: m.permalink || "" }; }));
-    dlg.close();
+  const picked = new Map(); // clave → tarjeta
+  const kids = {}; let open = null;
+  const nameOf = (m) => (m.product || m.caption || "").split("\n")[0].trim();
+  const priceOf = (t) => (t.match(/(?:\$|Bs\.?|USD)\s?\d[\d.,]*/i) || [""])[0];
+  const count = () => { $("pcN").textContent = `${picked.size} elegida${picked.size === 1 ? "" : "s"}${picked.size > room ? ` · caben ${room}` : ""}`; $("pcOk").disabled = !picked.size; $("pcOk").textContent = picked.size > 1 ? `Agregar ${Math.min(picked.size, room)} tarjetas` : "Agregar"; };
+  const draw = () => {
+    const m = open != null ? items[open] : null, ch = m && kids[m.id];
+    $("pcB").innerHTML = (error ? `<div class="alert">${esc(error)}</div>` : "")
+      + (items.length ? `<div class="pick-g">${items.map((x, i) => { const n = [...picked.keys()].filter((k) => k.startsWith(x.id + "|")).length;
+          return `<button type="button" class="pick ${open === i ? "open" : ""} ${n ? "has" : ""}" data-i="${i}"><span class="im" style="background-image:url('${esc(x.thumb)}')">${x.carousel ? `<i class="pk-car" title="Carrusel">⧉</i>` : ""}${n ? `<i class="pk-n">${n}</i>` : ""}</span><span class="small ell">${esc(nameOf(x) || "Sin nombre")}</span></button>`; }).join("")}</div>`
+        : `<div class="empty">No hay publicaciones con foto.</div>`)
+      + (m && m.carousel ? `<div class="pk-box"><div class="row" style="justify-content:space-between"><div><b>${esc(nameOf(m).slice(0, 60) || "Carrusel")}</b> <span class="pill ai">${ch ? `Carrusel de ${ch.length} fotos` : "Carrusel"}</span>
+          <div class="small muted">Marca las fotos que quieres: cada una será una tarjeta, en este orden.</div></div>${ch && ch.length ? `<button type="button" class="btn small" id="pcAll">Elegir todas</button>` : ""}</div>
+          <div class="pk-kids">${!ch ? `<div class="muted small">Trayendo las fotos…</div>` : ch.error ? `<div class="small" style="color:var(--bad)">${esc(ch.error)}</div>` : ch.map((k) => `<button type="button" class="pk-k ${picked.has(m.id + "|" + k.n) ? "on" : ""}" data-k="${k.n}" style="background-image:url('${esc(k.thumb || "")}')"><i>${k.n}</i>${k.video ? `<em>video</em>` : ""}</button>`).join("")}</div></div>` : "");
+    $("pcB").querySelectorAll("[data-i]").forEach((x) => (x.onclick = async () => {
+      const i = +x.dataset.i, it = items[i];
+      if (!it.carousel) { const k = it.id + "|0"; if (picked.has(k)) picked.delete(k); else picked.set(k, { mediaId: it.id, image: it.thumb, title: priceOf(nameOf(it)) ? nameOf(it).replace(priceOf(nameOf(it)), "").replace(/[—–-]\s*$/, "").trim().slice(0, 80) : nameOf(it).slice(0, 80), subtitle: priceOf(nameOf(it)), button: "LO QUIERO", url: it.permalink || "", _cap: it.caption || "" }); open = null; count(); return draw(); }
+      open = open === i ? null : i; draw();
+      if (open != null && !kids[it.id]) {
+        try { const r = await api(`/api/brands/${b.id}/carousel?media=${encodeURIComponent(it.id)}&platform=${it.platform || ""}`); kids[it.id] = r.children.length ? r.children : { error: r.error || "No se pudieron traer las fotos de este carrusel." }; }
+        catch (e) { kids[it.id] = { error: e.message }; }
+        if (kids[it.id].error) kids[it.id] = Object.assign([], { error: kids[it.id].error });
+        draw();
+      }
+    }));
+    const toggle = (k) => { const key = m.id + "|" + k.n; if (picked.has(key)) picked.delete(key); else picked.set(key, { mediaId: m.id, childId: k.id, child: k.n, image: k.thumb || m.thumb, title: "", subtitle: "", button: "LO QUIERO", url: m.permalink || "", _cap: m.caption || "" }); };
+    $("pcB").querySelectorAll("[data-k]").forEach((x) => (x.onclick = () => { toggle(ch.find((k) => k.n === +x.dataset.k)); count(); draw(); }));
+    if ($("pcAll")) $("pcAll").onclick = () => { const all = ch.every((k) => picked.has(m.id + "|" + k.n)); ch.forEach((k) => { const key = m.id + "|" + k.n; if (all) picked.delete(key); else if (!picked.has(key)) toggle(k); }); count(); draw(); };
+  };
+  draw();
+  $("pcOk").onclick = async () => {
+    const cards = [...picked.values()].slice(0, room);
+    if ($("pcAi").checked && cards.length) {
+      $("pcOk").disabled = true; $("pcOk").textContent = "La IA está mirando las fotos…";
+      try {
+        const r = await api(`/api/brands/${b.id}/cardguess`, { method: "POST", body: { images: cards.map((c) => c.image), caption: cards[0]._cap } });
+        r.cards.forEach((g, i) => { if (g && !g.error) { if (g.title) cards[i].title = g.title; if (g.subtitle && !cards[i].subtitle) cards[i].subtitle = g.subtitle; } });
+        const bad = r.cards.filter((g) => !g || g.error).length;
+        if (bad) toast(`La IA no pudo leer ${bad} foto${bad === 1 ? "" : "s"}: complétala${bad === 1 ? "" : "s"} tú.`, 6000);
+      } catch (e) { toast(e.message, 6000); }
+    }
+    cards.forEach((c) => { delete c._cap; if (!c.title) c.title = c.child ? `Producto ${c.child}` : "Producto"; });
+    close(); onPick(cards);
   };
 }
 
@@ -4192,6 +4256,7 @@ function renderHelp() {
     ["¿Cómo le enseño al bot lo que vendo?", "En Configuración → IA y conocimiento escribe tus productos, precios, envíos y pagos. Donde falte un dato, el bot no inventa: le pasa la conversación a una persona."],
     ["¿Qué significa «Pasó a una persona»?", "El bot detectó algo que debe atender alguien de tu equipo (un pago, un reclamo…). Te llega un aviso y el bot se pausa con ese cliente hasta que lo reanudes."],
     ["¿Puedo responder yo desde el panel?", "Sí, en Conversaciones. Meta solo deja escribir hasta 24 horas después del último mensaje del cliente."],
+    ["¿Cómo pongo en las tarjetas la foto de cada producto de un carrusel?", "En Asistentes → Respuestas por palabra clave → Carrusel de productos, toca «Del catálogo» y luego la publicación con carrusel (tiene el ícono ⧉). Marca las fotos que quieres (o «Elegir todas»): se agrega una tarjeta por foto. Con «Rellenar nombre y precio con IA», la IA te los propone. También puedes pegar en el campo de la foto el enlace de la publicación con su número, por ejemplo instagram.com/p/XXX/?img_index=4. Solo funciona con publicaciones de tu cuenta conectada."],
     ["¿Cómo activo las notificaciones en mi teléfono?", "En Mi perfil (toca tu nombre arriba a la derecha) → Notificaciones. En iPhone primero agrega el panel a tu pantalla de inicio."],
   ];
   const agenda = [
