@@ -318,14 +318,41 @@ const PLATFORM = {
       const d = await ig(env, acc.token, "/me/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url&limit=50");
       return (d.data || []).map((x) => ({
         id: x.id, caption: (x.caption || "").slice(0, 300), type: x.media_product_type === "REELS" ? "Reel" : "Post", timestamp: x.timestamp,
-        permalink: x.permalink, thumb: x.thumbnail_url || (x.media_type !== "VIDEO" ? x.media_url : null) || null,
+        permalink: x.permalink, thumb: x.thumbnail_url || (x.media_type !== "VIDEO" ? x.media_url : null) || null, carousel: x.media_type === "CAROUSEL_ALBUM",
       }));
+    },
+    /** Fotos de un carrusel, en su orden. */
+    async children(env, acc, id) {
+      const d = await ig(env, acc.token, `/${id}/children?fields=id,media_type,media_url,thumbnail_url`);
+      return (d.data || []).map((x, i) => ({ n: i + 1, id: x.id, video: x.media_type === "VIDEO", thumb: x.thumbnail_url || x.media_url || null }));
+    },
+    /** Busca una publicación por el código de su enlace (instagram.com/p/CODIGO). Revisa hasta 200 publicaciones. */
+    async findByCode(env, acc, code) {
+      let after = "";
+      for (let i = 0; i < 4; i++) {
+        const d = await ig(env, acc.token, `/me/media?fields=id,caption,media_type,permalink,thumbnail_url,media_url&limit=50${after ? "&after=" + encodeURIComponent(after) : ""}`);
+        const hit = (d.data || []).find((x) => String(x.permalink || "").includes("/" + code));
+        if (hit) return { id: hit.id, permalink: hit.permalink, caption: (hit.caption || "").slice(0, 300), carousel: hit.media_type === "CAROUSEL_ALBUM", thumb: hit.thumbnail_url || hit.media_url || null };
+        after = d.paging && d.paging.cursors && d.paging.next ? d.paging.cursors.after : "";
+        if (!after) break;
+      }
+      return null;
     },
   },
   facebook: {
     sendDM: (env, acc, to, text) => fb(env, acc.token, "/me/messages", { recipient: { id: to }, messaging_type: "RESPONSE", message: { text } }),
     sendRaw: (env, acc, recipient, message) => fb(env, acc.token, "/me/messages", { recipient, messaging_type: "RESPONSE", message }),
-    mediaImage: async (env, acc, id) => { const d = await fb(env, acc.token, `/${id}?fields=full_picture`); return d.full_picture || null; },
+    mediaImage: async (env, acc, id) => {
+      const d = await fb(env, acc.token, `/${id}?fields=full_picture`).catch(() => ({}));
+      if (d.full_picture) return d.full_picture;
+      const p = await fb(env, acc.token, `/${id}?fields=images`).catch(() => ({})); // foto suelta (una del carrusel)
+      return (p.images && p.images[0] && p.images[0].source) || null;
+    },
+    async children(env, acc, id) {
+      const d = await fb(env, acc.token, `/${id}?fields=attachments{subattachments.limit(20){media,target,type}}`);
+      const subs = ((((d.attachments || {}).data || [])[0] || {}).subattachments || {}).data || [];
+      return subs.map((x, i) => ({ n: i + 1, id: (x.target && x.target.id) || "", video: x.type === "video", thumb: (x.media && x.media.image && x.media.image.src) || null }));
+    },
     privateReply: (env, acc, commentId, text) => fb(env, acc.token, "/me/messages", { recipient: { comment_id: commentId }, message: { text } }),
     publicReply: (env, acc, commentId, text) => fb(env, acc.token, `/${commentId}/comments`, { message: text }),
     hide: (env, acc, commentId) => fb(env, acc.token, `/${commentId}?is_hidden=true`, null, "POST"),
@@ -740,7 +767,9 @@ const quickFor = (rule) => (rule.quick || []).map((q) => ({ content_type: "text"
 async function carouselElements(env, acc, rule) {
   return Promise.all((rule.carousel || []).map(async (c, i) => {
     let image = c.image;
-    if (c.mediaId) { try { image = (await PLATFORM[acc.platform].mediaImage(env, acc, c.mediaId)) || image; } catch {} }
+    // La foto se pide fresca cada vez (los enlaces de Instagram vencen). Si es una foto de un carrusel, se pide esa foto.
+    const src = c.childId || c.mediaId;
+    if (src) { try { image = (await PLATFORM[acc.platform].mediaImage(env, acc, src)) || image; } catch {} }
     const btns = [{ type: "postback", title: c.button || "LO QUIERO", payload: `c:${rule.id}:${i}` }];
     if (c.url) btns.push({ type: "web_url", url: c.url, title: "Ver más" });
     return { title: c.title, ...(c.subtitle ? { subtitle: c.subtitle } : {}), ...(image ? { image_url: image } : {}), buttons: btns };
@@ -1148,8 +1177,8 @@ function sniffImage(b) {
   if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "image/webp";
   return null;
 }
-async function readImage(env, brand, cfg, url, text) {
-  const key = await deepseekKey(env, brand, cfg);
+/** Baja una foto como lo haría un navegador y la deja lista para la IA. */
+async function imageForAI(url) {
   // Bajamos la foto como lo haría un navegador. Si no llega una imagen válida (JPG, PNG, WebP o GIF),
   // pedimos a Cloudflare que la convierta a JPG y, como último recurso, le pasamos el enlace directo a la IA.
   const UA = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", Accept: "image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8" };
@@ -1168,6 +1197,26 @@ async function readImage(env, brand, cfg, url, text) {
   if (img) { let bin = ""; for (let i = 0; i < img.buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, img.buf.subarray(i, i + 0x8000)); imageUrl = `data:${img.mime};base64,${btoa(bin)}`; }
   else if (/^https:\/\//.test(url)) imageUrl = url; // que la IA la descargue ella misma
   else throw new Error(`no se pudo descargar la foto: ${why}`);
+  return { imageUrl, img, why };
+}
+/** Propone el nombre y el precio de un producto mirando su foto (y lo que la tienda tiene en su base de conocimiento). */
+async function cardGuess(env, brand, cfg, url, caption) {
+  const key = await deepseekKey(env, brand, cfg);
+  if (!key) throw new Error("Falta la clave de la IA");
+  const { imageUrl } = await imageForAI(url);
+  const out = await deepseekChat(env, key, "deepseek-flash", [
+    { role: "system", content: `Miras la foto de un producto de la tienda «${brand.name}». Responde SOLO un JSON: {"nombre": "máximo 40 letras", "precio": "como lo escribe la tienda (ej: $33.90) o vacío"}.
+Usa el nombre y el precio EXACTOS de la base de conocimiento si el producto aparece ahí. Si no aparece, pon un nombre corto con lo que se ve y deja el precio vacío. No inventes precios.
+=== BASE DE CONOCIMIENTO ===
+${String(brand.knowledge || "").slice(0, 8000) || "(vacía)"}` },
+    { role: "user", content: [{ type: "text", text: caption ? `Texto de la publicación: «${caption.slice(0, 400)}»` : "Foto del producto." }, { type: "image_url", image_url: { url: imageUrl } }] },
+  ], 120, true, 20000, brand.id);
+  const j = parseJson(out, {}) || {};
+  return { title: String(j.nombre || "").trim().slice(0, 80), subtitle: String(j.precio || "").trim().slice(0, 80) };
+}
+async function readImage(env, brand, cfg, url, text) {
+  const key = await deepseekKey(env, brand, cfg);
+  const { imageUrl, img, why } = await imageForAI(url);
   const out = await deepseekChat(env, key, "deepseek-flash", [
     { role: "system", content: `Miras fotos que un cliente envía por chat a la tienda «${brand.name}». Responde SOLO un JSON: {"tipo": "comprobante|producto|cabello|captura|otro|inapropiada|documento|ilegible", "descripcion": "...", "monto": número o null, "moneda": "USD|VES|..." o null, "referencia": "..." o null}.
 - comprobante: captura o foto de un pago o transferencia (Pago Móvil, Zelle, Binance, banco). Lee el monto, la moneda y el número de referencia.
@@ -1928,7 +1977,8 @@ function cleanRules(input) {
     quick: (Array.isArray(r.quick) ? r.quick : []).map((q) => String(q).trim().slice(0, 20)).filter(Boolean).slice(0, 13),
     quickText: String(r.quickText || "").slice(0, 300),
     carousel: (Array.isArray(r.carousel) ? r.carousel : []).slice(0, 10).map((c) => ({
-      mediaId: c.mediaId ? String(c.mediaId) : "", title: String(c.title || "").trim().slice(0, 80), subtitle: String(c.subtitle || "").trim().slice(0, 80),
+      mediaId: c.mediaId ? String(c.mediaId) : "", childId: /^\d{1,30}$/.test(String(c.childId || "")) ? String(c.childId) : "", child: Math.max(0, Math.min(20, parseInt(c.child, 10) || 0)),
+      title: String(c.title || "").trim().slice(0, 80), subtitle: String(c.subtitle || "").trim().slice(0, 80),
       image: /^https:\/\//i.test(String(c.image || "")) ? String(c.image).slice(0, 1000) : "", button: String(c.button || "LO QUIERO").trim().slice(0, 20) || "LO QUIERO",
       url: /^https?:\/\//i.test(String(c.url || "")) ? String(c.url).slice(0, 500) : "",
     })).filter((c) => c.title),
@@ -3382,6 +3432,54 @@ async function api(req, env, url) {
     ]);
     await audit(env, u, "Eliminó una tienda", brand.name, id);
     return json({ ok: true, trash_id: tid });
+  }
+
+  /* ----- fotos de un carrusel (para las tarjetas de las reglas) ----- */
+  if (sub === "/carousel" && m === "GET") {
+    if (!can(u, "reglas")) need(u, "catalogo");
+    const mid = String(url.searchParams.get("media") || "");
+    if (!/^[\d_]+$/.test(mid)) return json({ error: "Publicación no válida" }, 400);
+    const { results: accs } = await env.DB.prepare("SELECT * FROM accounts WHERE brand_id = ?").bind(id).all();
+    const pf = url.searchParams.get("platform");
+    let lastErr = "";
+    for (const a of accs.filter((x) => !pf || x.platform === pf)) {
+      if (!PLATFORM[a.platform].children) continue;
+      try { const list = await PLATFORM[a.platform].children(env, a, mid); if (list.length) return json({ children: list }); }
+      catch (e) { lastErr = errText(e); }
+    }
+    return json({ children: [], error: lastErr || null });
+  }
+  if (sub === "/igpost" && m === "GET") {
+    if (!can(u, "reglas")) need(u, "catalogo");
+    const link = String(url.searchParams.get("url") || "");
+    const mm2 = link.match(/instagram\.com\/(?:[\w.]+\/)?(?:p|reel|tv)\/([\w-]+)/i);
+    if (!mm2) return json({ error: "No es un enlace de una publicación de Instagram" }, 400);
+    const idx = parseInt((link.match(/[?&]img_index=(\d+)/) || [])[1], 10) || 1;
+    const { results: accs } = await env.DB.prepare("SELECT * FROM accounts WHERE brand_id = ? AND platform = 'instagram'").bind(id).all();
+    if (!accs.length) return json({ error: "Esta tienda no tiene Instagram conectado" }, 400);
+    for (const a of accs) {
+      let post = null;
+      try { post = await PLATFORM.instagram.findByCode(env, a, mm2[1]); } catch (e) { return json({ error: "Instagram no respondió: " + errText(e) }, 502); }
+      if (!post) continue;
+      const cat = await env.DB.prepare("SELECT product FROM catalog WHERE brand_id = ? AND media_id = ?").bind(id, post.id).first();
+      let child = null;
+      if (post.carousel) {
+        const kids = await PLATFORM.instagram.children(env, a, post.id).catch(() => []);
+        child = kids[Math.min(kids.length, Math.max(1, idx)) - 1] || null;
+      }
+      return json({ mediaId: post.id, permalink: post.permalink, caption: post.caption, product: cat ? cat.product : "", carousel: post.carousel,
+        child: child ? child.n : 0, childId: child ? child.id : "", thumb: (child && child.thumb) || post.thumb });
+    }
+    return json({ error: "Esa publicación no es de la cuenta de Instagram de esta tienda" }, 404);
+  }
+  if (sub === "/cardguess" && m === "POST") {
+    need(u, "reglas");
+    if (u.role !== "maestro" && !feat(brand, "vision")) throw lockedErr("vision");
+    const x = await body();
+    const imgs = (Array.isArray(x.images) ? x.images : []).filter((v) => /^https:\/\//.test(String(v))).slice(0, 10);
+    const cfg2 = await getConfig(env);
+    const out = await Promise.all(imgs.map((im) => cardGuess(env, brand, cfg2, im, String(x.caption || "")).catch((e) => ({ error: errText(e) }))));
+    return json({ cards: out });
   }
 
   if (sub === "/media" && m === "GET") {
