@@ -123,7 +123,7 @@ const COLUMNS = {
   logs: { account_id: "TEXT", platform: "TEXT", media_id: "TEXT", comment_id: "TEXT", moderation: "TEXT", level: "TEXT" },
   stores: { api_url: "TEXT", api_key: "TEXT", webhook_id: "TEXT", api_ok_at: "TEXT", api_error: "TEXT" },
   store_log: { order_id: "TEXT", sig_ok: "INTEGER" },
-  sales: { items: "TEXT" },
+  sales: { items: "TEXT", merged: "TEXT", not_dup: "TEXT", at_src: "TEXT" },
   contacts: {
     brand_id: "TEXT", platform: "TEXT", paused_at: "TEXT", pause_reason: "TEXT", name: "TEXT", name_checked: "INTEGER NOT NULL DEFAULT 0",
     last_dm_at: "TEXT", last_bot_at: "TEXT", followup_at: "TEXT", off_hours_at: "TEXT",
@@ -847,16 +847,18 @@ async function recordSale(env, x) {
   let row = null;
   if (x.store_id && x.order_id) row = await env.DB.prepare("SELECT * FROM sales WHERE store_id = ? AND order_id = ?").bind(x.store_id, String(x.order_id)).first();
   if (!row && x.source === "store" && x.user_id) {
-    row = await env.DB.prepare(`SELECT * FROM sales WHERE account_id = ? AND user_id = ? AND source = 'chat' AND order_id IS NULL AND status = 'paid' AND at >= ?
-      AND ABS(amount - ?) <= MAX(1, amount * 0.1) ORDER BY id DESC LIMIT 1`).bind(x.account_id, x.user_id, new Date(Date.now() - 4 * 864e5).toISOString(), x.amount || 0).first();
+    const base = Date.parse(at);
+    row = await env.DB.prepare(`SELECT * FROM sales WHERE account_id = ? AND user_id = ? AND source = 'chat' AND order_id IS NULL AND status = 'paid' AND at >= ? AND at <= ?
+      AND ABS(amount - ?) <= MAX(1, amount * 0.1) ORDER BY id DESC LIMIT 1`).bind(x.account_id, x.user_id, new Date(base - 5 * 864e5).toISOString(), new Date(base + 5 * 864e5).toISOString(), x.amount || 0).first();
   }
   const f = { brand_id: x.brand_id, account_id: x.account_id || null, user_id: x.user_id || null, ad_id: x.ad_id || null, amount: Math.round((Number(x.amount) || 0) * 100) / 100,
     currency: x.currency || "USD", method: x.method || null, source: x.source, store_id: x.store_id || null, order_id: x.order_id ? String(x.order_id) : null, ref: x.ref || null,
-    status: x.status || "paid", note: x.note || null, customer: x.customer ? JSON.stringify(x.customer) : null, by: x.by || null,
+    status: x.status || "paid", note: x.note || null, customer: x.customer ? JSON.stringify(x.customer) : null, by: x.by || null, at_src: x.at_src || null,
     items: Array.isArray(x.items) && x.items.length ? JSON.stringify(x.items.slice(0, 50).map((i) => ({ name: String(i.name || "").slice(0, 120), qty: Number(i.qty) || 1, price: Number(i.price) || 0 }))) : null };
+  if (row && row.status === "removed") return { ...row, removed: true }; // la quitaste en Ventas: no vuelve a contar
   if (row) {
     // La tienda manda: completa lo que falte y queda como confirmada por la tienda
-    const upd = { ...f, account_id: f.account_id || row.account_id, user_id: f.user_id || row.user_id, ad_id: f.ad_id || row.ad_id, note: f.note || row.note,
+    const upd = { ...f, at_src: row.at_src || f.at_src, account_id: f.account_id || row.account_id, user_id: f.user_id || row.user_id, ad_id: f.ad_id || row.ad_id, note: f.note || row.note,
       method: f.method || row.method, amount: f.amount || row.amount, updated_at: nowIso() };
     const keys = Object.keys(upd);
     await env.DB.prepare(`UPDATE sales SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => upd[k]), row.id).run();
@@ -871,11 +873,72 @@ const caracasDayStartIso = (d) => new Date(Date.parse(`${d || caracasToday()}T00
 const saleOut = (x) => ({ id: x.id, at: x.at, amount: x.amount, currency: x.currency, method: x.method, source: x.source, status: x.status, order_id: x.order_id,
   store: x.store_name || null, note: x.note, ad_id: x.ad_id, by: x.by, customer: parseJson(x.customer, null) });
 async function contactSales(env, accId, userId) {
-  const { results } = await env.DB.prepare("SELECT s.*, st.name AS store_name FROM sales s LEFT JOIN stores st ON st.id = s.store_id WHERE s.account_id = ? AND s.user_id = ? ORDER BY s.at DESC LIMIT 30")
+  const { results } = await env.DB.prepare("SELECT s.*, st.name AS store_name FROM sales s LEFT JOIN stores st ON st.id = s.store_id WHERE s.account_id = ? AND s.user_id = ? AND s.status != 'removed' ORDER BY s.at DESC LIMIT 30")
     .bind(String(accId), String(userId)).all();
   return results;
 }
 /** Estado de pago del cliente según sus ventas (después de registrar o borrar una). */
+/* ---------- Ventas: lista, fechas, duplicados ---------- */
+const sk = (t) => normalize(String(t || "")).replace(/[^a-z0-9]/g, "");
+/** Señales para saber si dos ventas son del mismo cliente: el chat, el @usuario, el nombre o el teléfono. */
+function saleKeys(r) {
+  const k = new Set(), cu = parseJson(r.customer, {}) || {};
+  if (r.user_id) k.add(`u:${r.account_id}:${r.user_id}`);
+  for (const ig of [cu.instagram, r.c_user]) if (sk(ig).length >= 3) k.add("ig:" + sk(ig));
+  for (const n of [cu.name, r.c_name]) if (sk(n).length >= 6) k.add("n:" + sk(n));
+  const ph = String(cu.phone || "").replace(/\D/g, ""); if (ph.length >= 7) k.add("p:" + ph.slice(-7));
+  return k;
+}
+const closeAmount = (a, b) => a.currency === b.currency && Math.abs(a.amount - b.amount) <= Math.max(1, Math.max(a.amount, b.amount) * 0.1);
+/** ¿Pueden ser la misma venta? Distinto origen, monto parecido, mismo cliente y no marcadas como «no es la misma». */
+function maybeSame(a, b) {
+  if (a.id === b.id || a.status !== "paid" || b.status !== "paid") return false;
+  if (a.source === b.source) return false; // dos pedidos de tienda (o dos pagos del chat) son ventas distintas
+  if (a.user_id && b.user_id && (a.user_id !== b.user_id || String(a.account_id) !== String(b.account_id))) return false;
+  const nd = (x) => parseJson(x.not_dup, []);
+  if (nd(a).includes(b.id) || nd(b).includes(a.id)) return false;
+  if (!closeAmount(a, b) || Math.abs(Date.parse(a.at) - Date.parse(b.at)) > 120 * 864e5) return false;
+  const ka = a._k || (a._k = saleKeys(a)), kb = b._k || (b._k = saleKeys(b));
+  for (const x of ka) if (kb.has(x)) return true;
+  return false;
+}
+const SALE_Q = `SELECT s.*, st.name AS store_name, st.kind AS store_kind, c.username AS c_user, c.name AS c_name, c.platform AS c_pf, c.ad_title AS c_ad
+  FROM sales s LEFT JOIN stores st ON st.id = s.store_id LEFT JOIN contacts c ON c.account_id = s.account_id AND c.user_id = s.user_id`;
+const ccsDay = (iso) => new Date(Date.parse(iso) - 4 * 3600e3).toISOString().slice(0, 10);
+function saleRowOut(r, adNames) {
+  const cu = parseJson(r.customer, {}) || {};
+  const who = cu.instagram ? "@" + cu.instagram : r.c_user ? (r.c_pf === "facebook" ? r.c_user : "@" + r.c_user) : cu.name || r.c_name || cu.phone || cu.email || "Cliente";
+  const mg = parseJson(r.merged, null);
+  return { id: r.id, at: r.at, day: ccsDay(r.at), amount: r.amount, currency: r.currency, method: r.method, source: r.source, store: r.store_name || r.by || null, store_kind: r.store_kind || null,
+    order_id: r.order_id, status: r.status, ad_id: r.ad_id, ad_name: r.ad_id ? (adNames && adNames[r.ad_id]) || r.c_ad || "Anuncio " + String(r.ad_id).slice(-6) : null,
+    who, sub: cu.name && cu.instagram ? cu.name : null, note: r.note, acc: r.account_id, user: r.user_id, merged: mg ? { chat: !!mg.row, at: mg.row ? mg.row.at : null } : null };
+}
+/** Une dos ventas en una. La de la tienda se queda (tiene el número de pedido); la del chat aporta la fecha del pago y el anuncio. */
+async function mergeSales(env, keep, drop, fields = {}) {
+  const prev = { at: keep.at, ad_id: keep.ad_id, account_id: keep.account_id, user_id: keep.user_id, method: keep.method, note: keep.note };
+  const clean = drop ? Object.fromEntries(Object.entries(drop).filter(([k]) => !/^(_k|c_|store_name|store_kind)/.test(k))) : fields.chatRow || null;
+  const upd = {
+    at: fields.at || (drop && drop.source === "chat" ? drop.at : (drop && drop.at < keep.at ? drop.at : keep.at)),
+    ad_id: "ad_id" in fields ? fields.ad_id : drop && drop.source === "chat" ? drop.ad_id : keep.ad_id || (drop && drop.ad_id) || null,
+    account_id: keep.account_id || fields.account_id || (drop && drop.account_id) || null, user_id: keep.user_id || fields.user_id || (drop && drop.user_id) || null,
+    method: keep.method || fields.method || (drop && drop.method) || null,
+    note: [keep.note, fields.note || (drop && drop.note)].filter(Boolean).join(" · ").slice(0, 300) || null,
+    merged: JSON.stringify({ row: clean, prev }), at_src: "manual", updated_at: nowIso() };
+  const keys = Object.keys(upd);
+  const st = [env.DB.prepare(`UPDATE sales SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => upd[k]), keep.id)];
+  if (drop) st.push(drop.source === "chat" ? env.DB.prepare("DELETE FROM sales WHERE id = ?").bind(drop.id) : env.DB.prepare("UPDATE sales SET status = 'removed', updated_at = ? WHERE id = ?").bind(nowIso(), drop.id));
+  await env.DB.batch(st);
+  for (const r of [keep, drop, upd]) if (r && r.account_id && r.user_id) await refreshPayState(env, r.account_id, r.user_id);
+  return { ...keep, ...upd };
+}
+/** Busca una venta de la tienda que parezca la misma que el pago que se está marcando en el chat. */
+async function storeTwin(env, brandId, contact, accId, amount, currency, at) {
+  const t = Date.parse(at);
+  const { results } = await env.DB.prepare(`${SALE_Q} WHERE s.brand_id = ? AND s.source = 'store' AND s.status = 'paid' AND s.merged IS NULL AND s.at >= ? AND s.at <= ?
+    AND ABS(s.amount - ?) <= MAX(1, s.amount * 0.1) LIMIT 60`).bind(brandId, new Date(t - 120 * 864e5).toISOString(), new Date(Date.now() + 864e5).toISOString(), amount).all();
+  const me = { id: -1, status: "paid", source: "chat", account_id: String(accId), user_id: contact.user_id, amount, currency, at, customer: null, c_user: contact.username, c_name: contact.name };
+  return results.filter((r) => maybeSame(me, r)).sort((a, b) => Math.abs(Date.parse(a.at) - t) - Math.abs(Date.parse(b.at) - t))[0] || null;
+}
 async function refreshPayState(env, accId, userId) {
   const last = await env.DB.prepare("SELECT at FROM sales WHERE account_id = ? AND user_id = ? AND status = 'paid' ORDER BY at DESC LIMIT 1").bind(String(accId), String(userId)).first();
   const c = await getContact(env, accId, userId);
@@ -913,6 +976,13 @@ const qsParam = (u, k) => { try { return new URL(String(u), "https://x.x").searc
 const methodOf = (t) => { const x = String(t || "").toLowerCase(); return /m[oó]vil/.test(x) ? "pago_movil" : /zelle/.test(x) ? "zelle" : /spidi/.test(x) ? "spidi" : /binance|usdt/.test(x) ? "binance" : /efectivo|cash|cod|contra/.test(x) ? "efectivo" : /transfer|bacs/.test(x) ? "transferencia" : /tarjeta|card|stripe|shopify_payments|paypal|mercado/.test(x) ? "tarjeta" : x ? "otro" : null; };
 
 /** Lleva el pedido de cada plataforma a un formato común. */
+/** Fecha real del pedido que manda la tienda (no la hora en que llegó el aviso). Si no sirve, null y se usa ahora. */
+function orderAt(v) {
+  if (!v) return null;
+  const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? `${v}T12:00:00-04:00` : String(v).replace(/ZZ$/, "Z"));
+  if (!t || t > Date.now() + 10 * 60e3 || t < Date.now() - 400 * 864e5) return null;
+  return new Date(t).toISOString();
+}
 function normalizeOrder(kind, headers, d) {
   if (kind === "shopify") {
     const topic = headers.get("x-shopify-topic") || "";
@@ -921,7 +991,7 @@ function normalizeOrder(kind, headers, d) {
       : topic === "orders/paid" || fin === "paid" ? "paid" : "ignore";
     const na = (d.note_attributes || []).find((x) => /^ref$/i.test(x.name));
     const cu = d.customer || {}, ba = d.billing_address || d.shipping_address || {};
-    return { evt: headers.get("x-shopify-webhook-id") || `${d.id}:${topic}:${fin}`, event, order_id: d.name || String(d.id), total: Number(d.current_total_price || d.total_price || 0),
+    return { evt: headers.get("x-shopify-webhook-id") || `${d.id}:${topic}:${fin}`, event, order_id: d.name || String(d.id), total: Number(d.current_total_price || d.total_price || 0), at: orderAt(d.processed_at || d.created_at),
       currency: d.currency, method: methodOf((d.payment_gateway_names || []).join(" ") || d.gateway), ref: (na && na.value) || qsParam(d.landing_site, "ref"),
       customer: { name: [cu.first_name || ba.first_name, cu.last_name || ba.last_name].filter(Boolean).join(" ") || null, phone: d.phone || cu.phone || ba.phone || null, email: d.email || cu.email || null, instagram: null } };
   }
@@ -931,7 +1001,7 @@ function normalizeOrder(kind, headers, d) {
     const meta = (d.meta_data || []).find((x) => /^_?ref$/i.test(x.key));
     const ig = (d.meta_data || []).find((x) => /instagram/i.test(x.key));
     const bi = d.billing || {};
-    return { evt: `${d.id}:${st}`, event, order_id: d.number || String(d.id), total: Number(d.total || 0), currency: d.currency, method: methodOf(d.payment_method_title || d.payment_method),
+    return { evt: `${d.id}:${st}`, event, order_id: d.number || String(d.id), total: Number(d.total || 0), currency: d.currency, at: orderAt(d.date_paid_gmt ? d.date_paid_gmt + "Z" : d.date_created_gmt ? d.date_created_gmt + "Z" : null), method: methodOf(d.payment_method_title || d.payment_method),
       ref: meta && meta.value, customer: { name: [bi.first_name, bi.last_name].filter(Boolean).join(" ") || null, phone: bi.phone || null, email: bi.email || null, instagram: ig ? String(ig.value) : null } };
   }
   // Otra tienda: formato propio de Feedback
@@ -940,7 +1010,7 @@ function normalizeOrder(kind, headers, d) {
   // order.paid cuenta la venta; payment.created llega junto y solo se registra; webhook.test es una prueba
   const event = e === "webhook.test" || e === "test" || d.test === true ? "test" : e === "order.paid" ? (o.status && !["paid", "completed"].includes(o.status) ? "ignore" : "paid")
     : e === "payment.created" ? "payment" : e === "order.cancelled" ? "cancelled" : "ignore";
-  return { evt: d.id || `${o.id}:${e}`, event, order_id: o.id != null ? String(o.id) : null, total: Number(o.total || 0), currency: o.currency, method: SALE_METHODS.includes(o.payment_method) ? o.payment_method : methodOf(o.payment_method),
+  return { evt: d.id || `${o.id}:${e}`, event, order_id: o.id != null ? String(o.id) : null, total: Number(o.total || 0), currency: o.currency, at: orderAt(o.paid_at || o.created_at || o.date), method: SALE_METHODS.includes(o.payment_method) ? o.payment_method : methodOf(o.payment_method),
     ref: d.ref || null, items: Array.isArray(o.items) ? o.items : [], customer: { name: cu.name || null, phone: cu.phone || null, email: cu.email || null, instagram: cu.instagram ? String(cu.instagram).replace(/^@/, "") : null } };
 }
 
@@ -1026,12 +1096,12 @@ async function processStoreOrder(env, st, n, isTest, ctx) {
   }
   const c = await matchContact(env, st.brand_id, n), refAd = parseRef(n.ref).ad;
   const sale = await recordSale(env, { brand_id: st.brand_id, account_id: c ? String(c.account_id) : null, user_id: c ? c.user_id : null, ad_id: (c && c.ad_id) || refAd || null,
-    amount: n.total, currency: n.currency || "USD", method: n.method, source: "store", store_id: st.id, order_id: n.order_id, ref: n.ref, customer: n.customer, items: n.items, by: st.name });
+    at: n.at || null, at_src: n.at ? "order" : null, amount: n.total, currency: n.currency || "USD", method: n.method, source: "store", store_id: st.id, order_id: n.order_id, ref: n.ref, customer: n.customer, items: n.items, by: st.name });
   let thanked = false;
   if (c) {
     await refreshPayState(env, c.account_id, c.user_id);
     const open = c.last_dm_at && Date.now() - Date.parse(c.last_dm_at) < 24 * 3600e3;
-    if (o.notify_customer && open && !sale.merged && brand) {
+    if (o.notify_customer && open && !sale.merged && !sale.removed && brand) {
       const acc = await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(String(c.account_id)).first();
       // El DM se manda después de responderle a la tienda (debe recibir respuesta en menos de 10 s)
       if (acc) { thanked = true; later(sendAndSave(env, acc, c.user_id, fillVars(brand.opts.pay_thanks, { name: firstName(c.name), username: c.username }), "pago", st.name)); }
@@ -1039,6 +1109,7 @@ async function processStoreOrder(env, st, n, isTest, ctx) {
   }
   const amountTxt = `${n.currency && n.currency !== "USD" ? n.currency + " " : "$"}${fx(n.total, 2)}`;
   await storeLog(env, st.id, 200, EVT_LABEL.paid, `#${n.order_id} · ${amountTxt} · ${who}${c ? ` · cruzado por ${{ ref: "la referencia del botón", usuario: "el @usuario", "teléfono": "el teléfono", correo: "el correo" }[c.by] || c.by}${c.ad_id ? " con su anuncio" : ""}${thanked ? " · se le confirma por DM" : ""}` : refAd ? " · atribuido a su anuncio por la referencia" : " · sin atribuir"}`, n.order_id, true);
+  if (sale.removed) { await storeLog(env, st.id, 200, EVT_LABEL.paid, `#${n.order_id} · la quitaste en Ventas, no se vuelve a contar`, n.order_id, true); return { code: 200, body: { ok: true, removed: true } }; }
   if (brand) later(notifyAll(env, { title: `${brand.name} · Venta ${amountTxt}`, body: `${st.name}: pedido #${n.order_id} de ${who}${c && c.ad_id ? " (vino de un anuncio)" : ""}`, url: "/#conversaciones", tag: `sale:${st.id}:${n.order_id}` },
     { brandId: brand.id, event: "sales" }));
   return { code: 200, body: { ok: true, matched: !!c } };
@@ -3058,15 +3129,139 @@ async function api(req, env, url) {
     const { results } = await env.DB.prepare(sql + " ORDER BY c.last_at DESC LIMIT 60").bind(...binds).all();
     return json(results.map((r) => ({ ...r, tags: parseJson(r.tags, []) })));
   }
+  /* ----- ventas (lista para revisar y corregir) ----- */
+  const salesPerm = () => { if (!can(u, "anuncios") && !can(u, "conversaciones")) need(u, "anuncios"); };
+  const saleById = async (id) => {
+    const r = await env.DB.prepare(`${SALE_Q} WHERE s.id = ?`).bind(+id).first();
+    if (!r) throw httpError(404, "Esta venta ya no existe");
+    needBrand(u, r.brand_id); return r;
+  };
+  const dayIso = (d) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "") || d > caracasToday() || d < addDays(caracasToday(), -400)) throw httpError(400, "Revisa la fecha"); return new Date(Date.parse(`${d}T12:00:00-04:00`)).toISOString(); };
+  const touchPay = async (rows) => { const seen = new Set(); for (const r of rows) if (r && r.account_id && r.user_id && !seen.has(r.account_id + r.user_id)) { seen.add(r.account_id + r.user_id); await refreshPayState(env, r.account_id, r.user_id); } };
+  if (p === "/api/sales" && m === "GET") {
+    salesPerm();
+    const brandId = url.searchParams.get("brand"); needBrand(u, brandId);
+    const brand = await getBrand(env, brandId); if (!brand) return json({ error: "Esta tienda no existe" }, 404);
+    const okDay = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x || "") ? x : null);
+    const to = okDay(url.searchParams.get("to")) || caracasToday(), from = okDay(url.searchParams.get("from")) || addDays(to, -29);
+    const sFrom = caracasDayStartIso(from), sTo = new Date(Date.parse(`${to}T23:59:59.999-04:00`)).toISOString();
+    // Se traen 120 días antes para encontrar la «otra mitad» de un duplicado que quedó fuera del periodo
+    const { results } = await env.DB.prepare(`${SALE_Q} WHERE s.brand_id = ? AND s.status IN ('paid', 'cancelled') AND s.at >= ? AND s.at <= ? ORDER BY s.at DESC LIMIT 4000`)
+      .bind(brandId, new Date(Date.parse(sFrom) - 120 * 864e5).toISOString(), new Date(Math.max(Date.parse(sTo), Date.now()) + 864e5).toISOString()).all();
+    const inR = (r) => r.at >= sFrom && r.at <= sTo;
+    const adNames = {};
+    if (brand.ads && brand.ads.account && brand.ads.token) { try { const live = await adsLive(env, brand); for (const a of Object.values(live.ads)) adNames[a.id] = a.name; } catch {} }
+    const { results: adRows } = await env.DB.prepare("SELECT ad_id, MAX(ad_title) AS t, MAX(last_at) AS l FROM contacts WHERE brand_id = ? AND ad_id IS NOT NULL GROUP BY ad_id ORDER BY l DESC LIMIT 80").bind(brandId).all();
+    for (const r of adRows) if (!adNames[r.ad_id]) adNames[r.ad_id] = r.t || "Anuncio " + String(r.ad_id).slice(-6);
+    // Posibles duplicados: cada venta con su pareja más cercana en fecha
+    const paid = results.filter((r) => r.status === "paid"), used = new Set(), pairs = [];
+    for (const a of paid.filter(inR)) {
+      if (used.has(a.id)) continue;
+      const cands = paid.filter((b) => !used.has(b.id) && maybeSame(a, b)).sort((x, y) => Math.abs(Date.parse(x.at) - Date.parse(a.at)) - Math.abs(Date.parse(y.at) - Date.parse(a.at)));
+      if (cands[0]) { used.add(a.id); used.add(cands[0].id); pairs.push(a.source === "store" ? [a.id, cands[0].id] : [cands[0].id, a.id]); }
+    }
+    const shown = results.filter((r) => inR(r) || used.has(r.id));
+    // Muchas ventas de la tienda el mismo día y con la hora en que llegó el aviso (no la del pedido): suele ser una carga de pedidos viejos
+    const byDay = {};
+    for (const r of shown) if (inR(r) && r.source === "store" && r.status === "paid" && !r.at_src && !r.merged) (byDay[ccsDay(r.at)] ||= []).push(r.id);
+    const bursts = Object.entries(byDay).filter(([, ids]) => ids.length >= 5).map(([day, ids]) => ({ day, n: ids.length, ids })).sort((a, b) => b.n - a.n);
+    const { results: stList } = await env.DB.prepare("SELECT id, name, kind FROM stores WHERE brand_id = ?").bind(brandId).all();
+    return json({ from, to, sales: shown.map((r) => ({ ...saleRowOut(r, adNames), out: !inR(r) })), pairs, bursts, stores: stList,
+      ads: Object.entries(adNames).map(([id, name]) => ({ id, name })), can_edit: can(u, "conversaciones") || can(u, "anuncios") });
+  }
+  mm = p.match(/^\/api\/sales\/(\d+)$/);
+  if (mm && m === "PATCH") {
+    salesPerm();
+    const r = await saleById(mm[1]), b = await body(), set = {};
+    if (b.date) { set.at = dayIso(b.date); set.at_src = "manual"; }
+    if ("ad_id" in b) set.ad_id = b.ad_id ? digits(b.ad_id) || null : null;
+    if (!Object.keys(set).length) return json({ error: "No hay nada que cambiar" }, 400);
+    set.updated_at = nowIso();
+    const keys = Object.keys(set);
+    await env.DB.prepare(`UPDATE sales SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(...keys.map((k) => set[k]), r.id).run();
+    await touchPay([r]);
+    await audit(env, u, set.at ? "Cambió la fecha de una venta" : "Cambió el anuncio de una venta", `${r.amount}${set.at ? " · " + b.date : ""}`, r.brand_id);
+    return json({ ok: true });
+  }
+  if (p === "/api/sales/bulk" && m === "POST") {
+    salesPerm();
+    const b = await body(), ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map((x) => +x).filter((x) => x > 0))].slice(0, 500);
+    if (!ids.length) return json({ error: "Elige al menos una venta" }, 400);
+    const { results: rows } = await env.DB.prepare(`SELECT * FROM sales WHERE id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all();
+    for (const r of rows) needBrand(u, r.brand_id);
+    if (!rows.length) return json({ error: "Esas ventas ya no existen" }, 404);
+    const brandId = rows[0].brand_id, now = nowIso();
+    if (b.action === "date") {
+      const at = dayIso(b.date);
+      await env.DB.batch(rows.map((r) => env.DB.prepare("UPDATE sales SET at = ?, at_src = 'manual', updated_at = ? WHERE id = ?").bind(at, now, r.id)));
+      await touchPay(rows); await audit(env, u, "Cambió la fecha de varias ventas", `${rows.length} · ${b.date}`, brandId);
+      return json({ ok: true, n: rows.length });
+    }
+    if (b.action === "noad") {
+      await env.DB.batch(rows.map((r) => env.DB.prepare("UPDATE sales SET ad_id = NULL, updated_at = ? WHERE id = ?").bind(now, r.id)));
+      await audit(env, u, "Marcó ventas sin anuncio", String(rows.length), brandId);
+      return json({ ok: true, n: rows.length });
+    }
+    if (b.action === "delete") {
+      const tid = await toTrash(env, u, "sale", `${rows.length} venta${rows.length === 1 ? "" : "s"} · $${Math.round(rows.reduce((t, r) => t + r.amount, 0) * 100) / 100}`, brandId, [["sales", `id IN (${rows.map(() => "?").join(",")})`, rows.map((r) => r.id)]]);
+      await env.DB.batch(rows.map((r) => r.source === "chat" ? env.DB.prepare("DELETE FROM sales WHERE id = ?").bind(r.id) : env.DB.prepare("UPDATE sales SET status = 'removed', updated_at = ? WHERE id = ?").bind(now, r.id)));
+      await touchPay(rows); await audit(env, u, "Quitó ventas", String(rows.length), brandId);
+      return json({ ok: true, n: rows.length, trash_id: tid });
+    }
+    return json({ error: "Acción no válida" }, 400);
+  }
+  if (p === "/api/sales/merge" && m === "POST") {
+    salesPerm();
+    const b = await body(), A = await saleById(b.a), B = await saleById(b.b);
+    if (A.brand_id !== B.brand_id) return json({ error: "Son de tiendas distintas" }, 400);
+    if (A.status !== "paid" || B.status !== "paid") return json({ error: "Una de las dos ya no cuenta como venta" }, 400);
+    // Se queda la de la tienda (tiene el número de pedido); si las dos son iguales de origen, la más vieja
+    const [keep, drop] = A.source === "store" && B.source !== "store" ? [A, B] : B.source === "store" && A.source !== "store" ? [B, A] : A.id < B.id ? [A, B] : [B, A];
+    const tid = await toTrash(env, u, "sale", `Unión de ventas · $${keep.amount}`, keep.brand_id, [["sales", "id IN (?, ?)", [keep.id, drop.id]]]);
+    await mergeSales(env, keep, drop);
+    await audit(env, u, "Juntó dos ventas en una", `$${keep.amount}`, keep.brand_id);
+    return json({ ok: true, id: keep.id, trash_id: tid });
+  }
+  mm = p.match(/^\/api\/sales\/(\d+)\/split$/);
+  if (mm && m === "POST") {
+    salesPerm();
+    const r = await saleById(mm[1]), mg = parseJson(r.merged, null);
+    if (!mg) return json({ error: "Esta venta no está unida con otra" }, 400);
+    const pv = mg.prev || {};
+    await env.DB.prepare("UPDATE sales SET at = ?, ad_id = ?, account_id = ?, user_id = ?, method = ?, note = ?, merged = NULL, updated_at = ? WHERE id = ?")
+      .bind(pv.at || r.at, pv.ad_id ?? null, pv.account_id ?? null, pv.user_id ?? null, pv.method ?? null, pv.note ?? null, nowIso(), r.id).run();
+    let other = null;
+    if (mg.row && mg.row.source !== "chat" && mg.row.id) {
+      await env.DB.prepare("UPDATE sales SET status = 'paid', updated_at = ? WHERE id = ?").bind(nowIso(), mg.row.id).run(); other = mg.row.id;
+    } else if (mg.row) {
+      const row = { ...mg.row, status: "paid" }, cols = Object.keys(row).filter((k) => k !== "merged" && k !== "not_dup");
+      const ins = await env.DB.prepare(`INSERT OR REPLACE INTO sales (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`).bind(...cols.map((c) => row[c] ?? null)).run();
+      other = row.id || (ins.meta && ins.meta.last_row_id);
+    }
+    // Quedan marcadas como «no es la misma» para que no vuelva a sugerir juntarlas
+    if (other) await env.DB.batch([env.DB.prepare("UPDATE sales SET not_dup = ? WHERE id = ?").bind(JSON.stringify([other]), r.id), env.DB.prepare("UPDATE sales SET not_dup = ? WHERE id = ?").bind(JSON.stringify([r.id]), other)]);
+    await touchPay([r, pv, mg.row]);
+    await audit(env, u, "Separó una venta unida", `$${r.amount}`, r.brand_id);
+    return json({ ok: true });
+  }
+  if (p === "/api/sales/notdup" && m === "POST") {
+    salesPerm();
+    const b = await body(), A = await saleById(b.a), B = await saleById(b.b);
+    const add = (r, id) => JSON.stringify([...new Set([...parseJson(r.not_dup, []), id])].slice(-50));
+    await env.DB.batch([env.DB.prepare("UPDATE sales SET not_dup = ? WHERE id = ?").bind(add(A, B.id), A.id), env.DB.prepare("UPDATE sales SET not_dup = ? WHERE id = ?").bind(add(B, A.id), B.id)]);
+    return json({ ok: true });
+  }
   mm = p.match(/^\/api\/sales\/(\d+)$/);
   if (mm && m === "DELETE") {
     need(u, "conversaciones");
     const sale = await env.DB.prepare("SELECT * FROM sales WHERE id = ?").bind(+mm[1]).first();
     if (!sale) return json({ error: "Esta venta no existe" }, 404);
     needBrand(u, sale.brand_id);
-    if (sale.source !== "chat") return json({ error: "Esta venta viene de la tienda. Si se canceló, cancélala allá y se descuenta sola." }, 400);
-    const tid = await toTrash(env, u, "sale", `${sale.currency === "VES" ? "Bs " : "$"}${sale.amount}${sale.customer ? " · " + sale.customer : ""}`, sale.brand_id, [["sales", "id = ?", [sale.id]]]);
-    await env.DB.prepare("DELETE FROM sales WHERE id = ?").bind(sale.id).run();
+    const cuName = (() => { const c = parseJson(sale.customer, null); return c ? (c.instagram ? "@" + c.instagram : c.name || "") : ""; })();
+    const tid = await toTrash(env, u, "sale", `${sale.currency === "VES" ? "Bs " : "$"}${sale.amount}${cuName ? " · " + cuName : ""}`, sale.brand_id, [["sales", "id = ?", [sale.id]]]);
+    // La de la tienda queda como «quitada» para que no vuelva a contar si la tienda manda el aviso otra vez
+    if (sale.source === "chat") await env.DB.prepare("DELETE FROM sales WHERE id = ?").bind(sale.id).run();
+    else await env.DB.prepare("UPDATE sales SET status = 'removed', updated_at = ? WHERE id = ?").bind(nowIso(), sale.id).run();
     if (sale.account_id && sale.user_id) await refreshPayState(env, sale.account_id, sale.user_id);
     await audit(env, u, "Quitó un pago marcado", String(sale.amount), sale.brand_id);
     return json({ ok: true, trash_id: tid });
@@ -3129,8 +3324,22 @@ async function api(req, env, url) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date) || b.date > caracasToday() || b.date < addDays(caracasToday(), -366)) return json({ error: "Revisa la fecha del pago" }, 400);
         at = new Date(Date.parse(`${b.date}T12:00:00-04:00`)).toISOString();
       }
-      const sale = await recordSale(env, { at, brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: b.ad_id === "" ? null : (b.ad_id || contact.ad_id || null),
-        amount, currency: /^[A-Z]{3}$/.test(b.currency || "") ? b.currency : "USD", method, source: "chat", ref: contact.ref || null, note: String(b.note || "").slice(0, 300) || null, by: u.name });
+      const currency = /^[A-Z]{3}$/.test(b.currency || "") ? b.currency : "USD", adId = b.ad_id === "" ? null : (b.ad_id || contact.ad_id || null), note = String(b.note || "").slice(0, 300) || null;
+      let sale;
+      if (b.merge_with) {
+        // «Es la misma»: se une a la venta que ya llegó de la tienda en vez de contarla dos veces
+        const tw = await env.DB.prepare("SELECT * FROM sales WHERE id = ? AND brand_id = ? AND status = 'paid'").bind(+b.merge_with, acc.brand_id).first();
+        if (!tw) return json({ error: "Esa venta de la tienda ya no está. Vuelve a intentarlo." }, 404);
+        const chatRow = { brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: adId, amount, currency, method, source: "chat", ref: contact.ref || null, status: "paid", note, by: u.name, at };
+        sale = await mergeSales(env, tw, null, { at, ad_id: adId, method, note, account_id: String(acc.id), user_id: userId, chatRow });
+      } else {
+        if (!b.force && acc.brand_id) {
+          const tw = await storeTwin(env, acc.brand_id, contact, acc.id, amount, currency, at);
+          if (tw) return json({ match: saleRowOut(tw) });
+        }
+        sale = await recordSale(env, { at, brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: adId,
+          amount, currency, method, source: "chat", ref: contact.ref || null, note, by: u.name });
+      }
       await refreshPayState(env, acc.id, userId);
       let warn = null;
       if (b.notify && brand) {
