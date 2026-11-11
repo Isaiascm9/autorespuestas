@@ -907,7 +907,7 @@ const SALE_Q = `SELECT s.*, st.name AS store_name, st.kind AS store_kind, c.user
 const ccsDay = (iso) => new Date(Date.parse(iso) - 4 * 3600e3).toISOString().slice(0, 10);
 function saleRowOut(r, adNames) {
   const cu = parseJson(r.customer, {}) || {};
-  const who = cu.instagram ? "@" + cu.instagram : r.c_user ? (r.c_pf === "facebook" ? r.c_user : "@" + r.c_user) : cu.name || r.c_name || cu.phone || cu.email || "Cliente";
+  const who = cu.instagram ? "@" + cu.instagram : r.c_user ? (r.c_pf === "facebook" ? r.c_user : "@" + r.c_user) : cu.name || r.c_name || cu.phone || cu.email || "Sin cliente";
   const mg = parseJson(r.merged, null);
   return { id: r.id, at: r.at, day: ccsDay(r.at), amount: r.amount, currency: r.currency, method: r.method, source: r.source, store: r.store_name || r.by || null, store_kind: r.store_kind || null,
     order_id: r.order_id, status: r.status, ad_id: r.ad_id, ad_name: r.ad_id ? (adNames && adNames[r.ad_id]) || r.c_ad || "Anuncio " + String(r.ad_id).slice(-6) : null,
@@ -930,6 +930,14 @@ async function mergeSales(env, keep, drop, fields = {}) {
   await env.DB.batch(st);
   for (const r of [keep, drop, upd]) if (r && r.account_id && r.user_id) await refreshPayState(env, r.account_id, r.user_id);
   return { ...keep, ...upd };
+}
+/** Ventas de la tienda sin cliente (sin @, teléfono ni correo) con un monto parecido: pueden ser de este chat. */
+async function storeOrphans(env, brandId, amount, currency, at) {
+  const t = Date.parse(at);
+  const { results } = await env.DB.prepare(`${SALE_Q} WHERE s.brand_id = ? AND s.source = 'store' AND s.status = 'paid' AND s.merged IS NULL AND s.user_id IS NULL AND s.at >= ? AND s.at <= ?
+    AND ABS(s.amount - ?) <= MAX(1, s.amount * 0.1) ORDER BY s.at DESC LIMIT 40`).bind(brandId, new Date(t - 60 * 864e5).toISOString(), new Date(Date.now() + 864e5).toISOString(), amount).all();
+  return results.filter((r) => { const cu = parseJson(r.customer, {}) || {}; return r.currency === currency && !cu.instagram && !cu.phone && !cu.email; })
+    .sort((a, b) => Math.abs(Date.parse(a.at) - t) - Math.abs(Date.parse(b.at) - t)).slice(0, 5);
 }
 /** Busca una venta de la tienda que parezca la misma que el pago que se está marcando en el chat. */
 async function storeTwin(env, brandId, contact, accId, amount, currency, at) {
@@ -3112,7 +3120,7 @@ async function api(req, env, url) {
     const w = brandWhere(u, url.searchParams.get("brand"), "c.brand_id");
     const f = url.searchParams.get("filter"), q = String(url.searchParams.get("q") || "").trim();
     let sql = `SELECT c.account_id, c.user_id, c.brand_id, c.platform, c.username, c.name, c.last_message, c.last_channel, c.last_at, c.messages, c.paused, c.pause_reason,
-      c.last_dm_at, c.closed_at, c.assigned_to, c.unread, c.tags, c.pay_state, c.pay_amount, c.pay_at, b.name AS brand FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE 1 = 1${w.sql}`;
+      c.last_dm_at, c.closed_at, c.assigned_to, c.unread, c.tags, c.pay_state, c.pay_amount, c.pay_at, c.ad_id, c.ad_title, b.name AS brand FROM contacts c LEFT JOIN brands b ON b.id = c.brand_id WHERE 1 = 1${w.sql}`;
     const binds = [...w.binds];
     const FILTERS = { pending: " AND c.paused = 1 AND c.closed_at IS NULL", dm: " AND c.last_dm_at IS NOT NULL", open: " AND c.closed_at IS NULL", closed: " AND c.closed_at IS NOT NULL",
       unread: " AND c.unread > 0", unassigned: " AND c.assigned_to IS NULL AND c.closed_at IS NULL", topay: " AND c.pay_state = 'probable'" };
@@ -3244,6 +3252,24 @@ async function api(req, env, url) {
     await audit(env, u, "Separó una venta unida", `$${r.amount}`, r.brand_id);
     return json({ ok: true });
   }
+  mm = p.match(/^\/api\/sales\/(\d+)\/link$/);
+  if (mm && m === "POST") {
+    // Une una venta (ej. de Tereapp sin @ ni teléfono) con el chat de esa persona: toma su anuncio
+    need(u, "conversaciones");
+    const r = await saleById(mm[1]), b = await body();
+    if (!b.user) {
+      await env.DB.prepare("UPDATE sales SET account_id = NULL, user_id = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), r.id).run();
+      await touchPay([r]); await audit(env, u, "Desvinculó una venta de un chat", `$${r.amount}`, r.brand_id);
+      return json({ ok: true });
+    }
+    const c = await env.DB.prepare("SELECT * FROM contacts WHERE account_id = ? AND user_id = ?").bind(String(b.acc), String(b.user)).first();
+    if (!c || c.brand_id !== r.brand_id) return json({ error: "Ese chat no es de esta tienda" }, 400);
+    const adId = "keep_ad" in b && b.keep_ad ? r.ad_id : c.ad_id || r.ad_id || null;
+    await env.DB.prepare("UPDATE sales SET account_id = ?, user_id = ?, ad_id = ?, updated_at = ? WHERE id = ?").bind(String(c.account_id), c.user_id, adId, nowIso(), r.id).run();
+    await touchPay([r, { account_id: String(c.account_id), user_id: c.user_id }]);
+    await audit(env, u, "Vinculó una venta con un chat", `$${r.amount} · ${c.username || c.name || c.user_id}`, r.brand_id);
+    return json({ ok: true, ad_id: adId, ad_title: c.ad_id ? c.ad_title || null : null, who: c.username ? (c.platform === "facebook" ? c.username : "@" + c.username) : c.name || "Cliente" });
+  }
   if (p === "/api/sales/notdup" && m === "POST") {
     salesPerm();
     const b = await body(), A = await saleById(b.a), B = await saleById(b.b);
@@ -3336,6 +3362,8 @@ async function api(req, env, url) {
         if (!b.force && acc.brand_id) {
           const tw = await storeTwin(env, acc.brand_id, contact, acc.id, amount, currency, at);
           if (tw) return json({ match: saleRowOut(tw) });
+          const orph = await storeOrphans(env, acc.brand_id, amount, currency, at);
+          if (orph.length) return json({ orphans: orph.map((r) => saleRowOut(r)) });
         }
         sale = await recordSale(env, { at, brand_id: acc.brand_id, account_id: String(acc.id), user_id: userId, ad_id: adId,
           amount, currency, method, source: "chat", ref: contact.ref || null, note, by: u.name });
