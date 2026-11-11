@@ -4347,6 +4347,7 @@ function renderHelp() {
     ["Me sale una venta doble (tienda + chat)", "En Ventas se marcan como «Posibles duplicados», pegadas una con la otra. «Juntar en una» deja una sola venta: la de la tienda, con la fecha del pago y el anuncio del chat. Si no eran la misma, «No es la misma» y no te lo vuelve a preguntar."],
     ["Quiero marcar en el chat ventas que ya están en la tienda", "Hazlo normal con «Marcar como pagado». Si ya hay una venta parecida de la tienda para ese cliente, te avisa y eliges «Es la misma: juntar» o «Es otra venta». Así no se cuenta dos veces."],
     ["Registré la venta en Tereapp sin el @ del cliente, ¿cómo la uno con su chat?", "En Ventas, toca «Vincular chat» en esa venta y busca a la persona por nombre o @. Queda unida a su chat y cuenta para el anuncio por el que llegó. También puedes ir a su chat y «Marcar como pagado» con el mismo monto: te muestra las ventas de la tienda sin cliente y eliges «Es esta»."],
+    ["¿Cómo se calcula la ganancia en Ventas?", "Ventas que vinieron por anuncios × tu margen − lo invertido en Meta en esas fechas, más ventas sin anuncio × tu margen (a esas no se les resta publicidad). El margen es el mismo de Anuncios. Las ventas en bolívares se pasan a dólares con la tasa BCV del día."],
     ["¿Quitar una venta la borra de mi tienda?", "No. Solo deja de contar en Feedback y va a la papelera por si te equivocas. Si la tienda manda otra vez el aviso de ese pedido, no vuelve a contar."],
   ];
   const block = (title, list) => `<div class="card"><h2 style="font-size:17px;margin:0 0 4px">${title}</h2>${list.map(([q, a]) => `<details style="border-bottom:1px solid var(--line);padding:14px 0"><summary style="font-weight:700;cursor:pointer">${q}</summary><p class="muted" style="margin:8px 0 0">${a}</p></details>`).join("")}</div>`;
@@ -4390,7 +4391,12 @@ function drawSales() {
   const pairOf = {}; d.pairs.forEach(([a, b]) => { pairOf[a] = { o: b, first: true }; pairOf[b] = { o: a, first: false }; });
   const byId = Object.fromEntries(d.sales.map((s) => [s.id, s]));
   const burstIds = new Set(d.bursts.flatMap((x) => x.ids));
-  const sum = (l) => l.reduce((t, s) => t + (s.currency === "USD" ? s.amount : 0), 0);
+  // Todo en dólares: las ventas en Bs se pasan con la tasa BCV del día
+  const P = d.profit || {}, rate = P.fx && P.fx.usd;
+  const usd = (s) => (s.currency === "USD" ? s.amount : s.currency === "VES" && rate ? s.amount / rate : 0);
+  const sum = (l) => l.reduce((t, s) => t + usd(s), 0);
+  const ves = paid.filter((s) => s.currency === "VES"), vesBs = ves.reduce((t, s) => t + s.amount, 0);
+  const sgn = (n) => (n < 0 ? "−" + money(-n) : money(n));
   const C = { all: paid.length, store: paid.filter((s) => s.source === "store").length, chat: paid.filter((s) => s.source === "chat").length, ad: paid.filter((s) => s.ad_id).length, noad: paid.filter((s) => !s.ad_id).length, dup: d.pairs.length };
   const chip = (k, l) => `<button type="button" class="crm-chip ${VT.f === k ? "on" : ""}" data-vf="${k}" ${k === "dup" && C.dup ? 'style="border-color:#f59e0b;color:#92400e"' : ""}>${l} · ${nf(C[k])}</button>`;
   const storeName = d.stores.length === 1 ? d.stores[0].name : "Tienda online";
@@ -4436,10 +4442,18 @@ function drawSales() {
   const allSel = list.length && list.filter((s) => s.status === "paid").every((s) => VT.sel.has(s.id));
   box.innerHTML = `<div class="card">
     <div class="kpis vt-kpis">
-      <div class="kpi"><div class="l">Vendido</div><div class="v">${money(sum(paid))}</div><div class="s">${nf(paid.length)} pedido${paid.length === 1 ? "" : "s"} · ${fmtD(d.from)}–${fmtD(d.to)}</div></div>
+      <div class="kpi"><div class="l">Vendido</div><div class="v">${money(sum(paid))}</div><div class="s">${nf(paid.length)} pedido${paid.length === 1 ? "" : "s"} · ${fmtD(d.from)}–${fmtD(d.to)}${ves.length ? `<br>${rate ? `incluye Bs ${vesBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })} ≈ ${money(vesBs / rate)} a tasa BCV${P.fx.fecha ? " del " + esc(String(P.fx.fecha).slice(0, 5)) : ""}` : `Bs ${vesBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })} sin convertir (no hay tasa)`}` : ""}</div></div>
       <div class="kpi"><div class="l">Por anuncios</div><div class="v">${money(sum(paid.filter((s) => s.ad_id)))}</div><div class="s">${nf(C.ad)} pedido${C.ad === 1 ? "" : "s"}</div></div>
       <div class="kpi"><div class="l">Sin anuncio</div><div class="v">${money(sum(paid.filter((s) => !s.ad_id)))}</div><div class="s">${nf(C.noad)} pedido${C.noad === 1 ? "" : "s"}</div></div>
-      <div class="kpi"><div class="l">Posibles duplicados</div><div class="v" style="${C.dup ? "color:#b45309" : ""}">${nf(C.dup)}</div><div class="s">${C.dup ? "revísalos abajo" : "ninguno"}</div></div></div>
+      ${(() => {
+        const m = P.margin, adS = sum(paid.filter((s) => s.ad_id)), noS = sum(paid.filter((s) => !s.ad_id)), sp = P.spend || 0;
+        const mBtn = (t) => can("tienda") ? `<button class="linkbtn" id="vtMargin" style="color:var(--accent);font-weight:600;margin:0">${t}</button>` : t;
+        if (m == null) return `<div class="kpi"><div class="l">Ganancia</div><div class="v">—</div><div class="s">${mBtn("Pon tu margen")} para calcularla</div></div>`;
+        const pa = adS * m / 100 - sp, pn = noS * m / 100, tot = pa + pn;
+        const pub = P.spend != null ? `− ${money(sp)} en anuncios` : P.spend_error ? `<span title="${esc(P.spend_error)}">sin el gasto de Meta</span>` : P.ads ? "" : "sin cuenta de Meta: no se resta publicidad";
+        return `<div class="kpi"><div class="l">Ganancia</div><div class="v" style="color:${tot < 0 ? "var(--bad)" : "var(--ok)"}">${sgn(tot)}</div>
+          <div class="s">Anuncios <b style="color:var(--ink)">${sgn(pa)}</b> · Sin anuncio <b style="color:var(--ink)">${sgn(pn)}</b><br>${mBtn(`margen ${m}%`)} ${pub}</div></div>`;
+      })()}</div>
     ${bursts.map((x) => `<div class="vt-warn"><div><b>${nf(x.n)} ventas de ${esc(storeName)} quedaron el mismo día (${fmtD(x.day)}).</b> ¿Son pedidos viejos que cargaste tarde? Selecciónalas y ponles su fecha real.</div>
       <div class="row"><button class="btn small" data-burst="${x.day}">Ver esas ${nf(x.n)}</button><button class="btn small" data-bok="${x.day}">Están bien</button></div></div>`).join("")}
     <div class="crm-flt">${chip("all", "Todas")}${d.stores.length ? chip("store", esc(storeName)) : ""}${chip("chat", "Chat")}${chip("ad", "Con anuncio")}${chip("noad", "Sin anuncio")}${C.dup ? chip("dup", "Posibles duplicados") : ""}${VT.f === "day" ? `<button type="button" class="crm-chip on" data-vf="all">Del ${fmtD(VT.day)} ✕</button>` : ""}</div>
@@ -4511,6 +4525,13 @@ function bindSales() {
     $("vdX").onclick = $("vdNo").onclick = () => dlg.close();
     $("vdOk").onclick = () => { dlg.close(); vtDo(() => api(`/api/sales/${s.id}`, { method: "PATCH", body: { ad_id: $("vdAd").value } }), "Anuncio cambiado"); };
   }));
+  if ($("vtMargin")) $("vtMargin").onclick = () => {
+    const b = curBrand(), dlg = vtDialog(`<form id="mgF"><div class="modal-h"><div><h2>Margen de ganancia</h2><p>Qué parte de cada venta te queda después de pagar el producto y el envío. Es el mismo de Anuncios.</p></div><button type="button" class="icon-btn" id="vdX" aria-label="Cerrar">${ICON.x}</button></div>
+      <div class="modal-b"><label class="f" for="mgV">Margen (%)</label><input id="mgV" inputmode="numeric" value="${d.profit.margin ?? ""}" placeholder="Ej: 60"><div class="help">Si vendes a $10 y el producto te cuesta $4, tu margen es 60%. Ganancia = ventas × margen − lo invertido en anuncios.</div><div class="small" id="mgOut"></div></div>
+      <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="vdNo">Cancelar</button><button class="btn primary">Guardar</button></div></div></form>`);
+    $("vdX").onclick = $("vdNo").onclick = () => dlg.close();
+    $("mgF").onsubmit = async (e) => { e.preventDefault(); try { await api(`/api/ads/${b.id}`, { method: "PUT", body: { margin: $("mgV").value } }); dlg.close(); await loadData(); loadSales(); } catch (er) { $("mgOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; } };
+  };
   box.querySelectorAll("[data-link]").forEach((x) => (x.onclick = () => vtLink(d.sales.find((z) => z.id === +x.dataset.link))));
   box.querySelectorAll("[data-merge]").forEach((x) => (x.onclick = () => { const [a, b] = x.dataset.merge.split("|"); vtDo(() => api("/api/sales/merge", { method: "POST", body: { a: +a, b: +b } }), "Juntadas en una sola venta"); }));
   box.querySelectorAll("[data-nodup]").forEach((x) => (x.onclick = () => { const [a, b] = x.dataset.nodup.split("|"); vtDo(() => api("/api/sales/notdup", { method: "POST", body: { a: +a, b: +b } }), "Listo: quedan como dos ventas distintas"); }));
