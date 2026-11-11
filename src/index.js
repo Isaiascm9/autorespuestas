@@ -3174,7 +3174,13 @@ async function api(req, env, url) {
     for (const r of shown) if (inR(r) && r.source === "store" && r.status === "paid" && !r.at_src && !r.merged) (byDay[ccsDay(r.at)] ||= []).push(r.id);
     const bursts = Object.entries(byDay).filter(([, ids]) => ids.length >= 5).map(([day, ids]) => ({ day, n: ids.length, ids })).sort((a, b) => b.n - a.n);
     const { results: stList } = await env.DB.prepare("SELECT id, name, kind FROM stores WHERE brand_id = ?").bind(brandId).all();
-    return json({ from, to, sales: shown.map((r) => ({ ...saleRowOut(r, adNames), out: !inR(r) })), pairs, bursts, stores: stList,
+    // Ganancia: margen de la tienda, lo invertido en Meta en estas fechas y la tasa BCV para las ventas en Bs
+    let spend = null, spendError = null;
+    if (brand.ads && brand.ads.account && brand.ads.token) { try { const ad = await adsFetch(env, brand, from, to, false); spend = Math.round(sumM(ad.ads).spend * 100) / 100; } catch (e) { spendError = errText(e); } }
+    const fx = await fxRate(env).catch(() => null);
+    const profit = { margin: brand.ads && brand.ads.margin != null ? brand.ads.margin : null, spend, spend_error: spendError, ads: !!(brand.ads && brand.ads.account && brand.ads.token),
+      fx: fx && fx.usd ? { usd: fx.usd, fecha: fx.fecha, stale: !!fx.stale } : null };
+    return json({ from, to, profit, sales: shown.map((r) => ({ ...saleRowOut(r, adNames), out: !inR(r) })), pairs, bursts, stores: stList,
       ads: Object.entries(adNames).map(([id, name]) => ({ id, name })), can_edit: can(u, "conversaciones") || can(u, "anuncios") });
   }
   mm = p.match(/^\/api\/sales\/(\d+)$/);
