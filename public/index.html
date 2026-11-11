@@ -604,6 +604,38 @@ a.btn.primary{color:#fff}
 .ficha .tag{display:inline-flex;align-items:center;gap:4px;background:#ede9fe;color:#5b21b6;border-radius:99px;padding:2px 4px 2px 10px;font-size:12px;font-weight:600}
 .ficha .tag button{border:0;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .ficha .tags input{width:110px;padding:3px 8px;font-size:12.5px;border-radius:99px}
+/* ventas */
+.vt-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:0 0 12px}
+.vt-warn{background:var(--warn-soft);border:1px solid var(--warn-line);color:var(--warn-ink);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px}
+.vt-warn .row{gap:6px;flex:none}
+.vt-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px;position:sticky;top:8px;z-index:3}
+.vt-list{border-top:1px solid var(--line)}
+.vt-r{display:grid;grid-template-columns:26px 92px minmax(120px,1.3fr) 96px minmax(130px,1fr) minmax(110px,1fr) 236px;gap:10px;align-items:center;padding:9px 6px;border-bottom:1px solid var(--line);font-size:13.5px}
+.vt-r.h{font-size:12px;color:var(--muted);font-weight:600;padding:8px 6px}
+.vt-r.dup{background:#fff8eb;box-shadow:inset 3px 0 0 #f59e0b}
+.vt-r.off{opacity:.6}
+.vt-r.sel{background:var(--accent-soft)}
+.vt-ck input{width:16px;height:16px;margin:0}
+.vt-date{border:1px dashed var(--line2);border-radius:6px;padding:3px 7px;font:inherit;font-size:13px;background:#fff;cursor:pointer;white-space:nowrap;justify-self:start}
+.vt-date.bad{border-color:#f59e0b;background:var(--warn-soft)}
+.vt-date-in{font:inherit;font-size:13px;padding:3px 4px;width:100%}
+.vt-who{min-width:0}.vt-who b{font-weight:600;overflow-wrap:anywhere}.vt-who .vt-sub{display:block;font-size:12px;color:var(--muted)}
+.vt-who a{color:inherit;text-decoration:none}.vt-who a:hover{text-decoration:underline}
+.vt-dupl{font-size:11.5px;color:var(--warn-ink);font-weight:600;margin-top:2px}
+.vt-amt{font-weight:700;white-space:nowrap}
+.vt-src{display:flex;gap:4px;flex-wrap:wrap}
+.pill.vt-st{background:var(--accent-soft);color:var(--accent)}.pill.vt-chat{background:#eef6ff;color:#1d4ed8}
+.vt-ad{border:0;background:none;padding:0;font:inherit;font-size:13px;text-align:left;cursor:pointer;color:var(--ink2);overflow-wrap:anywhere}.vt-ad.none{color:var(--muted)}.vt-ad:hover{text-decoration:underline}
+.vt-act{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.vt-act .btn{white-space:nowrap}
+.vt-match{border:1px solid var(--warn-line);background:var(--warn-soft);border-radius:10px;padding:10px 12px}
+.vt-mrow{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0}
+@media (max-width:820px){
+  .vt-kpis{grid-template-columns:1fr 1fr}
+  .vt-r{grid-template-columns:26px 1fr auto;grid-template-areas:"ck who amt" ". date src" ". ad ad" ". act act";row-gap:6px}
+  .vt-r.h{display:none}
+  .vt-r>.vt-ck{grid-area:ck}.vt-r>.vt-date{grid-area:date}.vt-r>.vt-who{grid-area:who}.vt-r>.vt-amt{grid-area:amt}.vt-r>.vt-src{grid-area:src;justify-content:flex-end}.vt-r>.vt-ad{grid-area:ad}.vt-r>.vt-act{grid-area:act;justify-content:flex-start}
+}
 /* embudo de clientes */
 .crm-kpis{margin:6px 0 12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.crm-kpis .v small{font-size:12px;color:var(--ok);font-weight:700;margin-left:4px}
 .crm-flt{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
@@ -1375,7 +1407,7 @@ $("setupForm").addEventListener("submit", (e) => {
 $("logoutBtn").onclick = async () => { if (!guard()) return; setDirty(false); await api("/api/logout", { method: "POST" }).catch(() => {}); showAuth({}); };
 
 /* ================= navegación ================= */
-const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", embudo: "Clientes", agenda: "Agenda", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios",
+const VIEWS = { inicio: "Inicio", conversaciones: "Conversaciones", embudo: "Clientes", agenda: "Agenda", asistentes: "Asistentes", catalogo: "Catálogo", metricas: "Métricas", anuncios: "Anuncios", ventas: "Ventas",
   clientes: "Clientes y cobros", plan: "Plan y uso", planes: "Planes", papelera: "Papelera", bienvenida: "Configuración guiada", integraciones: "Integraciones", equipo: "Equipo", configuracion: "Configuración", tiendas: "Tiendas", perfil: "Mi perfil", guia: "Guía", ayuda: "Ayuda" };
 // rutas viejas → nuevas (enlaces guardados y notificaciones)
 const ALIAS = { "redes/cuentas": "integraciones", cuentas: "integraciones", redes: "asistentes", "redes/catalogo": "catalogo", "redes/historias": "catalogo/historias",
@@ -1384,7 +1416,7 @@ const ASSIST_PERM = ["prompts", "reglas", "tienda", "catalogo"];
 const anyCan = (list) => list.some((p) => can(p));
 const VIEW_OK = {
   inicio: () => true, conversaciones: () => can("conversaciones"), agenda: () => can("conversaciones") && S.brands.length > 0, embudo: () => can("conversaciones") && S.brands.length > 0, asistentes: () => anyCan(ASSIST_PERM), catalogo: () => can("catalogo"),
-  metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
+  metricas: () => anyCan(["resumen", "estadisticas", "actividad"]), anuncios: () => isMaestro() || can("anuncios"), ventas: () => (isMaestro() || can("anuncios") || can("conversaciones")) && S.brands.length > 0, clientes: () => isMaestro(), integraciones: () => isMaestro() || S.brands.length > 0,
   equipo: () => isMaestro() || can("equipo"), planes: () => isMaestro(), papelera: () => isMaestro(), plan: () => S.brands.length > 0, bienvenida: () => can("prompts") && can("tienda"), configuracion: () => anyCan(["tienda", "prompts"]) || isMaestro(), tiendas: () => true, perfil: () => true, guia: () => true, ayuda: () => true,
 };
 const viewOk = (v) => !!(VIEW_OK[v] && VIEW_OK[v]());
@@ -1425,6 +1457,7 @@ const NI = {
   bag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
   ads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a2 2 0 0 0 2 2h1l4 4V5L6 9H5a2 2 0 0 0-2 2z"/><path d="M15 8a5 5 0 0 1 0 8"/><path d="M18 5a9 9 0 0 1 0 14"/></svg>',
   tiers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5z"/><path d="m2 13 10 5 10-5"/><path d="m2 18 10 5 10-5" opacity=".5"/></svg>',
+  receipt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
   money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
   plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><circle cx="12" cy="17.5" r=".6" fill="currentColor"/></svg>',
@@ -1456,7 +1489,7 @@ function renderNav() {
       + item("embudo", NI.funnel, "Clientes")
       + item("agenda", NI.cal, "Agenda", (() => { const b = curBrand(); const n = b && AG.d && AG.brand === b.id ? AG.d.pending.length : 0; return n ? `<span class="cnt" style="background:#f59e0b">${n}</span>` : ""; })())
       + item("asistentes", NI.bot, "Asistentes") + item("catalogo", NI.bag, "Catálogo"))
-    + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()))
+    + group("Resultados", item("metricas", ICON.chart, "Métricas") + item("anuncios", NI.ads, "Anuncios", (() => { const b = curBrand(); return b && b.ads && b.ads.pro ? '<span class="prog">PRO</span>' : ""; })()) + item("ventas", NI.receipt, "Ventas"))
     + group("Mi negocio", item("clientes", NI.money, "Clientes y cobros", S.leadsNew ? `<span class="cnt">${S.leadsNew}</span>` : ""))
     + group("Ajustes", item("integraciones", NI.plug, "Integraciones", isMaestro() && accIssues ? flag : "") + item("equipo", ICON.users, isMaestro() ? "Equipo" : "Mi equipo") + item("planes", NI.tiers, "Planes") + item("papelera", ICON.trash, "Papelera")
       + item("plan", NI.card, isMaestro() ? "Plan y uso" : "Mi plan", (() => { const b = curBrand(); return b && b.bill_state && b.bill_state.cls === "bad" ? flag : ""; })()) + item("configuracion", ICON.gear, "Configuración", isMaestro() && cfgIssue ? flag : "") + item("guia", NI.guide, "Guía", (() => { const b = curBrand(); if (!b) return ""; const g = guideFor(b); return `<span class="prog">${g.done}/${g.total}</span>`; })()) + item("ayuda", NI.help, "Ayuda"));
@@ -1532,7 +1565,7 @@ function render() {
   const r = rest || [];
   ({
     inicio: () => renderHome(), conversaciones: () => renderInbox(), embudo: () => renderCrm(r[0]), agenda: () => renderAgenda(r[0]), asistentes: () => renderAssistants(r[0], r[1]), catalogo: () => renderCatalogPage(r[0]),
-    metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
+    metricas: () => renderMetrics(r[0]), anuncios: () => renderAds(), ventas: () => renderSales(), clientes: () => renderClients(r[0]), integraciones: () => (r[0] === "tienda" && r[1] ? renderStoreConn(r[1]) : renderIntegrations()),
     equipo: () => (isMaestro() ? renderUsers() : renderMyTeam()), plan: () => renderPlan(), planes: () => renderPlanes(r[0]), papelera: () => renderTrash(), bienvenida: () => renderWizard(r[0]), configuracion: () => renderStoreConfigPage(r[0]), tiendas: () => renderStores(), perfil: () => renderProfile(),
     guia: () => renderGuide(), ayuda: () => renderHelp(),
   })[view]();
@@ -3030,13 +3063,25 @@ async function openPaid(d, sel) {
   setTimeout(() => $("pdA").focus(), 50);
   $("pdX").onclick = $("pdCancel").onclick = () => dlg.close();
   $("pdM").querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { method = b.dataset.m; $("pdM").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("pdF").onsubmit = async (e) => {
-    e.preventDefault(); $("pdS").disabled = true;
+  const send = async (extra = {}) => {
+    $("pdS").disabled = true;
     try {
-      const r = await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/paid`, { method: "POST", body: { amount: $("pdA").value, currency: $("pdC").value, method, ad_id: $("pdAd").value, note: $("pdN").value, notify: $("pdT").checked, date: $("pdD").value } });
-      dlg.close(); toast(r.warn ? "Pago registrado. " + r.warn : "Pago registrado ✓", r.warn ? 7000 : 3000); loadThread(); loadInboxList(true);
+      const r = await api(`/api/conversations/${sel.acc}/${encodeURIComponent(sel.user)}/paid`, { method: "POST", body: { amount: $("pdA").value, currency: $("pdC").value, method, ad_id: $("pdAd").value, note: $("pdN").value, notify: $("pdT").checked, date: $("pdD").value, ...extra } });
+      if (r.match) {
+        // Ya llegó una venta parecida de la tienda: se pregunta antes de contarla dos veces
+        const x = r.match;
+        $("pdOut").innerHTML = `<div class="vt-match"><b>Esta venta ya parece estar en ${esc(x.store || "tu tienda online")}</b>
+          <div class="vt-mrow"><span>${esc(x.store || "Tienda")}${x.order_id ? " #" + esc(x.order_id) : ""} · <b>${vtMoney(x)}</b> · ${fmtD(x.day)}</span><span class="muted">${esc(x.who)}</span></div>
+          <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn small primary" id="pdJoin">Es la misma: juntar</button><button type="button" class="btn small" id="pdOther">Es otra venta</button></div>
+          <div class="help" style="margin:6px 0 0">Si la juntas queda una sola venta, con la fecha y el anuncio que elegiste aquí.</div></div>`;
+        $("pdJoin").onclick = () => send({ merge_with: x.id });
+        $("pdOther").onclick = () => send({ force: true });
+        $("pdS").disabled = false; return;
+      }
+      dlg.close(); toast(r.warn ? "Pago registrado. " + r.warn : extra.merge_with ? "Pago unido a la venta de la tienda ✓" : "Pago registrado ✓", r.warn ? 7000 : 3000); loadThread(); loadInboxList(true);
     } catch (er) { $("pdOut").innerHTML = `<span style="color:var(--bad)">${esc(er.message)}</span>`; $("pdS").disabled = false; }
   };
+  $("pdF").onsubmit = (e) => { e.preventDefault(); send(); };
 }
 function openConversation(acc, user) { (S.inbox ||= { filter: "open", q: "", brand: S.selBrand || "", sel: null, reason: "", platform: "", ficha: innerWidth > 1250 }).sel = { acc, user }; S.inbox.filter = "all"; S.inbox.reason = ""; S.inbox.platform = ""; if (S.route === "conversaciones") renderInbox(); else go("conversaciones"); }
 
@@ -4283,8 +4328,174 @@ function renderHelp() {
     ["¿Y los fines de semana?", "Se usa la última tasa (la del viernes, que es la misma del lunes). Si pasan más de 4 días sin cambiar, el bot no da montos en bolívares (dice que lo confirma) y te avisa."],
     ["¿Puedo cobrar un poco por encima de la tasa?", "Sí: en «Ajuste sobre la tasa» pon el porcentaje. También puedes redondear a la unidad o a la decena."],
   ];
+  const ventas = [
+    ["¿Qué es «Ventas»?", "La lista de todas las ventas que cuentan en tus números: las que llegan de tu tienda online (por ejemplo Tereapp) y los pagos que marcas en el chat. De ahí salen «Vendido por anuncios», «Ventas sin anuncio», el ROAS y la ganancia en Anuncios."],
+    ["Cargué pedidos viejos y quedaron todos con la fecha de hoy", "Ve a Ventas: arriba sale un aviso con las ventas que llegaron el mismo día. Toca «Ver esas», quedan seleccionadas, y con «Cambiar fecha…» les pones su día real. Si cada una es de un día distinto, toca la fecha en su fila. Los pedidos nuevos ya llegan con la fecha que manda la tienda."],
+    ["Me sale una venta doble (tienda + chat)", "En Ventas se marcan como «Posibles duplicados», pegadas una con la otra. «Juntar en una» deja una sola venta: la de la tienda, con la fecha del pago y el anuncio del chat. Si no eran la misma, «No es la misma» y no te lo vuelve a preguntar."],
+    ["Quiero marcar en el chat ventas que ya están en la tienda", "Hazlo normal con «Marcar como pagado». Si ya hay una venta parecida de la tienda para ese cliente, te avisa y eliges «Es la misma: juntar» o «Es otra venta». Así no se cuenta dos veces."],
+    ["¿Quitar una venta la borra de mi tienda?", "No. Solo deja de contar en Feedback y va a la papelera por si te equivocas. Si la tienda manda otra vez el aviso de ese pedido, no vuelve a contar."],
+  ];
   const block = (title, list) => `<div class="card"><h2 style="font-size:17px;margin:0 0 4px">${title}</h2>${list.map(([q, a]) => `<details style="border-bottom:1px solid var(--line);padding:14px 0"><summary style="font-weight:700;cursor:pointer">${q}</summary><p class="muted" style="margin:8px 0 0">${a}</p></details>`).join("")}</div>`;
-  $("tabBody").innerHTML = block("General", faq) + block("Clientes (embudo)", crm) + block("Precios en bolívares", fx) + block("Agenda de citas", agenda);
+  $("tabBody").innerHTML = block("General", faq) + block("Ventas", ventas) + block("Clientes (embudo)", crm) + block("Precios en bolívares", fx) + block("Agenda de citas", agenda);
+}
+
+/* ================= VENTAS ================= */
+const VT = { days: 30, f: "all", q: "", day: "", sel: new Set(), d: null, brand: null };
+const vtMoney = (s) => (s.currency === "VES" ? "Bs " : s.currency && s.currency !== "USD" ? s.currency + " " : "$") + Number(s.amount || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const vtAdd = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+const vtMethod = (k) => (PAY_METHODS.find((x) => x[0] === k) || [k, k])[1];
+const vtSeen = (b, day) => { try { return localStorage.getItem(`vtb:${b}:${day}`) === "1"; } catch { return false; } };
+
+async function renderSales() {
+  const b = curBrand();
+  shell({ title: "Ventas", sub: "Todas las ventas que cuentan en tus números: las de tu tienda online y los pagos marcados en el chat. Aquí les corriges la fecha, juntas las que están dobles o las quitas.", base: "ventas",
+    head: `<div class="row" style="gap:8px"><div class="search" style="min-width:190px">${ICON.search}<input id="vtQ" type="search" placeholder="Buscar cliente o monto…" value="${esc(VT.q)}"></div>
+      <select id="vtDays" style="width:auto">${[[7, "Últimos 7 días"], [30, "Últimos 30 días"], [90, "Últimos 90 días"], [365, "Último año"]].map(([v, l]) => `<option value="${v}" ${VT.days === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` });
+  const box = $("tabBody");
+  if (!b) { box.innerHTML = `<div class="card empty">Primero crea una tienda.</div>`; return; }
+  if (VT.brand !== b.id) { VT.sel.clear(); VT.f = "all"; VT.day = ""; VT.d = null; }
+  $("vtDays").onchange = (e) => { VT.days = +e.target.value; VT.sel.clear(); if (VT.f === "day") VT.f = "all"; loadSales(); };
+  $("vtQ").oninput = (e) => { VT.q = e.target.value; drawSales(); };
+  if (!VT.d) box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
+  loadSales();
+}
+async function loadSales() {
+  const b = curBrand(), box = $("tabBody"); if (!b || !box) return;
+  const to = todayCcs(), from = vtAdd(to, -(VT.days - 1));
+  let d; try { d = await api(`/api/sales?${new URLSearchParams({ brand: b.id, from, to })}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  if (S.view !== "ventas" || curBrand() !== b) return;
+  VT.d = d; VT.brand = b.id;
+  const ids = new Set(d.sales.map((x) => x.id)); for (const x of [...VT.sel]) if (!ids.has(x)) VT.sel.delete(x);
+  renderAdsCached = null;
+  drawSales();
+}
+function drawSales() {
+  const box = $("tabBody"), d = VT.d; if (!box || !d) return;
+  const y = scrollY;
+  const inR = d.sales.filter((s) => !s.out), paid = inR.filter((s) => s.status === "paid");
+  const pairOf = {}; d.pairs.forEach(([a, b]) => { pairOf[a] = { o: b, first: true }; pairOf[b] = { o: a, first: false }; });
+  const byId = Object.fromEntries(d.sales.map((s) => [s.id, s]));
+  const burstIds = new Set(d.bursts.flatMap((x) => x.ids));
+  const sum = (l) => l.reduce((t, s) => t + (s.currency === "USD" ? s.amount : 0), 0);
+  const C = { all: paid.length, store: paid.filter((s) => s.source === "store").length, chat: paid.filter((s) => s.source === "chat").length, ad: paid.filter((s) => s.ad_id).length, noad: paid.filter((s) => !s.ad_id).length, dup: d.pairs.length };
+  const chip = (k, l) => `<button type="button" class="crm-chip ${VT.f === k ? "on" : ""}" data-vf="${k}" ${k === "dup" && C.dup ? 'style="border-color:#f59e0b;color:#92400e"' : ""}>${l} · ${nf(C[k])}</button>`;
+  const storeName = d.stores.length === 1 ? d.stores[0].name : "Tienda online";
+  // Filtro
+  const q = normalize(VT.q);
+  const pass = (s) => {
+    if (VT.f === "store" && s.source !== "store") return false;
+    if (VT.f === "chat" && s.source !== "chat") return false;
+    if (VT.f === "ad" && !s.ad_id) return false;
+    if (VT.f === "noad" && s.ad_id) return false;
+    if (VT.f === "dup" && !pairOf[s.id]) return false;
+    if (VT.f === "day" && !(s.day === VT.day && s.source === "store")) return false;
+    if (q && !normalize([s.who, s.sub, s.order_id, s.note, s.store, s.ad_name, String(s.amount).replace(".", ","), String(s.amount)].join(" ")).includes(q)) return false;
+    return true;
+  };
+  // Orden: más recientes primero; cada posible duplicado va pegado a su pareja
+  const list = [], done = new Set();
+  for (const s of d.sales) {
+    if (done.has(s.id) || s.out && !pairOf[s.id]) continue;
+    const pr = pairOf[s.id];
+    if (pr) { const a = pr.first ? s : byId[pr.o], b = pr.first ? byId[pr.o] : s; if (a && b && (pass(a) || pass(b))) { list.push(a, b); } done.add(a.id); done.add(b.id); continue; }
+    done.add(s.id); if (pass(s)) list.push(s);
+  }
+  const bursts = d.bursts.filter((x) => !vtSeen(VT.brand, x.day));
+  const selList = [...VT.sel].map((id) => byId[id]).filter(Boolean);
+  const row = (s) => {
+    const pr = pairOf[s.id], sel = VT.sel.has(s.id), off = s.status !== "paid";
+    const src = s.source === "store" ? `<span class="pill vt-st">${esc(s.store || "Tienda")}${s.order_id ? " #" + esc(s.order_id) : ""}</span>` : `<span class="pill vt-chat">Chat${s.method ? " · " + esc(vtMethod(s.method)) : ""}</span>`;
+    const who = s.acc && s.user ? `<a href="#conversaciones" data-open="${esc(s.acc)}|${esc(s.user)}">${esc(s.who)}</a>` : esc(s.who);
+    const acts = off ? `<span class="pill gray">Cancelada</span>`
+      : pr && pr.first ? `<button class="btn small primary" data-merge="${s.id}|${pr.o}">Juntar en una</button><button class="btn small" data-nodup="${s.id}|${pr.o}">No es la misma</button>`
+      : s.merged ? `<button class="btn small" data-split="${s.id}">Separar</button><button class="btn small danger" data-del="${s.id}">Quitar</button>`
+      : `<button class="btn small danger" data-del="${s.id}">Quitar</button>`;
+    return `<div class="vt-r ${pr ? "dup" : ""} ${off ? "off" : ""} ${sel ? "sel" : ""}">
+      <label class="vt-ck"><input type="checkbox" data-ck="${s.id}" ${sel ? "checked" : ""} ${off ? "disabled" : ""} aria-label="Elegir venta"></label>
+      <button type="button" class="vt-date ${burstIds.has(s.id) && !vtSeen(VT.brand, s.day) ? "bad" : ""}" data-date="${s.id}" title="Cambiar la fecha" ${off ? "disabled" : ""}>${fmtD(s.day)} ✎</button>
+      <div class="vt-who"><b>${who}</b>${s.sub ? `<span class="vt-sub">${esc(s.sub)}</span>` : ""}${pr && pr.first ? `<div class="vt-dupl">⚠ Parece la misma venta que la de abajo</div>` : ""}${s.out ? `<span class="vt-sub">Fuera del periodo elegido</span>` : ""}</div>
+      <div class="vt-amt">${vtMoney(s)}</div>
+      <div class="vt-src">${src}${s.merged ? `<span class="pill vt-chat" title="Unida con el pago marcado en el chat">+ chat ✓</span>` : ""}</div>
+      <button type="button" class="vt-ad ${s.ad_id ? "" : "none"}" data-ad="${s.id}" title="Cambiar el anuncio" ${off ? "disabled" : ""}>${s.ad_id ? esc(s.ad_name) : "Sin anuncio"} ✎</button>
+      <div class="vt-act">${acts}</div></div>`;
+  };
+  const allSel = list.length && list.filter((s) => s.status === "paid").every((s) => VT.sel.has(s.id));
+  box.innerHTML = `<div class="card">
+    <div class="kpis vt-kpis">
+      <div class="kpi"><div class="l">Vendido</div><div class="v">${money(sum(paid))}</div><div class="s">${nf(paid.length)} pedido${paid.length === 1 ? "" : "s"} · ${fmtD(d.from)}–${fmtD(d.to)}</div></div>
+      <div class="kpi"><div class="l">Por anuncios</div><div class="v">${money(sum(paid.filter((s) => s.ad_id)))}</div><div class="s">${nf(C.ad)} pedido${C.ad === 1 ? "" : "s"}</div></div>
+      <div class="kpi"><div class="l">Sin anuncio</div><div class="v">${money(sum(paid.filter((s) => !s.ad_id)))}</div><div class="s">${nf(C.noad)} pedido${C.noad === 1 ? "" : "s"}</div></div>
+      <div class="kpi"><div class="l">Posibles duplicados</div><div class="v" style="${C.dup ? "color:#b45309" : ""}">${nf(C.dup)}</div><div class="s">${C.dup ? "revísalos abajo" : "ninguno"}</div></div></div>
+    ${bursts.map((x) => `<div class="vt-warn"><div><b>${nf(x.n)} ventas de ${esc(storeName)} quedaron el mismo día (${fmtD(x.day)}).</b> ¿Son pedidos viejos que cargaste tarde? Selecciónalas y ponles su fecha real.</div>
+      <div class="row"><button class="btn small" data-burst="${x.day}">Ver esas ${nf(x.n)}</button><button class="btn small" data-bok="${x.day}">Están bien</button></div></div>`).join("")}
+    <div class="crm-flt">${chip("all", "Todas")}${d.stores.length ? chip("store", esc(storeName)) : ""}${chip("chat", "Chat")}${chip("ad", "Con anuncio")}${chip("noad", "Sin anuncio")}${C.dup ? chip("dup", "Posibles duplicados") : ""}${VT.f === "day" ? `<button type="button" class="crm-chip on" data-vf="all">Del ${fmtD(VT.day)} ✕</button>` : ""}</div>
+    ${selList.length ? `<div class="vt-bulk"><b>${nf(selList.length)} seleccionada${selList.length === 1 ? "" : "s"}</b><span class="muted">· ${money(sum(selList))}</span>
+      <button class="btn small" id="vtBDate">Cambiar fecha…</button><button class="btn small" id="vtBNoad">Marcar «sin anuncio»</button><button class="btn small danger" id="vtBDel">Quitar</button><button class="btn small" id="vtBClr">Deseleccionar</button></div>` : ""}
+    ${list.length ? `<div class="vt-list"><div class="vt-r h"><label class="vt-ck"><input type="checkbox" id="vtAll" ${allSel ? "checked" : ""} aria-label="Elegir todas"></label><span>Fecha</span><span>Cliente</span><span>Monto</span><span>Viene de</span><span>Anuncio</span><span></span></div>${list.map(row).join("")}</div>`
+      : `<div class="empty">${d.sales.length ? "Nada coincide con el filtro." : "No hay ventas en este periodo. Llegan solas de tu tienda online o cuando marcas un pago en Conversaciones."}</div>`}
+    <p class="small muted" style="margin:10px 0 0">«Quitar» va a la papelera y se puede deshacer. Quitar una venta de la tienda aquí no la borra allá: solo deja de contar en Feedback. Toca la fecha o el anuncio para cambiarlos.</p></div>`;
+  scrollTo(0, y);
+  bindSales();
+}
+function vtDialog(html) {
+  let dlg = $("vtDlg"); if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "vtDlg"; dlg.className = "modal"; document.body.appendChild(dlg); }
+  dlg.innerHTML = html; dlg.showModal(); return dlg;
+}
+async function vtDo(fn, okMsg) { try { const r = await fn(); if (okMsg) r && r.trash_id ? undoToast(okMsg, r.trash_id, loadSales) : toast(okMsg); await loadSales(); return r; } catch (e) { toast(e.message, 6000); } }
+function bindSales() {
+  const box = $("tabBody"), d = VT.d;
+  box.querySelectorAll("[data-vf]").forEach((x) => (x.onclick = () => { VT.f = x.dataset.vf; drawSales(); }));
+  box.querySelectorAll("[data-burst]").forEach((x) => (x.onclick = () => { VT.f = "day"; VT.day = x.dataset.burst; (d.bursts.find((b) => b.day === VT.day) || { ids: [] }).ids.forEach((id) => VT.sel.add(id)); drawSales(); }));
+  box.querySelectorAll("[data-bok]").forEach((x) => (x.onclick = () => { try { localStorage.setItem(`vtb:${VT.brand}:${x.dataset.bok}`, "1"); } catch {} if (VT.f === "day") VT.f = "all"; drawSales(); }));
+  box.querySelectorAll("[data-ck]").forEach((x) => (x.onchange = () => { const id = +x.dataset.ck; x.checked ? VT.sel.add(id) : VT.sel.delete(id); drawSales(); }));
+  if ($("vtAll")) $("vtAll").onchange = (e) => { box.querySelectorAll("[data-ck]:not(:disabled)").forEach((x) => (e.target.checked ? VT.sel.add(+x.dataset.ck) : VT.sel.delete(+x.dataset.ck))); drawSales(); };
+  box.querySelectorAll("[data-open]").forEach((x) => (x.onclick = (e) => { e.preventDefault(); const [acc, user] = x.dataset.open.split("|"); openConversation(acc, user); }));
+  // Fecha: se cambia ahí mismo
+  box.querySelectorAll("[data-date]").forEach((x) => (x.onclick = () => {
+    const s = d.sales.find((z) => z.id === +x.dataset.date);
+    const inp = document.createElement("input"); inp.type = "date"; inp.className = "vt-date-in"; inp.max = todayCcs(); inp.value = s.day;
+    x.replaceWith(inp); inp.focus(); try { inp.showPicker(); } catch {}
+    let busy = false;
+    inp.onchange = () => { if (busy || !inp.value || inp.value === s.day) return; busy = true; vtDo(() => api(`/api/sales/${s.id}`, { method: "PATCH", body: { date: inp.value } }), `Fecha cambiada a ${fmtD(inp.value)}`); };
+    inp.onkeydown = (e) => { if (e.key === "Escape") drawSales(); };
+  }));
+  // Anuncio
+  box.querySelectorAll("[data-ad]").forEach((x) => (x.onclick = () => {
+    const s = d.sales.find((z) => z.id === +x.dataset.ad);
+    const opts = [...d.ads]; if (s.ad_id && !opts.find((a) => a.id === s.ad_id)) opts.unshift({ id: s.ad_id, name: s.ad_name });
+    const dlg = vtDialog(`<div class="modal-h"><div><h2>¿De qué anuncio vino?</h2><p>${esc(s.who)} · ${vtMoney(s)}</p></div><button type="button" class="icon-btn" id="vdX" aria-label="Cerrar">${ICON.x}</button></div>
+      <div class="modal-b"><label class="f" for="vdAd">Anuncio</label><select id="vdAd"><option value="">Sin anuncio</option>${opts.map((a) => `<option value="${esc(a.id)}" ${a.id === s.ad_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>
+        <div class="help">Cambia en qué anuncio cuenta esta venta (ROAS, costo por pedido y ganancia).</div></div>
+      <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="vdNo">Cancelar</button><button type="button" class="btn primary" id="vdOk">Guardar</button></div></div>`);
+    $("vdX").onclick = $("vdNo").onclick = () => dlg.close();
+    $("vdOk").onclick = () => { dlg.close(); vtDo(() => api(`/api/sales/${s.id}`, { method: "PATCH", body: { ad_id: $("vdAd").value } }), "Anuncio cambiado"); };
+  }));
+  box.querySelectorAll("[data-merge]").forEach((x) => (x.onclick = () => { const [a, b] = x.dataset.merge.split("|"); vtDo(() => api("/api/sales/merge", { method: "POST", body: { a: +a, b: +b } }), "Juntadas en una sola venta"); }));
+  box.querySelectorAll("[data-nodup]").forEach((x) => (x.onclick = () => { const [a, b] = x.dataset.nodup.split("|"); vtDo(() => api("/api/sales/notdup", { method: "POST", body: { a: +a, b: +b } }), "Listo: quedan como dos ventas distintas"); }));
+  box.querySelectorAll("[data-split]").forEach((x) => (x.onclick = () => vtDo(() => api(`/api/sales/${x.dataset.split}/split`, { method: "POST" }), "Separadas otra vez")));
+  const del = async (ids) => {
+    const n = ids.length, store = ids.some((id) => (d.sales.find((s) => s.id === id) || {}).source === "store");
+    if (!(await confirmDel({ title: n === 1 ? "¿Quitar esta venta?" : `¿Quitar ${n} ventas?`, text: `Deja${n === 1 ? "" : "n"} de contar en tus números.${store ? " En tu tienda online no se borra nada." : ""}`, yes: "Sí, quitar" }))) return;
+    ids.forEach((id) => VT.sel.delete(id));
+    vtDo(() => api("/api/sales/bulk", { method: "POST", body: { ids, action: "delete" } }), n === 1 ? "Venta quitada" : `${n} ventas quitadas`);
+  };
+  box.querySelectorAll("[data-del]").forEach((x) => (x.onclick = () => del([+x.dataset.del])));
+  if ($("vtBClr")) $("vtBClr").onclick = () => { VT.sel.clear(); drawSales(); };
+  if ($("vtBDel")) $("vtBDel").onclick = () => del([...VT.sel]);
+  if ($("vtBNoad")) $("vtBNoad").onclick = () => { const ids = [...VT.sel]; vtDo(() => api("/api/sales/bulk", { method: "POST", body: { ids, action: "noad" } }), "Marcadas sin anuncio"); };
+  if ($("vtBDate")) $("vtBDate").onclick = () => {
+    const ids = [...VT.sel];
+    const dlg = vtDialog(`<div class="modal-h"><div><h2>Cambiar fecha · ${nf(ids.length)} venta${ids.length === 1 ? "" : "s"}</h2><p>Se mueven a ese día en Anuncios y en el resumen. El monto y el anuncio no cambian.</p></div><button type="button" class="icon-btn" id="vdX" aria-label="Cerrar">${ICON.x}</button></div>
+      <div class="modal-b"><label class="f" for="vdD">Fecha real del pedido</label><input id="vdD" type="date" max="${todayCcs()}" style="width:auto">
+        <div class="help">Si cada una es de un día distinto, toca la fecha en su fila para cambiarlas de una en una.</div><div id="vdOut" class="small" style="margin-top:6px"></div></div>
+      <div class="modal-f"><span></span><div class="row"><button type="button" class="btn" id="vdNo">Cancelar</button><button type="button" class="btn primary" id="vdOk">Guardar fechas</button></div></div>`);
+    $("vdX").onclick = $("vdNo").onclick = () => dlg.close();
+    $("vdOk").onclick = () => {
+      if (!$("vdD").value) { $("vdOut").innerHTML = `<span style="color:var(--bad)">Elige la fecha</span>`; return; }
+      const date = $("vdD").value; dlg.close(); VT.sel.clear(); if (VT.f === "day") VT.f = "all";
+      vtDo(() => api("/api/sales/bulk", { method: "POST", body: { ids, action: "date", date } }), `${nf(ids.length)} venta${ids.length === 1 ? "" : "s"} movida${ids.length === 1 ? "" : "s"} al ${fmtD(date)}`);
+    };
+  };
 }
 
 /* ================= CLIENTES (embudo) ================= */
@@ -5630,7 +5841,7 @@ async function renderAds(force, cached) {
         <div class="kpi"><div class="l">Gastado hoy</div><div class="v">${$$(L.today_spend)}</div><div class="s">${L.daily_budget ? `${Math.min(100, Math.round((L.today_spend / L.daily_budget) * 100))}% del presupuesto del día` : "hasta este momento"}</div></div>
       </div></div>` : ""}
     <div class="card srcbar"><div class="row" style="gap:8px;flex-wrap:wrap;min-width:0">${SL.has ? `<span class="small muted">Ventas de:</span>${srcChips}` : `<span class="small">Para ver <b>cuánto vendió de verdad cada anuncio</b>, conecta tu tienda en <a href="#integraciones">Integraciones</a> o marca los pagos en <a href="#conversaciones">Conversaciones</a>.</span>`}</div>
-      <div class="row" style="gap:10px;flex:none"><span class="small muted">${L ? "Cruzado " + esc(agoText(L.at)) : ""}</span><button class="btn small primary" id="adCross">${ICON.refresh} Cruzar con ventas</button></div></div>
+      <div class="row" style="gap:10px;flex:none"><span class="small muted">${L ? "Cruzado " + esc(agoText(L.at)) : ""}</span>${SL.has && viewOk("ventas") ? `<a class="btn small" href="#ventas">Revisar ventas</a>` : ""}<button class="btn small primary" id="adCross">${ICON.refresh} Cruzar con ventas</button></div></div>
     ${r.pro ? `<div class="ask ${ADS_PERIOD.ask.open ? "open" : ""}" id="adAsk"><button type="button" class="ask-h" id="askT">${NI.brain.replace("<svg", '<svg width="18" height="18"')} <b>Preguntarle a la IA sobre estos números</b><span class="muted">${ADS_PERIOD.ask.open ? "▴" : "▾"}</span></button>
       <div class="ask-b"><div class="ask-sug">${sugg.map((x) => `<button type="button" data-sug="${esc(x)}">${esc(x)}</button>`).join("")}</div>
         <div id="askLog">${ADS_PERIOD.ask.hist.map((h) => `<div class="${h.role === "user" ? "ask-q" : "ask-a"}">${esc(h.content)}</div>`).join("")}</div>
@@ -5644,7 +5855,7 @@ async function renderAds(force, cached) {
       <div class="kpi"><div class="l">ROAS · por cada $1, vendes</div><div class="v">${SL.roas != null ? $$(SL.roas) : "—"}</div><div class="s">${SL.roas != null ? `<b style="color:var(--ink)">ROAS ${roasF(SL.roas)}</b> ` : ""}${dl(SL.roas, SP.roas)}${t.roas != null ? ` · Meta dice ${roasF(t.roas)}` : ""}</div></div>
       <div class="kpi"><div class="l">Te cuesta cada clic</div><div class="v">${r.cpc != null ? $$(r.cpc) : "—"}</div><div class="s">${dl(r.cpc, r.cpc_prev, true)} · CPC</div></div>
       <div class="kpi"><div class="l">Ganancia</div><div class="v">${SL.profit != null ? $$(SL.profit) : "—"}</div><div class="s">${SL.margin != null ? `con tu margen de ${SL.margin}%<span class="msep"> · </span>` : ""}${can("tienda") ? `<button class="linkbtn" id="adMargin" style="color:var(--accent);font-weight:600;margin:0">${SL.margin != null ? "cambiar" : "pon tu margen"}</button>` : ""}</div></div>
-      <div class="kpi"><div class="l">Ventas sin anuncio</div><div class="v">${$$(SL.no_ad)}</div><div class="s">${nf(SL.no_ad_n)} · orgánico y clientes fijos</div></div>
+      <div class="kpi"><div class="l">Ventas sin anuncio</div><div class="v">${$$(SL.no_ad)}</div><div class="s">${nf(SL.no_ad_n)} · orgánico y clientes fijos${viewOk("ventas") ? ` · <a href="#ventas" style="font-weight:600">revisar</a>` : ""}</div></div>
     </div>` : `<div class="kpis">
       <div class="kpi"><div class="l">Gastado</div><div class="v">${$$(t.spend)}</div><div class="s">${dl(t.spend, p && p.spend, false, true)}${vsShort}</div></div>
       <div class="kpi"><div class="l">Conversaciones</div><div class="v">${nf(t.chats)}</div><div class="s">${dl(t.chats, p && p.chats)}</div></div>
