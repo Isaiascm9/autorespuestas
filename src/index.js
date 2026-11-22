@@ -2845,26 +2845,39 @@ async function api(req, env, url) {
       const b = await getBrand(env, bid);
       if (!b) return json({ error: "Tienda no encontrada" }, 404);
       if (u.role !== "maestro" && !feat(b, "crm")) throw lockedErr("crm");
-      const days = Math.max(1, Math.min(365, parseInt(url.searchParams.get("days"), 10) || 30));
-      const since = new Date(Date.now() - days * DAY).toISOString();
-      let sql = `SELECT account_id, user_id, platform, username, name, last_message, last_at, first_at, last_dm_at, ad_id, ad_title, assigned_to, pay_state, pay_amount,
-        stage, stage_at, stage_manual, intent, lost_reason, lost_note, tags, messages, paused FROM contacts WHERE brand_id = ? AND last_dm_at IS NOT NULL AND last_at >= ?`;
-      const binds = [b.id, since];
+      // Periodo: desde/hasta (días de Caracas); «days» queda por compatibilidad
+      const okDay = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x || "") ? x : null);
+      const days = Math.max(1, Math.min(366, parseInt(url.searchParams.get("days"), 10) || 30));
+      const to = okDay(url.searchParams.get("to")) || caracasToday(), from = okDay(url.searchParams.get("from")) || addDays(to, -(days - 1));
+      const since = caracasDayStartIso(from), until = new Date(Math.min(Date.parse(`${to}T23:59:59.999-04:00`), Date.now() + 60e3)).toISOString();
+      const flt = { sql: "", binds: [] };
       const pf = url.searchParams.get("platform"), ad = url.searchParams.get("ad");
-      if (["instagram", "facebook"].includes(pf)) { sql += " AND platform = ?"; binds.push(pf); }
-      if (ad === "any") sql += " AND ad_id IS NOT NULL"; else if (ad) { sql += " AND ad_id = ?"; binds.push(ad); }
-      if (url.searchParams.get("mine") === "1") { sql += " AND assigned_to = ?"; binds.push(u.id); }
-      const { results } = await env.DB.prepare(sql + " ORDER BY last_at DESC LIMIT 1500").bind(...binds).all();
+      if (["instagram", "facebook"].includes(pf)) { flt.sql += " AND platform = ?"; flt.binds.push(pf); }
+      if (ad === "any") flt.sql += " AND ad_id IS NOT NULL"; else if (ad) { flt.sql += " AND ad_id = ?"; flt.binds.push(ad); }
+      if (url.searchParams.get("mine") === "1") { flt.sql += " AND assigned_to = ?"; flt.binds.push(u.id); }
+      // Gente con actividad en el periodo (entró antes de que terminara y escribió después de que empezara)
+      const { results } = await env.DB.prepare(`SELECT account_id, user_id, platform, username, name, last_message, last_at, first_at, last_dm_at, ad_id, ad_title, assigned_to, pay_state, pay_amount,
+        stage, stage_at, stage_manual, intent, lost_reason, lost_note, tags, messages, paused FROM contacts WHERE brand_id = ? AND last_dm_at IS NOT NULL AND last_at >= ? AND (first_at IS NULL OR first_at <= ?)${flt.sql}
+        ORDER BY last_at DESC LIMIT 1500`).bind(b.id, since, until, ...flt.binds).all();
       const lostDays = b.opts.crm.lost_days;
       const cards = results.map((c) => ({ ...c, stage: stageGuess(c, lostDays), guessed: !c.stage, tags: parseJson(c.tags, []) }));
-      // Números del periodo: de la gente nueva, cuántos llegaron a cada etapa
-      const { results: log } = await env.DB.prepare("SELECT account_id, user_id, stage, at FROM stage_log WHERE brand_id = ? AND at >= ?").bind(b.id, since).all();
-      const reached = {}, paidAt = {};
-      for (const x of log) { const k = x.account_id + "|" + x.user_id; reached[k] = Math.max(reached[k] ?? -1, STAGE_RANK[x.stage] ?? -1); if (x.stage === "cliente" && !paidAt[k]) paidAt[k] = x.at; }
-      const fresh = cards.filter((c) => c.first_at && c.first_at >= since);
-      const top = (c) => Math.max(reached[c.account_id + "|" + c.user_id] ?? -1, STAGE_RANK[c.stage] ?? -1);
-      const offer = fresh.filter((c) => top(c) >= 2).length, bought = fresh.filter((c) => top(c) >= 4).length;
-      const waits = fresh.map((c) => paidAt[c.account_id + "|" + c.user_id] && (Date.parse(paidAt[c.account_id + "|" + c.user_id]) - Date.parse(c.first_at)) / DAY).filter((x) => x > 0);
+      // Números del periodo: de la gente que entró en esas fechas, cuántos llegaron a cada etapa
+      const crmNums = async (s0, s1) => {
+        const { results: ppl } = await env.DB.prepare(`SELECT account_id, user_id, first_at, stage, stage_at, last_at, last_dm_at, pay_state, paused, messages FROM contacts
+          WHERE brand_id = ? AND last_dm_at IS NOT NULL AND first_at >= ? AND first_at <= ?${flt.sql} LIMIT 5000`).bind(b.id, s0, s1, ...flt.binds).all();
+        const { results: log } = await env.DB.prepare("SELECT account_id, user_id, stage, at FROM stage_log WHERE brand_id = ? AND at >= ? AND at <= ?").bind(b.id, s0, s1).all();
+        const reached = {}, paidAt = {};
+        for (const x of log) { const k = x.account_id + "|" + x.user_id; reached[k] = Math.max(reached[k] ?? -1, STAGE_RANK[x.stage] ?? -1); if (x.stage === "cliente" && !paidAt[k]) paidAt[k] = x.at; }
+        // La etapa de hoy cuenta solo si la alcanzó dentro del periodo
+        const top = (c) => Math.max(reached[c.account_id + "|" + c.user_id] ?? -1, !c.stage_at || c.stage_at <= s1 ? STAGE_RANK[c.stage || stageGuess(c, lostDays)] ?? -1 : -1);
+        const offer = ppl.filter((c) => top(c) >= 2).length, bought = ppl.filter((c) => top(c) >= 4).length;
+        const waits = ppl.map((c) => paidAt[c.account_id + "|" + c.user_id] && (Date.parse(paidAt[c.account_id + "|" + c.user_id]) - Date.parse(c.first_at)) / DAY).filter((x) => x > 0);
+        return { fresh: ppl.length, offer, bought, days_to_buy: waits.length ? Math.round((waits.reduce((a, x) => a + x, 0) / waits.length) * 10) / 10 : null };
+      };
+      const nums = await crmNums(since, until);
+      let prev = null;
+      const cmp = url.searchParams.get("cmp");
+      if (cmp === "prev" || cmp === "month") { const cp = comparePeriod(from, to, cmp); prev = { from: cp.from, to: cp.to, mode: cmp, ...(await crmNums(caracasDayStartIso(cp.from), new Date(Date.parse(`${cp.to}T23:59:59.999-04:00`)).toISOString())) }; }
       const open = ["nuevo", "interesado", "oferta", "compromiso"].map((k) => [k, cards.filter((c) => c.stage === k).length]).sort((x, y) => y[1] - x[1])[0];
       const lost = {};
       for (const c of cards) if (c.stage === "perdido") lost[c.lost_reason || "sin_dato"] = (lost[c.lost_reason || "sin_dato"] || 0) + 1;
@@ -2874,7 +2887,7 @@ async function api(req, env, url) {
       team.maestro = (await getConfig(env)).maestroName || "Maestro";
       return json({ stages: stageInfo(b), mode: crmMode(b), lost_days: lostDays, cards, team, ads: Object.entries(ads).map(([id, name]) => ({ id, name })),
         lost: Object.entries(lost).map(([k, n]) => ({ k, label: LOST_REASONS[k] || "Sin dato", n })).sort((x, y) => y.n - x.n),
-        kpis: { fresh: fresh.length, offer, bought, stuck: open && open[1] ? { k: open[0], n: open[1] } : null, days_to_buy: waits.length ? Math.round((waits.reduce((a, x) => a + x, 0) / waits.length) * 10) / 10 : null } });
+        from, to, prev, kpis: { ...nums, stuck: open && open[1] ? { k: open[0], n: open[1] } : null } });
     }
     if (p === "/api/crm/stage" && m === "PATCH") {
       const x = await body();
@@ -3180,7 +3193,18 @@ async function api(req, env, url) {
     const fx = await fxRate(env).catch(() => null);
     const profit = { margin: brand.ads && brand.ads.margin != null ? brand.ads.margin : null, spend, spend_error: spendError, ads: !!(brand.ads && brand.ads.account && brand.ads.token),
       fx: fx && fx.usd ? { usd: fx.usd, fecha: fx.fecha, stale: !!fx.stale } : null };
-    return json({ from, to, profit, sales: shown.map((r) => ({ ...saleRowOut(r, adNames), out: !inR(r) })), pairs, bursts, stores: stList,
+    // Periodo para comparar (anterior o mes anterior): totales por anuncio/sin anuncio y moneda, y lo invertido
+    let prev = null;
+    const cmp = url.searchParams.get("cmp");
+    if (cmp === "prev" || cmp === "month") {
+      const cp = comparePeriod(from, to, cmp);
+      const { results: pr } = await env.DB.prepare(`SELECT ad_id IS NOT NULL AS ad, currency, COUNT(*) AS n, SUM(amount) AS total FROM sales WHERE brand_id = ? AND status = 'paid' AND at >= ? AND at <= ? GROUP BY ad_id IS NOT NULL, currency`)
+        .bind(brandId, caracasDayStartIso(cp.from), new Date(Date.parse(`${cp.to}T23:59:59.999-04:00`)).toISOString()).all();
+      let pSpend = null;
+      if (profit.ads) { try { const ad = await adsFetch(env, brand, cp.from, cp.to, false); pSpend = Math.round(sumM(ad.ads).spend * 100) / 100; } catch {} }
+      prev = { from: cp.from, to: cp.to, mode: cmp, rows: pr.map((r) => ({ ad: !!r.ad, currency: r.currency, n: r.n, total: Math.round((r.total || 0) * 100) / 100 })), spend: pSpend };
+    }
+    return json({ from, to, profit, prev, sales: shown.map((r) => ({ ...saleRowOut(r, adNames), out: !inR(r) })), pairs, bursts, stores: stList,
       ads: Object.entries(adNames).map(([id, name]) => ({ id, name })), can_edit: can(u, "conversaciones") || can(u, "anuncios") });
   }
   mm = p.match(/^\/api\/sales\/(\d+)$/);
