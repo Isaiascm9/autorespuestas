@@ -605,6 +605,7 @@ a.btn.primary{color:#fff}
 .ficha .tag button{border:0;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .ficha .tags input{width:110px;padding:3px 8px;font-size:12.5px;border-radius:99px}
 /* ventas */
+.kd{font-size:12.5px;font-weight:600;margin-top:6px;color:var(--muted)}.kd.up{color:var(--ok)}.kd.dn{color:var(--bad)}.kd span{color:var(--muted);font-weight:400}
 .vt-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:0 0 12px}
 .vt-warn{background:var(--warn-soft);border:1px solid var(--warn-line);color:var(--warn-ink);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px}
 .vt-warn .row{gap:6px;flex:none}
@@ -4354,8 +4355,23 @@ function renderHelp() {
   $("tabBody").innerHTML = block("General", faq) + block("Ventas", ventas) + block("Clientes (embudo)", crm) + block("Precios en bolívares", fx) + block("Agenda de citas", agenda);
 }
 
+/* ---------- periodo con comparación (Ventas y Clientes) ---------- */
+function rangeState(k) { if (!S[k]) { const p = presets().find((x) => x[0] === "last30")[2]; S[k] = { from: p.from, to: p.to, preset: "last30", cmp: "prev" }; } return S[k]; }
+const rangeBtn = (id, R) => `<div class="dp-wrap r"><button class="btn dp-btn" id="${id}" aria-haspopup="dialog" aria-expanded="false">${ICON.cal}<span>${esc(periodName(R))}</span>${R.cmp !== "none" ? `<span class="pill gray" style="font-size:11px">vs. ${R.cmp === "month" ? "mes anterior" : "periodo anterior"}</span>` : ""}<span aria-hidden="true">▾</span></button></div>`;
+function bindRange(id, R, onApply) { const b = $(id); if (b) b.onclick = () => { if (document.querySelector(".dp-pop")) return; openDatePicker(b, (x) => { Object.assign(R, x); onApply(); }, R); }; }
+/** Línea «↑ 18% vs. $224,10» debajo de una tarjeta. lower: true cuando bajar es bueno (ej. días hasta comprar). */
+function kDelta(cur, prev, { fmt = nf, lower = false, when = "" } = {}) {
+  if (prev == null || cur == null || (!cur && !prev)) return "";
+  const vs = `<span title="${esc(when)}">vs. ${fmt(prev)}</span>`;
+  if (!prev) return `<div class="kd ${lower ? "dn" : "up"}">nuevo ${vs}</div>`;
+  const pct = Math.round(((cur - prev) / Math.abs(prev)) * 100);
+  if (!pct) return `<div class="kd">= ${vs}</div>`;
+  return `<div class="kd ${(lower ? pct < 0 : pct > 0) ? "up" : "dn"}">${pct > 0 ? "↑" : "↓"} ${Math.abs(pct)}% ${vs}</div>`;
+}
+const prevWhen = (p) => (p ? `${p.mode === "month" ? "Mes anterior" : "Periodo anterior"}: ${rangeLabel(p.from, p.to)}` : "");
+
 /* ================= VENTAS ================= */
-const VT = { days: 30, f: "all", q: "", day: "", sel: new Set(), d: null, brand: null };
+const VT = { f: "all", q: "", day: "", sel: new Set(), d: null, brand: null };
 const vtMoney = (s) => (s.currency === "VES" ? "Bs " : s.currency && s.currency !== "USD" ? s.currency + " " : "$") + Number(s.amount || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const vtAdd = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const vtMethod = (k) => (PAY_METHODS.find((x) => x[0] === k) || [k, k])[1];
@@ -4365,19 +4381,19 @@ async function renderSales() {
   const b = curBrand();
   shell({ title: "Ventas", sub: "Todas las ventas que cuentan en tus números: las de tu tienda online y los pagos marcados en el chat. Aquí les corriges la fecha, juntas las que están dobles o las quitas.", base: "ventas",
     head: `<div class="row" style="gap:8px"><div class="search" style="min-width:190px">${ICON.search}<input id="vtQ" type="search" placeholder="Buscar cliente o monto…" value="${esc(VT.q)}"></div>
-      <select id="vtDays" style="width:auto">${[[7, "Últimos 7 días"], [30, "Últimos 30 días"], [90, "Últimos 90 días"], [365, "Último año"]].map(([v, l]) => `<option value="${v}" ${VT.days === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` });
+      ${rangeBtn("vtRange", rangeState("salesR"))}</div>` });
   const box = $("tabBody");
   if (!b) { box.innerHTML = `<div class="card empty">Primero crea una tienda.</div>`; return; }
   if (VT.brand !== b.id) { VT.sel.clear(); VT.f = "all"; VT.day = ""; VT.d = null; }
-  $("vtDays").onchange = (e) => { VT.days = +e.target.value; VT.sel.clear(); if (VT.f === "day") VT.f = "all"; loadSales(); };
+  bindRange("vtRange", rangeState("salesR"), () => { VT.sel.clear(); if (VT.f === "day") VT.f = "all"; renderSales(); });
   $("vtQ").oninput = (e) => { VT.q = e.target.value; drawSales(); };
   if (!VT.d) box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
   loadSales();
 }
 async function loadSales() {
   const b = curBrand(), box = $("tabBody"); if (!b || !box) return;
-  const to = todayCcs(), from = vtAdd(to, -(VT.days - 1));
-  let d; try { d = await api(`/api/sales?${new URLSearchParams({ brand: b.id, from, to })}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
+  const R = rangeState("salesR");
+  let d; try { d = await api(`/api/sales?${new URLSearchParams({ brand: b.id, from: R.from, to: R.to, cmp: R.cmp || "none" })}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
   if (S.view !== "ventas" || curBrand() !== b) return;
   VT.d = d; VT.brand = b.id;
   const ids = new Set(d.sales.map((x) => x.id)); for (const x of [...VT.sel]) if (!ids.has(x)) VT.sel.delete(x);
@@ -4397,6 +4413,11 @@ function drawSales() {
   const sum = (l) => l.reduce((t, s) => t + usd(s), 0);
   const ves = paid.filter((s) => s.currency === "VES"), vesBs = ves.reduce((t, s) => t + s.amount, 0);
   const sgn = (n) => (n < 0 ? "−" + money(-n) : money(n));
+  // Lo mismo del periodo que se compara
+  const PV = d.prev, pvU = (rows) => rows.reduce((t, r) => t + (r.currency === "USD" ? r.total : r.currency === "VES" && rate ? r.total / rate : 0), 0);
+  const pv = PV ? { ad: pvU(PV.rows.filter((r) => r.ad)), no: pvU(PV.rows.filter((r) => !r.ad)) } : null;
+  if (pv) { pv.sold = pv.ad + pv.no; pv.profit = P.margin != null ? (pv.ad * P.margin) / 100 - (PV.spend || 0) + (pv.no * P.margin) / 100 : null; }
+  const when = prevWhen(PV);
   const C = { all: paid.length, store: paid.filter((s) => s.source === "store").length, chat: paid.filter((s) => s.source === "chat").length, ad: paid.filter((s) => s.ad_id).length, noad: paid.filter((s) => !s.ad_id).length, dup: d.pairs.length };
   const chip = (k, l) => `<button type="button" class="crm-chip ${VT.f === k ? "on" : ""}" data-vf="${k}" ${k === "dup" && C.dup ? 'style="border-color:#f59e0b;color:#92400e"' : ""}>${l} · ${nf(C[k])}</button>`;
   const storeName = d.stores.length === 1 ? d.stores[0].name : "Tienda online";
@@ -4442,9 +4463,9 @@ function drawSales() {
   const allSel = list.length && list.filter((s) => s.status === "paid").every((s) => VT.sel.has(s.id));
   box.innerHTML = `<div class="card">
     <div class="kpis vt-kpis">
-      <div class="kpi"><div class="l">Vendido</div><div class="v">${money(sum(paid))}</div><div class="s">${nf(paid.length)} pedido${paid.length === 1 ? "" : "s"} · ${fmtD(d.from)}–${fmtD(d.to)}${ves.length ? `<br>${rate ? `incluye Bs ${vesBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })} ≈ ${money(vesBs / rate)} a tasa BCV${P.fx.fecha ? " del " + esc(String(P.fx.fecha).slice(0, 5)) : ""}` : `Bs ${vesBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })} sin convertir (no hay tasa)`}` : ""}</div></div>
-      <div class="kpi"><div class="l">Por anuncios</div><div class="v">${money(sum(paid.filter((s) => s.ad_id)))}</div><div class="s">${nf(C.ad)} pedido${C.ad === 1 ? "" : "s"}</div></div>
-      <div class="kpi"><div class="l">Sin anuncio</div><div class="v">${money(sum(paid.filter((s) => !s.ad_id)))}</div><div class="s">${nf(C.noad)} pedido${C.noad === 1 ? "" : "s"}</div></div>
+      <div class="kpi"><div class="l">Vendido</div><div class="v">${money(sum(paid))}</div><div class="s">${nf(paid.length)} pedido${paid.length === 1 ? "" : "s"} · ${fmtD(d.from)}–${fmtD(d.to)}${ves.length ? `<br>${rate ? `incluye Bs ${vesBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })} ≈ ${money(vesBs / rate)} a tasa BCV${P.fx.fecha ? " del " + esc(String(P.fx.fecha).slice(0, 5)) : ""}` : `Bs ${vesBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })} sin convertir (no hay tasa)`}` : ""}</div>${pv ? kDelta(sum(paid), pv.sold, { fmt: money, when }) : ""}</div>
+      <div class="kpi"><div class="l">Por anuncios</div><div class="v">${money(sum(paid.filter((s) => s.ad_id)))}</div><div class="s">${nf(C.ad)} pedido${C.ad === 1 ? "" : "s"}</div>${pv ? kDelta(sum(paid.filter((s) => s.ad_id)), pv.ad, { fmt: money, when }) : ""}</div>
+      <div class="kpi"><div class="l">Sin anuncio</div><div class="v">${money(sum(paid.filter((s) => !s.ad_id)))}</div><div class="s">${nf(C.noad)} pedido${C.noad === 1 ? "" : "s"}</div>${pv ? kDelta(sum(paid.filter((s) => !s.ad_id)), pv.no, { fmt: money, when }) : ""}</div>
       ${(() => {
         const m = P.margin, adS = sum(paid.filter((s) => s.ad_id)), noS = sum(paid.filter((s) => !s.ad_id)), sp = P.spend || 0;
         const mBtn = (t) => can("tienda") ? `<button class="linkbtn" id="vtMargin" style="color:var(--accent);font-weight:600;margin:0">${t}</button>` : t;
@@ -4452,7 +4473,7 @@ function drawSales() {
         const pa = adS * m / 100 - sp, pn = noS * m / 100, tot = pa + pn;
         const pub = P.spend != null ? `− ${money(sp)} en anuncios` : P.spend_error ? `<span title="${esc(P.spend_error)}">sin el gasto de Meta</span>` : P.ads ? "" : "sin cuenta de Meta: no se resta publicidad";
         return `<div class="kpi"><div class="l">Ganancia</div><div class="v" style="color:${tot < 0 ? "var(--bad)" : "var(--ok)"}">${sgn(tot)}</div>
-          <div class="s">Anuncios <b style="color:var(--ink)">${sgn(pa)}</b> · Sin anuncio <b style="color:var(--ink)">${sgn(pn)}</b><br>${mBtn(`margen ${m}%`)} ${pub}</div></div>`;
+          <div class="s">Anuncios <b style="color:var(--ink)">${sgn(pa)}</b> · Sin anuncio <b style="color:var(--ink)">${sgn(pn)}</b><br>${mBtn(`margen ${m}%`)} ${pub}</div>${pv && pv.profit != null ? kDelta(tot, pv.profit, { fmt: sgn, when }) : ""}</div>`;
       })()}</div>
     ${bursts.map((x) => `<div class="vt-warn"><div><b>${nf(x.n)} ventas de ${esc(storeName)} quedaron el mismo día (${fmtD(x.day)}).</b> ¿Son pedidos viejos que cargaste tarde? Selecciónalas y ponles su fecha real.</div>
       <div class="row"><button class="btn small" data-burst="${x.day}">Ver esas ${nf(x.n)}</button><button class="btn small" data-bok="${x.day}">Están bien</button></div></div>`).join("")}
@@ -4562,7 +4583,7 @@ function bindSales() {
 }
 
 /* ================= CLIENTES (embudo) ================= */
-const CRM = { f: { days: 30, pf: "", ad: "", mine: false, q: "" }, d: null, brand: null, mob: "interesado" };
+const CRM = { f: { pf: "", ad: "", mine: false, q: "" }, d: null, brand: null, mob: "interesado" };
 const STG_COLOR = { nuevo: "#9ca3af", interesado: "#60a5fa", oferta: "#818cf8", compromiso: "#f59e0b", cliente: "#16a34a", perdido: "#ef4444" };
 const STG_ORDER = ["nuevo", "interesado", "oferta", "compromiso", "cliente", "perdido"];
 const INTENT = { alta: ["🔥 Alta", "bad"], media: ["Media", "warn"], baja: ["Baja", "gray"] };
@@ -4576,30 +4597,31 @@ async function renderCrm(tab) {
   shell({ title: "Clientes", sub: "En qué etapa está cada persona. El bot las mueve solo; tú puedes arrastrarlas.", base: "embudo",
     tabs: ok ? [["embudo", "Embudo"], ["lista", "Lista"], ["etapas", "Etapas"]] : [], active: t,
     head: ok && t !== "etapas" ? `<div class="row" style="gap:8px"><div class="search" style="min-width:200px">${ICON.search}<input id="crmQ" type="search" placeholder="Buscar persona…" value="${esc(CRM.f.q)}"></div>
-      <select id="crmDays" style="width:auto">${[[7, "Últimos 7 días"], [30, "Últimos 30 días"], [90, "Últimos 90 días"], [365, "Último año"]].map(([v, l]) => `<option value="${v}" ${CRM.f.days === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : "" });
+      ${rangeBtn("crmRange", rangeState("crmR"))}</div>` : "" });
   const box = $("tabBody");
   if (!b) { box.innerHTML = `<div class="card empty">Primero crea una tienda.</div>`; return; }
   if (!ok) { box.innerHTML = lockCard("crm", "Embudo de clientes", "Ve en qué etapa está cada persona (nuevo, interesado, link enviado, pagó o se perdió) y por qué se pierden. El bot las mueve solo."); return; }
   if (t === "etapas") return drawCrmStages(b);
   box.innerHTML = `<div class="card"><div class="empty">Cargando…</div></div>`;
-  const qs = new URLSearchParams({ brand: b.id, days: CRM.f.days, ...(CRM.f.pf ? { platform: CRM.f.pf } : {}), ...(CRM.f.ad ? { ad: CRM.f.ad } : {}), ...(CRM.f.mine ? { mine: "1" } : {}) });
+  const CR = rangeState("crmR");
+  const qs = new URLSearchParams({ brand: b.id, from: CR.from, to: CR.to, cmp: CR.cmp || "none", ...(CRM.f.pf ? { platform: CRM.f.pf } : {}), ...(CRM.f.ad ? { ad: CRM.f.ad } : {}), ...(CRM.f.mine ? { mine: "1" } : {}) });
   let d; try { d = await api(`/api/crm?${qs}`); } catch (e) { box.innerHTML = `<div class="alert">${esc(e.message)}</div>`; return; }
   if (!$("tabBody") || curBrand() !== b) return;
   CRM.d = d; CRM.brand = b.id;
-  $("crmDays").onchange = (e) => { CRM.f.days = +e.target.value; renderCrm(t); };
+  bindRange("crmRange", CR, () => renderCrm(t));
   $("crmQ").oninput = (e) => { CRM.f.q = e.target.value; t === "lista" ? drawCrmList() : drawCrmBoard(); };
   t === "lista" ? drawCrmList() : drawCrmBoard();
 }
 const crmCards = () => { const q = normalize(CRM.f.q || ""); return CRM.d.cards.filter((c) => !q || normalize([c.name, c.username, c.last_message, c.ad_title].join(" ")).includes(q)); };
 function crmTop() {
-  const d = CRM.d, k = d.kpis, pct = (n) => (k.fresh ? `<small>${Math.round((n / k.fresh) * 100)} %</small>` : "");
+  const d = CRM.d, k = d.kpis, P = d.prev, when = prevWhen(P), dTxt = (x) => (x == null ? "—" : x < 1 ? "< 1 día" : String(x).replace(".", ",") + " días"), pct = (n) => (k.fresh ? `<small>${Math.round((n / k.fresh) * 100)} %</small>` : "");
   const chip = (key, label, on) => `<button type="button" class="crm-chip ${on ? "on" : ""}" data-fk="${key}">${label}</button>`;
   return `<div class="kpis crm-kpis">
-      <div class="kpi"><div class="l">Personas nuevas</div><div class="v">${nf(k.fresh)}</div></div>
-      <div class="kpi"><div class="l">Llegaron a ${esc(crmLabel("oferta").toLowerCase())}</div><div class="v">${nf(k.offer)} ${pct(k.offer)}</div></div>
-      <div class="kpi"><div class="l">${d.mode === "citas" ? "Asistieron" : "Compraron"}</div><div class="v">${nf(k.bought)} ${pct(k.bought)}</div></div>
+      <div class="kpi"><div class="l">Personas nuevas</div><div class="v">${nf(k.fresh)}</div>${kDelta(k.fresh, P && P.fresh, { when })}</div>
+      <div class="kpi"><div class="l">Llegaron a ${esc(crmLabel("oferta").toLowerCase())}</div><div class="v">${nf(k.offer)} ${pct(k.offer)}</div>${kDelta(k.offer, P && P.offer, { when })}</div>
+      <div class="kpi"><div class="l">${d.mode === "citas" ? "Asistieron" : "Compraron"}</div><div class="v">${nf(k.bought)} ${pct(k.bought)}</div>${kDelta(k.bought, P && P.bought, { when })}</div>
       <div class="kpi"><div class="l">Se quedan en</div><div class="v" style="font-size:17px;color:#b45309">${k.stuck ? `${esc(crmLabel(k.stuck.k))} (${nf(k.stuck.n)})` : "—"}</div></div>
-      <div class="kpi"><div class="l">Tiempo hasta ${d.mode === "citas" ? "asistir" : "comprar"}</div><div class="v">${k.days_to_buy == null ? "—" : k.days_to_buy < 1 ? "< 1 día" : String(k.days_to_buy).replace(".", ",") + " días"}</div></div></div>
+      <div class="kpi"><div class="l">Tiempo hasta ${d.mode === "citas" ? "asistir" : "comprar"}</div><div class="v">${dTxt(k.days_to_buy)}</div>${kDelta(k.days_to_buy, P && P.days_to_buy, { lower: true, fmt: dTxt, when })}</div></div>
     <div class="crm-flt">${chip("all", "Todos", !CRM.f.pf && !CRM.f.ad && !CRM.f.mine)}${chip("instagram", "Instagram", CRM.f.pf === "instagram")}${chip("facebook", "Facebook", CRM.f.pf === "facebook")}${chip("any", "Vienen de anuncio", CRM.f.ad === "any")}${chip("mine", "Asignados a mí", CRM.f.mine)}
       ${d.ads.length ? `<select id="crmAd" style="width:auto;max-width:260px"><option value="">Anuncio: todos</option>${d.ads.map((a) => `<option value="${esc(a.id)}" ${CRM.f.ad === a.id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>` : ""}</div>`;
 }
